@@ -1,8 +1,11 @@
 """Настройки приложения из переменных окружения."""
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -17,9 +20,12 @@ class Settings(BaseSettings):
     invite_ttl_hours: int = 72
     login_rate_limit: int = 5
     login_rate_window_sec: int = 15 * 60
-    # Первый администратор сервиса (создаётся при старте, если ещё нет)
     bootstrap_admin_email: str = ""
     bootstrap_admin_password: str = ""
+    files_root: str = str(_REPO_ROOT / "files")
+    templates_dir: str = str(_REPO_ROOT / "core" / "Шаблоны")
+    gotenberg_url: str = "http://127.0.0.1:3000"
+    core_path: str = str(_REPO_ROOT / "core")
 
 
 @lru_cache

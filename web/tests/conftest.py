@@ -18,6 +18,7 @@ os.environ["SECRET_KEY"] = "test-secret-key-w01"
 os.environ["DB_URL"] = "sqlite+pysqlite:////tmp/dok_moscow_test.db"
 os.environ["BOOTSTRAP_ADMIN_EMAIL"] = "admin@dok.moscow"
 os.environ["BOOTSTRAP_ADMIN_PASSWORD"] = "AdminPass123!"
+os.environ["FILES_ROOT"] = "/tmp/dok_files_test"
 
 from app.config import get_settings  # noqa: E402
 from app.db import Base, SessionLocal, engine  # noqa: E402
@@ -35,6 +36,7 @@ def app(tmp_path):
     os.environ["SECRET_KEY"] = "test-secret-key-w01"
     os.environ["BOOTSTRAP_ADMIN_EMAIL"] = "admin@dok.moscow"
     os.environ["BOOTSTRAP_ADMIN_PASSWORD"] = "AdminPass123!"
+    os.environ["FILES_ROOT"] = str(tmp_path / "files")
     get_settings.cache_clear()
 
     # пересоздать engine на новый файл

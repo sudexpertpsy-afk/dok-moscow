@@ -316,12 +316,17 @@ def load_settings():
     try:
         with path.open(encoding='utf-8') as f:
             data = yaml.safe_load(f) or {}
-        merged = _deep_merge(DEFAULTS, data)
-        return _to_attrdict(merged)
+        return settings_from_dict(data)
     except Exception:
         # Не прокидываем исключение наверх — пусть документ сгенерируется
         # хотя бы с дефолтами. GUI отдельно покажет предупреждение.
         return _to_attrdict(DEFAULTS)
+
+
+def settings_from_dict(data):
+    """Словарь реквизитов организации (как JSONB) → объект «настройки» для шаблонов."""
+    merged = _deep_merge(DEFAULTS, data or {})
+    return _to_attrdict(merged)
 
 
 def load_settings_with_error():

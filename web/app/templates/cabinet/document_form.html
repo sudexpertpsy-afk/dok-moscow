@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ template_name }} — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">{{ app_name }}</div>
+    <div class="org">{{ org.name }}</div>
+    <nav class="nav">
+      {% for key, label, href in nav %}
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <main class="content">
+    <div class="topbar">
+      <span>{{ user.email }}</span>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+    <section class="panel">
+      <h1>{{ template_name }}</h1>
+      <p class="muted">Пустое поле номера («номер_договора» и др.) — взять следующий из счётчика.</p>
+      {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+      <form method="post" action="/cabinet/documents/new/{{ template_name }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% for var in variables %}
+          <label for="f_{{ loop.index }}">{{ var }}</label>
+          <input id="f_{{ loop.index }}" name="{{ var }}" value="{{ values.get(var, '') }}">
+        {% endfor %}
+        <div class="actions">
+          <button type="submit">Сгенерировать DOCX</button>
+          <a class="btn secondary" href="/cabinet/documents/">К списку</a>
+        </div>
+      </form>
+    </section>
+  </main>
+</div>
+{% endblock %}

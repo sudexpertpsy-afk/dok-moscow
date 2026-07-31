@@ -41,10 +41,11 @@ def _declensions_from_settings(settings):
     return result
 
 
-def list_template_variables(template_path):
+def list_template_variables(template_path, settings=None):
     """Вернуть отсортированный список переменных, найденных в шаблоне."""
     env = Environment()
-    settings = load_settings()
+    if settings is None:
+        settings = load_settings()
     filters.install(env, declensions=_declensions_from_settings(settings))
     doc = DocxTemplate(str(template_path))
     variables = doc.get_undeclared_template_variables(env)
@@ -286,16 +287,22 @@ def _sanitize_docx_value(value):
     return xml_escape(text)
 
 
-def fill_template(template_path, output_path, context):
+def fill_template(template_path, output_path, context, settings=None):
     """
     Заполнить шаблон данными и сохранить результат.
 
     template_path — путь к .docx-шаблону с метками {{ переменная }}.
     output_path   — куда сохранить готовый документ.
     context       — словарь {имя_переменной: значение}.
+    settings      — словарь/объект настроек организации (веб); иначе load_settings().
     """
     env = Environment()
-    settings = load_settings()
+    if settings is None:
+        settings = load_settings()
+    elif isinstance(settings, dict):
+        from .config import settings_from_dict
+
+        settings = settings_from_dict(settings)
     filters.install(env, declensions=_declensions_from_settings(settings))
 
     doc = DocxTemplate(str(template_path))
