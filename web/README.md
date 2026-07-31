@@ -30,4 +30,5 @@ cd web && PYTHONPATH=. pytest tests -q
 - W-02 — схема PostgreSQL + Alembic + изоляция org_id
 - W-03 — генерация DOCX (ядро), счётчики FOR UPDATE, PDF через Gotenberg
 - W-04 — мастер комплектов (ФЛ/ЮЛ/ГПД, ZIP/PDF, повтор)
-- W-05… — контрагенты + DaData и далее по ТЗ
+- W-05 — картотека контрагентов + DaData (кэш, лимит, HTMX)
+- W-06… — журнал, поиск, настройки
