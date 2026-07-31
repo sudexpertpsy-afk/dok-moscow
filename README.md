@@ -1,5 +1,53 @@
-# Welcome to GitHub Desktop!
+# dok-moscow — веб-сервис «Док.Москва»
 
-This is your README. READMEs are where you can communicate what your project is and how to use it.
+Онлайн-кабинет экспертной организации на базе ядра настольного приложения
+«Шаблонер» (DocFiller). ТЗ — `docs/ТЗ_веб_MVP.md`.
 
-Write your name on line 6, save it, and then head back to GitHub Desktop.
+## Структура
+
+- `core/docfiller_core/` — ядро Шаблонера (заполнение DOCX, фильтры,
+  комплекты, валидация, счётчики, БД-слой). Без tkinter. 236 тестов.
+- `core/Шаблоны/` — 26 шаблонов DOCX (формат переменных неприкосновенен).
+- `core/tests/` — тесты ядра (pytest).
+- `web/` — FastAPI-приложение (W-01…W-06, W-08 по ТЗ) — в разработке.
+- `deploy/` — Docker Compose, Caddy, скрипты для VDS Hostland (W-07).
+- `docs/` — ТЗ и эксплуатационная документация.
+
+## Статус W-00 (перенос ядра) — выполнено
+
+- Перенесены все модули без tkinter-зависимостей; тесты проходят на Linux
+  (236 passed).
+- НЕ перенесены (остались в настольной версии, UI связан с логикой):
+  `autocomplete.py`, `linked.py` — их серверные аналоги делаются в W-04/W-05
+  запросами к PostgreSQL.
+- `paths.py` пока содержит macOS-пути (~/Library) — веб-слой передаёт
+  ядру свои пути параметрами; при W-02 слой хранения заменяется PostgreSQL.
+
+## Развёртывание среды разработки
+
+Требуется Python 3.12.
+
+```bash
+# один раз
+./scripts/setup_dev.sh
+source .venv/bin/activate
+```
+
+Вручную:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r core/requirements-dev.txt
+cd core && pytest tests -q   # ожидается 236 passed
+```
+
+Секреты для будущего `deploy/` — из `deploy/.env.example` (файл `.env` в git не попадает).
+
+## Запуск тестов ядра
+
+    cd core && python3 -m pytest tests -q
+
+## Порядок работ
+
+W-01 → W-02 → W-03 → W-04/W-05 → W-06 → W-07 → W-08 → W-09 (см. ТЗ, раздел 7).

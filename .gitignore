@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+*.log
+files/
+core/Готовые_документы/
+.pytest_cache/
+dist/
