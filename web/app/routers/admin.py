@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, require_csrf, require_service_admin
+from app.defaults import empty_requisites
 from app.models import Invite, Organization, User, utcnow
 from app.security import get_csrf_token, new_invite_token
 from app.templating import templates
@@ -64,7 +65,7 @@ def create_organization(
     name = name.strip()
     if not name:
         return _home(request, user, db, status_code=400, flash_error="Укажите название организации.")
-    org = Organization(name=name, requisites={})
+    org = Organization(name=name, requisites=empty_requisites())
     db.add(org)
     db.commit()
     return RedirectResponse("/admin/", status_code=status.HTTP_303_SEE_OTHER)

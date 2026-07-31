@@ -1,20 +1,20 @@
 # web — FastAPI-приложение Док.Москва
 
-Стек: FastAPI + Jinja2 + HTMX, SQLAlchemy 2, сессии в cookie, bcrypt.
+Стек: FastAPI + Jinja2 + HTMX, SQLAlchemy 2 + Alembic, PostgreSQL 16.
 
-## Локальный запуск (W-01)
+## Локальный запуск
 
 ```bash
 cd web
-python3.12 -m venv ../.venv   # или используйте корневой .venv
-source ../.venv/bin/activate
+source ../.venv/bin/activate   # или ./scripts/setup_dev.sh из корня
 pip install -r requirements-dev.txt
-cp .env.example .env          # задайте SECRET_KEY и BOOTSTRAP_ADMIN_*
+cp .env.example .env           # SECRET_KEY, BOOTSTRAP_ADMIN_*, DB_URL
+# миграции (PostgreSQL):
+alembic upgrade head
 uvicorn app.main:app --reload --app-dir .
 ```
 
-Откройте http://127.0.0.1:8000/login — войдите как bootstrap-админ,
-создайте организацию и приглашение.
+Откройте http://127.0.0.1:8000/login.
 
 ## Тесты
 
@@ -22,7 +22,10 @@ uvicorn app.main:app --reload --app-dir .
 cd web && PYTHONPATH=. pytest tests -q
 ```
 
+Для проверки Alembic нужен PostgreSQL (см. `TEST_PG_URL` / пользователь `dok`).
+
 ## Пакеты
 
-- W-01 — каркас, auth, инвайты (этот каталог)
-- W-02… — схема PostgreSQL/Alembic, генерация документов и далее по ТЗ
+- W-01 — каркас, auth, инвайты
+- W-02 — схема PostgreSQL + Alembic + изоляция org_id
+- W-03… — генерация документов и далее по ТЗ
