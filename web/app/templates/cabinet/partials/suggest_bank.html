@@ -1,0 +1,6 @@
+{% for i in range(items|length) %}
+<button type="button" data-json='{{ mapped[i]|tojson }}' onclick="applyBank(this)">
+  {{ items[i].value }}
+  {% if mapped[i].bank_bik %}<span class="muted"> · БИК {{ mapped[i].bank_bik }}</span>{% endif %}
+</button>
+{% endfor %}

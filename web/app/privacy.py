@@ -39,5 +39,5 @@ def counterparty_list_item(cp: Counterparty) -> dict:
         "email": cp.email,
         "passport": mask_passport(cp.passport_series, cp.passport_number),
         "address": mask_address(cp.address),
-        "source": cp.source.value,
+        "source": cp.source.value if cp.source else "manual",
     }

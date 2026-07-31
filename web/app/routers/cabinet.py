@@ -18,7 +18,7 @@ router = APIRouter(prefix="/cabinet", tags=["cabinet"])
 NAV = [
     ("documents", "Документы", "/cabinet/documents/"),
     ("package", "Комплект", "/cabinet/package/"),
-    ("counterparties", "Контрагенты", "/cabinet/counterparties"),
+    ("counterparties", "Контрагенты", "/cabinet/counterparties/"),
     ("journal", "Журнал", "/cabinet/journal"),
     ("settings", "Настройки", "/cabinet/settings"),
 ]
@@ -73,14 +73,7 @@ def package(request: Request, user: CurrentUser = Depends(require_org_user), db:
 def counterparties(
     request: Request, user: CurrentUser = Depends(require_org_user), db: Session = Depends(get_db)
 ):
-    return _cabinet(
-        request,
-        user,
-        db,
-        "counterparties",
-        "Контрагенты",
-        "Картотека и подсказки DaData — пакет W-05.",
-    )
+    return RedirectResponse("/cabinet/counterparties/", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/journal", response_class=HTMLResponse)
