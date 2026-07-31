@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Поиск — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">{{ app_name }}</div>
+    <div class="org">{{ org.name }}</div>
+    <nav class="nav">
+      {% for key, label, href in nav %}
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <main class="content">
+    <div class="topbar">
+      <span>{{ user.email }}</span>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+    <section class="panel">
+      <h1>Поиск</h1>
+      <form method="get" action="/cabinet/search" style="display:flex;gap:0.5rem;margin:1rem 0">
+        <input name="q" value="{{ q }}" placeholder="Иванов, ИНН, номер…" style="flex:1">
+        <button type="submit">Искать</button>
+      </form>
+      {% if q %}
+      <h2 style="font-family:var(--font-display);font-size:1.2rem">Контрагенты</h2>
+      <table class="table">
+        <tbody>
+          {% for c in result.counterparties %}
+          <tr>
+            <td><a href="/cabinet/counterparties/{{ c.id }}">{{ c.title }}</a></td>
+            <td class="mono">{{ c.inn or '' }}</td>
+            <td class="muted">{{ c.passport }}</td>
+            <td class="muted">{{ c.address }}</td>
+          </tr>
+          {% else %}
+          <tr><td class="muted">Не найдено</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <h2 style="font-family:var(--font-display);font-size:1.2rem;margin-top:1rem">Документы</h2>
+      <table class="table">
+        <tbody>
+          {% for d in result.documents %}
+          <tr>
+            <td><a href="/cabinet/documents/{{ d.id }}">{{ d.template }}</a></td>
+            <td class="mono">{{ d.number or '—' }}</td>
+            <td class="muted">{{ d.created_at }}</td>
+          </tr>
+          {% else %}
+          <tr><td class="muted">Не найдено</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      <div class="actions"><a class="btn secondary" href="/cabinet/journal">В журнал</a></div>
+    </section>
+  </main>
+</div>
+{% endblock %}

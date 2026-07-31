@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Журнал — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">{{ app_name }}</div>
+    <div class="org">{{ org.name }}</div>
+    <nav class="nav">
+      {% for key, label, href in nav %}
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <main class="content">
+    <div class="topbar">
+      <form method="get" action="/cabinet/search" style="display:flex;gap:0.4rem;flex:1;max-width:360px">
+        <input name="q" placeholder="Поиск…" value="" style="flex:1">
+        <button type="submit" class="secondary">Найти</button>
+      </form>
+      <span>{{ user.email }}</span>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+    <section class="panel">
+      <h1>Журнал</h1>
+      <form method="get" class="grid-2" style="margin:1rem 0">
+        <div>
+          <label>С даты</label>
+          <input type="date" name="from" value="{{ filters.from }}">
+        </div>
+        <div>
+          <label>По дату</label>
+          <input type="date" name="to" value="{{ filters.to }}">
+        </div>
+        <div>
+          <label>Шаблон</label>
+          <select name="template">
+            <option value="">Все</option>
+            {% for t in templates_list %}
+              <option value="{{ t }}" {% if filters.template == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Контрагент</label>
+          <select name="counterparty_id">
+            <option value="">Все</option>
+            {% for c in counterparties %}
+              <option value="{{ c.id }}" {% if filters.counterparty_id == c.id|string %}selected{% endif %}>
+                {{ c.name or c.fio or ('#' ~ c.id) }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="actions" style="grid-column:1/-1">
+          <button type="submit">Фильтровать</button>
+        </div>
+      </form>
+      <p class="muted">Найдено: {{ total }}</p>
+      <table class="table">
+        <thead><tr><th>Дата</th><th>Шаблон</th><th>Номер</th><th>Контрагент</th><th></th></tr></thead>
+        <tbody>
+          {% for d in rows %}
+          <tr>
+            <td class="muted">{{ d.created_at }}</td>
+            <td>{{ d.template }}</td>
+            <td class="mono">{{ d.number or '—' }}</td>
+            <td>{% if d.counterparty_id %}<a href="/cabinet/counterparties/{{ d.counterparty_id }}">{{ cp_map.get(d.counterparty_id, d.counterparty_id) }}</a>{% else %}—{% endif %}</td>
+            <td>
+              <a href="/cabinet/documents/{{ d.id }}">Открыть</a>
+              · <a href="/cabinet/package/repeat/{{ d.id }}">Повторить</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="muted">Пусто</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if pages > 1 %}
+      <div class="actions">
+        {% if page > 1 %}
+          <a class="btn secondary" href="?page={{ page-1 }}&from={{ filters.from }}&to={{ filters.to }}&template={{ filters.template }}&counterparty_id={{ filters.counterparty_id }}">Назад</a>
+        {% endif %}
+        <span class="muted">стр. {{ page }} / {{ pages }}</span>
+        {% if page < pages %}
+          <a class="btn secondary" href="?page={{ page+1 }}&from={{ filters.from }}&to={{ filters.to }}&template={{ filters.template }}&counterparty_id={{ filters.counterparty_id }}">Вперёд</a>
+        {% endif %}
+      </div>
+      {% endif %}
+    </section>
+  </main>
+</div>
+{% endblock %}
