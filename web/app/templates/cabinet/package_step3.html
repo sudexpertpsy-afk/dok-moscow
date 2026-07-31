@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "cabinet/_steps.html" import steps_bar %}
+{% block title %}Комплект — поля — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">{{ app_name }}</div>
+    <div class="org">{{ org.name }}</div>
+    <nav class="nav">
+      {% for key, label, href in nav %}
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <main class="content">
+    <div class="topbar">
+      <span>{{ user.email }}</span>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+    <section class="panel">
+      <h1>Поля комплекта</h1>
+      {{ steps_bar(step, steps) }}
+      <p class="muted">Документы:
+        {% for s in selected %}{{ display_name(s) }}{% if not loop.last %}, {% endif %}{% endfor %}
+      </p>
+      {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+      <form method="post" action="/cabinet/package/step3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1rem 0 0.35rem">Контрагент</h2>
+        {% for f in core_names %}
+          <label for="c_{{ loop.index }}">{{ f }}</label>
+          <input id="c_{{ loop.index }}" name="{{ f }}" value="{{ values.get(f, '') }}">
+        {% endfor %}
+        {% if additional %}
+        <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1rem 0 0.35rem">Дополнительно</h2>
+        {% for f in additional %}
+          <label for="a_{{ loop.index }}">{{ f }}</label>
+          <input id="a_{{ loop.index }}" name="{{ f }}" value="{{ values.get(f, '') }}">
+        {% endfor %}
+        {% endif %}
+        <p class="muted" style="margin-top:0.8rem">Пустой номер договора/счёта/акта/ПКО — взять следующий из счётчика.</p>
+        <div class="actions">
+          <a class="btn secondary" href="/cabinet/package/step2">Назад</a>
+          <button type="submit">Сгенерировать комплект</button>
+        </div>
+      </form>
+    </section>
+  </main>
+</div>
+{% endblock %}

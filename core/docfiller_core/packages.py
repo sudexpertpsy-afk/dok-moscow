@@ -64,18 +64,24 @@ def _is_jur(template_name):
     return '_юрлицо' in n or '_юл' in n
 
 
-def related_documents(template_name):
+def related_documents(template_name, settings=None):
     """Список документов пакета для шаблона договора.
 
     Возвращает список пар (имя_шаблона, включён_по_умолчанию).
     Пустой список — пакет не предусмотрен (шаблон не договор).
+    settings — объект/словарь настроек (веб); иначе load_settings().
     """
     name = str(template_name or '')
     if not name.startswith('Договор_'):
         return []
 
+    if settings is None:
+        settings = load_settings()
+    elif isinstance(settings, dict):
+        from .config import settings_from_dict
+        settings = settings_from_dict(settings)
+
     # Переопределение из настроек, если задано
-    settings = load_settings()
     custom = settings.get('пакеты') or {}
     if name in custom:
         docs = custom[name] or []

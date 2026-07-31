@@ -1,0 +1,10 @@
+{% macro steps_bar(step, steps) %}
+<nav class="steps" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem">
+  {% for n, label in steps %}
+    <span style="padding:0.35rem 0.7rem;border-radius:999px;font-size:0.85rem;
+      {% if n == step %}background:var(--accent);color:#fff{% elif n < step %}background:#d7eee6{% else %}background:rgba(255,255,255,0.5);color:var(--muted){% endif %}">
+      {{ n }}. {{ label }}
+    </span>
+  {% endfor %}
+</nav>
+{% endmacro %}
