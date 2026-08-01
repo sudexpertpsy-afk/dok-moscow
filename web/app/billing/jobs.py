@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from datetime import timedelta
 
 from sqlalchemy import select
@@ -284,6 +285,11 @@ async def billing_background_loop(stop: asyncio.Event) -> None:
                     n_cal = process_calendar_reminders(db)
                     if n_cal:
                         log.info("Calendar reminders sent %s", n_cal)
+                    if os.environ.get("LEGAL_WATCH_WORKER", "1") != "0":
+                        from app.services.legal_monitor import run_daily_watch
+
+                        watch_stats = run_daily_watch(db)
+                        log.info("Legal watch: %s", watch_stats)
                 finally:
                     db.close()
                 last_renew_day = day

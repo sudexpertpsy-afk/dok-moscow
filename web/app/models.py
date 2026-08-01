@@ -685,6 +685,10 @@ class LegalAct(Base):
     # Для режима fragments: список отслеживаемых статей/глав, напр. ["ст. 79", "ст. 80"]
     tracked_articles: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # W-17: идентификатор документа в ИПС и параметры мониторинга
+    ips_nd: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    watch_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    watch_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -731,6 +735,7 @@ class ActVersion(Base):
     revision_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     change_basis: Mapped[str | None] = mapped_column(Text, nullable=True)
     body_html: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    diff_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     pdf_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     status: Mapped[ActVersionStatus] = mapped_column(
         Enum(ActVersionStatus, name="act_version_status", **_STR_ENUM),

@@ -42,6 +42,9 @@ INITIAL_REGISTRY: list[dict] = [
         "sort_order": 10,
         "tracked_articles": [],
         "notes": "Профильный закон, целиком",
+        "ips_nd": "102071320",
+        "watch_enabled": True,
+        "watch_name": "государственной судебно-экспертной деятельности",
     },
     {
         "slug": "upk-ekspertiza",
@@ -65,6 +68,9 @@ INITIAL_REGISTRY: list[dict] = [
             "ст. 283",
         ],
         "notes": "Эксперт и экспертиза в уголовном процессе",
+        "ips_nd": None,
+        "watch_enabled": True,
+        "watch_name": "Уголовно-процессуальный кодекс",
     },
     {
         "slug": "gpk-ekspertiza",
@@ -92,6 +98,9 @@ INITIAL_REGISTRY: list[dict] = [
             "ст. 187",
         ],
         "notes": "Экспертиза в гражданском процессе",
+        "ips_nd": "102078828",
+        "watch_enabled": True,
+        "watch_name": "Гражданский процессуальный кодекс",
     },
     {
         "slug": "apk-ekspertiza",
@@ -106,6 +115,9 @@ INITIAL_REGISTRY: list[dict] = [
         "sort_order": 40,
         "tracked_articles": ["ст. 55", "ст. 82", "ст. 83", "ст. 84", "ст. 85", "ст. 86", "ст. 87", "ст. 87.1"],
         "notes": "Арбитражный процесс",
+        "ips_nd": "102079219",
+        "watch_enabled": True,
+        "watch_name": "Арбитражный процессуальный кодекс",
     },
     {
         "slug": "kas-ekspertiza",
@@ -129,6 +141,9 @@ INITIAL_REGISTRY: list[dict] = [
             "ст. 83",
         ],
         "notes": "Административное судопроизводство",
+        "ips_nd": None,
+        "watch_enabled": True,
+        "watch_name": "Кодекс административного судопроизводства",
     },
     {
         "slug": "koap-ekspertiza",
@@ -143,6 +158,9 @@ INITIAL_REGISTRY: list[dict] = [
         "sort_order": 60,
         "tracked_articles": ["ст. 25.9", "ст. 26.4", "ст. 26.5"],
         "notes": "Дела об административных правонарушениях",
+        "ips_nd": None,
+        "watch_enabled": True,
+        "watch_name": "об административных правонарушениях",
     },
     {
         "slug": "uk-otvetstvennost-eksperta",
@@ -157,6 +175,9 @@ INITIAL_REGISTRY: list[dict] = [
         "sort_order": 70,
         "tracked_articles": ["ст. 307", "ст. 310"],
         "notes": "Ответственность эксперта",
+        "ips_nd": "102041891",
+        "watch_enabled": True,
+        "watch_name": "Уголовный кодекс Российской Федерации",
     },
     {
         "slug": "3185-1-psihiatricheskaya-pomoshch",
@@ -171,6 +192,9 @@ INITIAL_REGISTRY: list[dict] = [
         "sort_order": 80,
         "tracked_articles": [],
         "notes": "Для судебно-психиатрического профиля; статьи уточнит владелец при наполнении",
+        "ips_nd": None,
+        "watch_enabled": True,
+        "watch_name": "психиатрической помощи",
     },
     {
         "slug": "323-fz-meditsinskaya-ekspertiza",
@@ -185,6 +209,9 @@ INITIAL_REGISTRY: list[dict] = [
         "sort_order": 90,
         "tracked_articles": ["ст. 58", "ст. 62"],
         "notes": "Медицинская и судебно-медицинская экспертиза",
+        "ips_nd": None,
+        "watch_enabled": True,
+        "watch_name": "основах охраны здоровья граждан",
     },
     {
         "slug": "plenum-vs-28-2010",
@@ -199,6 +226,9 @@ INITIAL_REGISTRY: list[dict] = [
         "sort_order": 100,
         "tracked_articles": [],
         "notes": "Источник: vsrf.ru",
+        "ips_nd": None,
+        "watch_enabled": False,
+        "watch_name": None,
     },
     {
         "slug": "plenum-vas-23-2014",
@@ -213,6 +243,9 @@ INITIAL_REGISTRY: list[dict] = [
         "sort_order": 110,
         "tracked_articles": [],
         "notes": "Действует в части",
+        "ips_nd": None,
+        "watch_enabled": False,
+        "watch_name": None,
     },
     {
         "slug": "minzdrav-3n-2017",
@@ -227,6 +260,9 @@ INITIAL_REGISTRY: list[dict] = [
         "sort_order": 120,
         "tracked_articles": [],
         "notes": "Официальное опубликование",
+        "ips_nd": None,
+        "watch_enabled": True,
+        "watch_name": "судебно-психиатрической экспертизы",
     },
     {
         "slug": "minzdravsots-346n-2010",
@@ -241,6 +277,9 @@ INITIAL_REGISTRY: list[dict] = [
         "sort_order": 130,
         "tracked_articles": [],
         "notes": "Проверить действующий статус при наполнении",
+        "ips_nd": None,
+        "watch_enabled": True,
+        "watch_name": "судебно-медицинских экспертиз",
     },
     {
         "slug": "minjust-seu-prikazy",
@@ -255,6 +294,9 @@ INITIAL_REGISTRY: list[dict] = [
         "sort_order": 140,
         "tracked_articles": [],
         "notes": "Перечень видов экспертиз, аттестация — действующие номера уточняются при наполнении",
+        "ips_nd": None,
+        "watch_enabled": True,
+        "watch_name": "судебно-экспертн",
     },
     {
         "slug": "mvd-511-2005",
@@ -265,10 +307,13 @@ INITIAL_REGISTRY: list[dict] = [
         "title": "Вопросы организации производства судебных экспертиз в экспертно-криминалистических подразделениях ОВД",
         "authority": "МВД России",
         "mode": LegalActMode.full_text,
-        "source_url": MVD,
+        "source_url": PUBLICATION,
         "sort_order": 150,
         "tracked_articles": [],
         "notes": "В действующей редакции",
+        "ips_nd": None,
+        "watch_enabled": True,
+        "watch_name": "экспертно-криминалистических подразделениях",
     },
     {
         "slug": "gost-r-57344-2016",
@@ -283,6 +328,9 @@ INITIAL_REGISTRY: list[dict] = [
         "sort_order": 160,
         "tracked_articles": [],
         "notes": "Карточка + ссылка на фонд стандартов; полный текст не републикуем",
+        "ips_nd": None,
+        "watch_enabled": False,
+        "watch_name": None,
     },
     {
         "slug": "gost-r-sudebnaya-ekspertiza-prochee",
@@ -297,6 +345,9 @@ INITIAL_REGISTRY: list[dict] = [
         "sort_order": 170,
         "tracked_articles": [],
         "notes": "Карточки; полный текст не републикуем",
+        "ips_nd": None,
+        "watch_enabled": False,
+        "watch_name": None,
     },
 ]
 
@@ -319,6 +370,9 @@ def ensure_legal_registry(db: Session) -> list[LegalAct]:
             "sort_order": row["sort_order"],
             "tracked_articles": list(row["tracked_articles"]),
             "notes": row.get("notes"),
+            "ips_nd": row.get("ips_nd"),
+            "watch_enabled": bool(row.get("watch_enabled", False)),
+            "watch_name": row.get("watch_name"),
         }
         if act is None:
             act = LegalAct(slug=row["slug"], **payload)
@@ -376,6 +430,7 @@ def create_draft_version(
     change_basis: str | None = None,
     loaded_by_user_id: int | None = None,
     pdf_path: str | None = None,
+    diff_text: str | None = None,
 ) -> ActVersion:
     version = ActVersion(
         act_id=act_id,
@@ -386,6 +441,7 @@ def create_draft_version(
         loaded_at=utcnow(),
         loaded_by_user_id=loaded_by_user_id,
         pdf_path=pdf_path,
+        diff_text=diff_text,
     )
     db.add(version)
     db.flush()
