@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Платёж — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+<section class="panel">
+  <h1>Платёж</h1>
+  <p><a href="/admin/payments">← к списку</a></p>
+  <p><strong>{{ pay.organization.name if pay.organization else '—' }}</strong>
+    · {{ '%.2f'|format(pay.amount_kop / 100) }} ₽ · {{ pay.status.value }}</p>
+  <p class="muted">{{ pay.purpose }}</p>
+  <p class="muted">OrderId: {{ pay.id }}{% if pay.tbank_payment_id %} · PaymentId: {{ pay.tbank_payment_id }}{% endif %}</p>
+  {% if pay.manual_basis %}<p>Основание: {{ pay.manual_basis }}</p>{% endif %}
+  {% if pay.receipt_url %}<p><a href="{{ pay.receipt_url }}" target="_blank" rel="noopener">Чек</a></p>{% endif %}
+
+  <div class="actions">
+    <form method="post" action="/admin/payments/{{ pay.id }}/reconcile" hx-boost="false">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Сверить (GetState)</button>
+    </form>
+    <form method="post" action="/admin/payments/{{ pay.id }}/mark-refund" hx-boost="false"
+      onsubmit="return confirm('Отметить возврат?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="danger">Отметить возврат</button>
+    </form>
+  </div>
+
+  <h2 style="font-family:var(--font-display);font-size:1.1rem;margin-top:1.5rem">События (raw)</h2>
+  <pre style="white-space:pre-wrap;background:#fff;border:1px solid var(--line);border-radius:10px;padding:0.8rem;font-size:0.8rem;max-height:28rem;overflow:auto">{{ pay.raw_events | tojson(indent=2) }}</pre>
+</section>
+{% include "admin/_layout_end.html" %}
+{% endblock %}

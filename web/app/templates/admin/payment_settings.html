@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Платёжная система — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+<section class="panel">
+  <h1>Платёжная система</h1>
+  <p class="muted">Терминал Т-Кассы. Пароль хранится в зашифрованном виде (Fernet).</p>
+  {% if request.query_params.get('ok') %}<div class="alert alert-ok">Настройки сохранены.</div>{% endif %}
+
+  <form method="post" action="/admin/payment-settings" hx-boost="false" style="max-width:32rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="terminal_key">TerminalKey</label>
+    <input id="terminal_key" name="terminal_key" value="{{ settings_row.terminal_key or '' }}" autocomplete="off">
+
+    <label for="password">Пароль терминала {% if password_set %}(•••• задан — оставьте пустым, чтобы не менять){% endif %}</label>
+    <input id="password" name="password" type="password" value="" autocomplete="new-password">
+
+    <label for="mode">Режим</label>
+    <select id="mode" name="mode">
+      <option value="test" {% if settings_row and settings_row.mode.value == 'test' %}selected{% endif %}>Тест</option>
+      <option value="live" {% if settings_row and settings_row.mode.value == 'live' %}selected{% endif %}>Бой</option>
+    </select>
+
+    <label style="display:flex;gap:0.5rem;align-items:center;margin-top:0.9rem">
+      <input type="checkbox" name="recurrents_enabled" value="1" style="width:auto"
+        {% if settings_row and settings_row.recurrents_enabled %}checked{% endif %}>
+      Рекуррентные платежи
+    </label>
+
+    <label for="taxation">Система налогообложения (чек)</label>
+    <input id="taxation" name="taxation" value="{{ settings_row.taxation if settings_row else 'usn_income' }}">
+
+    <label for="vat_rate">Ставка НДС</label>
+    <input id="vat_rate" name="vat_rate" value="{{ settings_row.vat_rate if settings_row else 'none' }}">
+
+    <label for="default_receipt_email">E-mail для чеков по умолчанию</label>
+    <input id="default_receipt_email" name="default_receipt_email" type="email"
+      value="{{ settings_row.default_receipt_email or '' }}">
+
+    <div class="actions">
+      <button type="submit">Сохранить</button>
+    </div>
+  </form>
+
+  <form method="post" action="/admin/payment-settings/test" hx-boost="false" style="margin-top:1.25rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="secondary">Проверить подключение (Init 10 ₽ + Cancel)</button>
+    {% if settings_row and settings_row.mode.value == 'live' %}
+    <p class="muted">Сейчас режим Бой — проверка создаст реальный платёж на 10 ₽ с отменой.</p>
+    {% endif %}
+  </form>
+</section>
+{% include "admin/_layout_end.html" %}
+{% endblock %}

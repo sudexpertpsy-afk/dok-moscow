@@ -25,6 +25,8 @@ ADMIN_NAV = [
     ("users", "Пользователи", "/admin/users"),
     ("leads", "Заявки", "/admin/leads"),
     ("invites", "Приглашения", "/admin/invites"),
+    ("payments", "Платежи", "/admin/payments"),
+    ("paysettings", "Платёжная система", "/admin/payment-settings"),
     ("status", "Статус", "/admin/status"),
 ]
 
