@@ -3,22 +3,20 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, require_org_user
-from app.models import Counterparty, Document
+from app.models import Counterparty, Document, JobType
 from app.org_scope import get_document_for_org, get_org_for_user, list_counterparties, require_org_id
 from app.nav_context import cabinet_nav
 from app.security import check_csrf, get_csrf_token
+from app.services.jobs import enqueue_job
 from app.services.package_generate import (
-    build_merged_pdf,
-    build_zip,
     generate_package,
-    package_export_dir,
 )
 from app.services.package_master import (
     CP_TO_TYPE,
@@ -35,7 +33,6 @@ from app.services.package_master import (
     selected_templates,
 )
 from app.services.party_check import refresh_stale_egrul
-from app.services.gotenberg import GotenbergError
 from app.templating import templates
 
 router = APIRouter(prefix="/cabinet/package", tags=["package"])
@@ -413,10 +410,16 @@ def package_zip(
     if not ids:
         raise HTTPException(status_code=404, detail="Комплект не найден")
     org_id = require_org_id(user)
-    docs = [get_document_for_org(db, org_id, int(i)) for i in ids]
-    zip_path = package_export_dir(org_id) / f"комплект_{ids[0]}.zip"
-    build_zip(docs, zip_path)
-    return FileResponse(zip_path, filename=zip_path.name, media_type="application/zip")
+    for i in ids:
+        get_document_for_org(db, org_id, int(i))
+    job = enqueue_job(
+        db,
+        org_id=org_id,
+        user_id=user.id,
+        job_type=JobType.package_zip,
+        payload={"document_ids": [int(i) for i in ids]},
+    )
+    return RedirectResponse(f"/cabinet/jobs/{job.id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/pdf")
@@ -433,13 +436,16 @@ async def package_pdf(
     if not ids:
         raise HTTPException(status_code=404, detail="Комплект не найден")
     org_id = require_org_id(user)
-    docs = [get_document_for_org(db, org_id, int(i)) for i in ids]
-    pdf_path = package_export_dir(org_id) / f"комплект_{ids[0]}.pdf"
-    try:
-        build_merged_pdf(docs, pdf_path)
-    except GotenbergError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return FileResponse(pdf_path, filename=pdf_path.name, media_type="application/pdf")
+    for i in ids:
+        get_document_for_org(db, org_id, int(i))
+    job = enqueue_job(
+        db,
+        org_id=org_id,
+        user_id=user.id,
+        job_type=JobType.package_pdf,
+        payload={"document_ids": [int(i) for i in ids]},
+    )
+    return RedirectResponse(f"/cabinet/jobs/{job.id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/reset")

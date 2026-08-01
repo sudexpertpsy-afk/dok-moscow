@@ -9,19 +9,18 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, require_org_user
-from app.models import Document, DocumentFormat
+from app.models import Document, DocumentFormat, JobType
 from app.org_scope import get_document_for_org, get_org_for_user, require_org_id
 from app.security import check_csrf, get_csrf_token
 from app.services.counters import allocate_number
-from app.services.gotenberg import GotenbergError, convert_docx_to_pdf
-from app.services.limits import assert_can_generate, needs_watermark
+from app.services.jobs import enqueue_job
+from app.services.limits import assert_can_generate
 from app.services.templates import (
     absolute_file,
     generate_docx,
     list_templates_for_org,
     template_variables,
 )
-from app.services.watermark import apply_guest_watermark
 from app.templating import templates
 from app.nav_context import cabinet_nav
 
@@ -208,33 +207,15 @@ async def document_to_pdf(
         raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
 
     org_id = require_org_id(user)
-    doc = get_document_for_org(db, org_id, doc_id)
-    docx_path = absolute_file(doc)
-    pdf_path = docx_path.with_suffix(".pdf")
-    try:
-        convert_docx_to_pdf(docx_path, pdf_path)
-        if needs_watermark(db, org_id):
-            apply_guest_watermark(pdf_path)
-    except GotenbergError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-    settings = get_settings()
-    rel = str(pdf_path.relative_to(settings.files_root))
-    pdf_doc = Document(
+    get_document_for_org(db, org_id, doc_id)
+    job = enqueue_job(
+        db,
         org_id=org_id,
-        contract_id=doc.contract_id,
-        counterparty_id=doc.counterparty_id,
-        template=doc.template,
-        number=doc.number,
-        file_path=rel,
-        format=DocumentFormat.pdf,
-        context=doc.context,
-        created_by=user.id,
+        user_id=user.id,
+        job_type=JobType.document_pdf,
+        payload={"document_id": doc_id},
     )
-    db.add(pdf_doc)
-    db.commit()
-    db.refresh(pdf_doc)
     return RedirectResponse(
-        f"/cabinet/documents/{pdf_doc.id}",
+        f"/cabinet/jobs/{job.id}",
         status_code=status.HTTP_303_SEE_OTHER,
     )

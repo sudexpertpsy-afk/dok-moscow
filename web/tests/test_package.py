@@ -142,8 +142,12 @@ def test_fl_package_contract_bill_act_pko(app, tmp_path, monkeypatch):
     finally:
         db.close()
 
-    # ZIP
-    r = client.get("/cabinet/package/zip")
+    # ZIP через фоновую задачу (W-30)
+    r = client.get("/cabinet/package/zip", follow_redirects=False)
+    assert r.status_code == 303
+    assert "/cabinet/jobs/" in r.headers["location"]
+    job_url = r.headers["location"]
+    r = client.get(job_url.rstrip("/") + "/download", follow_redirects=False)
     assert r.status_code == 200
     zpath = tmp_path / "out.zip"
     zpath.write_bytes(r.content)

@@ -30,6 +30,7 @@ from app.routers import (
     counterparties,
     documents,
     global_search,
+    jobs,
     journal,
     landing,
     package,
@@ -165,6 +166,7 @@ def create_app() -> FastAPI:
     app.include_router(cabinet_billing.router)
     app.include_router(cabinet_templates.router)
     app.include_router(staff.router)
+    app.include_router(jobs.router)
     app.include_router(documents.router)
     app.include_router(package.router)
     app.include_router(counterparties.router)

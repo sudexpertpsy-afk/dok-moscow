@@ -427,6 +427,8 @@ ROUTE_EXCEPTIONS: frozenset[str] = frozenset(
         "/cabinet/staff/invite",
         "/cabinet/staff/{user_id}/deactivate",
         "/cabinet/staff/{user_id}/transfer-admin",
+        "/cabinet/jobs/{job_id}",
+        "/cabinet/jobs/{job_id}/download",
         "/cabinet/party-check/search",
         "/cabinet/party-check/card",
         "/cabinet/party-check/select",

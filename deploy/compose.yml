@@ -28,6 +28,17 @@ services:
       GOTENBERG_URL: http://gotenberg:3000
       CORE_PATH: /app/core
       TEMPLATES_DIR: /app/core/Шаблоны
+      BILLING_WORKER: "0"
+      JOBS_INLINE: "0"
+    command:
+      - "uvicorn"
+      - "app.main:app"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+      - "--workers"
+      - "2"
     volumes:
       - files:/srv/dok/files
       - ../core:/app/core:ro
@@ -42,6 +53,32 @@ services:
     networks: [dok]
     expose:
       - "8000"
+
+  worker:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DB_URL: postgresql+psycopg://dok:${POSTGRES_PASSWORD}@postgres:5432/dok
+      FILES_ROOT: /srv/dok/files
+      GOTENBERG_URL: http://gotenberg:3000
+      CORE_PATH: /app/core
+      TEMPLATES_DIR: /app/core/Шаблоны
+      BILLING_WORKER: "1"
+      JOBS_INLINE: "0"
+    command: ["python", "-m", "app.worker"]
+    volumes:
+      - files:/srv/dok/files
+      - ../core:/app/core:ro
+      - ../core/Шаблоны:/app/core/Шаблоны
+    depends_on:
+      postgres:
+        condition: service_healthy
+      gotenberg:
+        condition: service_started
+    restart: unless-stopped
+    networks: [dok]
 
   postgres:
     image: postgres:16

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Задача — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "cabinet/_layout_start.html" %}
+<section class="panel" id="job-panel"
+         hx-get="/cabinet/jobs/{{ job.id }}"
+         hx-trigger="every 2s"
+         hx-select="#job-body"
+         hx-target="#job-body"
+         hx-swap="outerHTML">
+  {% include "cabinet/job_progress_fragment.html" %}
+</section>
+{% include "cabinet/_layout_end.html" %}
+{% endblock %}

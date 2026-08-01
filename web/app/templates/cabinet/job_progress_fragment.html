@@ -1,0 +1,25 @@
+<div id="job-body">
+  <h1>Подготовка файла</h1>
+  <p class="muted">Тип: {{ job.type.value }} · задача #{{ job.id }}</p>
+
+  {% if job.status.value == 'pending' or job.status.value == 'running' %}
+    <p>Статус: {% if job.status.value == 'pending' %}в очереди{% else %}выполняется{% endif %}</p>
+    <div style="height:0.5rem;background:rgba(0,0,0,0.08);border-radius:4px;overflow:hidden;margin:0.75rem 0">
+      <div style="height:100%;width:{{ job.progress }}%;background:var(--accent)"></div>
+    </div>
+    <p class="muted">Не закрывайте страницу — файл появится здесь. DOCX доступен сразу из карточки документа.</p>
+  {% elif job.status.value == 'succeeded' %}
+    <div class="alert alert-ok">Готово.</div>
+    {% if job.result and job.result.view_url %}
+      <p><a href="{{ job.result.view_url }}">Открыть документ</a>
+         · <a href="{{ job.result.download_url }}">Скачать</a></p>
+    {% elif job.result and job.result.download_url %}
+      <p><a href="{{ job.result.download_url }}">Скачать файл</a></p>
+    {% endif %}
+    <script>document.getElementById('job-panel')?.removeAttribute('hx-trigger');</script>
+  {% else %}
+    <div class="alert alert-error">Ошибка: {{ job.error or 'не удалось выполнить задачу' }}</div>
+    <p class="muted">Можно повторить действие со страницы документа или комплекта. Если Gotenberg недоступен — задача не зависнет на странице.</p>
+    <script>document.getElementById('job-panel')?.removeAttribute('hx-trigger');</script>
+  {% endif %}
+</div>

@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     yandex_client_id: str = "453c829f555c4e94a1f77c16313854a9"
     yandex_client_secret: str = ""
     yandex_redirect_uri: str = "https://app.dok.moscow/auth/yandex/callback"
+    # W-30: выполнять jobs в процессе web (тесты/dev без отдельного worker)
+    jobs_inline: bool = False
+    # Пул SQLAlchemy (PostgreSQL); для SQLite игнорируется
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
 
 
 @lru_cache

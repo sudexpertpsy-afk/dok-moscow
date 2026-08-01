@@ -13,11 +13,16 @@ class Base(DeclarativeBase):
 
 
 def _make_engine(db_url: str | None = None):
-    url = db_url or get_settings().db_url
+    settings = get_settings()
+    url = db_url or settings.db_url
     connect_args = {}
+    kwargs: dict = {"pool_pre_ping": True, "connect_args": connect_args}
     if url.startswith("sqlite"):
         connect_args["check_same_thread"] = False
-    eng = create_engine(url, pool_pre_ping=True, connect_args=connect_args)
+    else:
+        kwargs["pool_size"] = int(settings.db_pool_size)
+        kwargs["max_overflow"] = int(settings.db_max_overflow)
+    eng = create_engine(url, **kwargs)
 
     if url.startswith("sqlite"):
 
