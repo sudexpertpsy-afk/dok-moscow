@@ -68,6 +68,11 @@ def billing_page(
     ).all()
     pay_settings = db.get(PaymentSettings, 1)
     error = request.query_params.get("error")
+    org_email = ""
+    req = org.requisites or {}
+    block = req.get("организация") if isinstance(req, dict) else None
+    if isinstance(block, dict):
+        org_email = (block.get("email") or "").strip()
     return templates.TemplateResponse(
         request=request,
         name="cabinet/billing.html",
@@ -83,6 +88,7 @@ def billing_page(
             terminal_ready=bool(
                 pay_settings and pay_settings.terminal_key and pay_settings.password_encrypted
             ),
+            receipt_email_default=org_email or user.email,
             flash_error=error,
         ),
     )
@@ -122,7 +128,12 @@ def billing_pay(
     sub.tariff_id = tariff.id
     sub.period = per
 
-    email = (receipt_email or user.email).strip()
+    org_email = ""
+    req = org.requisites or {}
+    block = req.get("организация") if isinstance(req, dict) else None
+    if isinstance(block, dict):
+        org_email = (block.get("email") or "").strip()
+    email = (receipt_email or org_email or user.email).strip()
     want_renew = bool(auto_renew)
     try:
         pay, url = create_card_payment(
@@ -154,6 +165,7 @@ def billing_pay(
                 ).all(),
                 recurrents_enabled=False,
                 terminal_ready=False,
+                receipt_email_default=email,
                 flash_error=str(exc),
             ),
             status_code=400,

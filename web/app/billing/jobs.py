@@ -1,4 +1,4 @@
-"""Фоновые задачи: сверка GetState и автопродление подписок."""
+"""Фоновые задачи: сверка GetState, автопродление, напоминания об окончании (W-11/W-14)."""
 
 from __future__ import annotations
 
@@ -14,24 +14,26 @@ from app.billing.payments import (
     apply_payment_notification,
     create_card_payment,
     load_tbank_client,
+    org_billing_email,
     reconcile_payment,
 )
 from app.billing.tbank import TBankError
 from app.config import get_settings
 from app.models import (
-    Organization,
+    Event,
     Payment,
     PaymentSettings,
     PaymentStatus,
     Subscription,
     SubscriptionStatus,
-    User,
     utcnow,
 )
 from app.services.audit import record_event
-from app.services.mail import send_email
+from app.services.billing_mail import notify_autorenew_failed, notify_subscription_expiring
 
 log = logging.getLogger("dok.billing.jobs")
+
+EXPIRY_NOTICE_DAYS = (7, 1)
 
 
 def reconcile_stale_payments(db: Session, *, older_than_min: int = 15) -> int:
@@ -107,7 +109,7 @@ def process_autorenewals(db: Session, *, within_days: int = 3) -> int:
         if amount <= 0:
             continue
 
-        email = _org_billing_email(db, sub.organization)
+        email = org_billing_email(db, sub.organization)
         try:
             pay, _url = create_card_payment(
                 db,
@@ -173,29 +175,72 @@ def process_autorenewals(db: Session, *, within_days: int = 3) -> int:
     return started
 
 
-def _org_billing_email(db: Session, org: Organization) -> str:
-    user = db.scalar(
-        select(User).where(User.org_id == org.id, User.is_active.is_(True)).order_by(User.id)
-    )
-    if user:
-        return user.email
-    settings = get_settings()
-    return settings.admin_notify_email or settings.bootstrap_admin_email or "noreply@dok.moscow"
+def notify_expiring_subscriptions(db: Session) -> int:
+    """Письма за 7 и за 1 день до окончания, если автопродление выключено (W-14)."""
+    now = utcnow()
+    sent = 0
+    for days in EXPIRY_NOTICE_DAYS:
+        day_start = (now + timedelta(days=days)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        day_end = day_start + timedelta(days=1)
+        subs = db.scalars(
+            select(Subscription)
+            .options(joinedload(Subscription.tariff), joinedload(Subscription.organization))
+            .where(
+                Subscription.auto_renew.is_(False),
+                Subscription.status.in_([SubscriptionStatus.active, SubscriptionStatus.trial]),
+                Subscription.ends_at >= day_start,
+                Subscription.ends_at < day_end,
+            )
+        ).all()
+        for sub in subs:
+            if _expiry_notice_already_sent(db, sub.id, days):
+                continue
+            email = org_billing_email(db, sub.organization)
+            ok = notify_subscription_expiring(
+                to_addr=email,
+                org=sub.organization,
+                sub=sub,
+                days_left=days,
+            )
+            record_event(
+                db,
+                type="billing_expiry_notice",
+                org_id=sub.org_id,
+                user_id=None,
+                details={
+                    "subscription_id": sub.id,
+                    "days_left": days,
+                    "email": email,
+                    "sent": bool(ok),
+                },
+                commit=False,
+            )
+            sent += 1
+    if sent:
+        db.commit()
+    return sent
+
+
+def _expiry_notice_already_sent(db: Session, subscription_id: int, days_left: int) -> bool:
+    cutoff = utcnow() - timedelta(days=2)
+    rows = db.scalars(
+        select(Event).where(
+            Event.type == "billing_expiry_notice",
+            Event.ts >= cutoff,
+        )
+    ).all()
+    for row in rows:
+        details = row.details or {}
+        if details.get("subscription_id") == subscription_id and details.get("days_left") == days_left:
+            return True
+    return False
 
 
 def _notify_renewal_failed(db: Session, sub: Subscription) -> None:
-    settings = get_settings()
-    email = _org_billing_email(db, sub.organization)
-    send_email(
-        settings,
-        to_addr=email,
-        subject="[Док.Москва] Не удалось продлить подписку",
-        body=(
-            f"Автоматическое списание для «{sub.organization.name}» не удалось после 3 попыток.\n"
-            f"Продлите подписку вручную в кабинете: "
-            f"{settings.app_base_url.rstrip('/')}/cabinet/billing/\n"
-        ),
-    )
+    email = org_billing_email(db, sub.organization)
+    notify_autorenew_failed(to_addr=email, org=sub.organization)
     record_event(
         db,
         type="billing_autorenew_exhausted",
@@ -207,7 +252,7 @@ def _notify_renewal_failed(db: Session, sub: Subscription) -> None:
 
 
 async def billing_background_loop(stop: asyncio.Event) -> None:
-    """Каждые 60 с: раз в 30 мин сверка, раз в сутки автопродление."""
+    """Каждые 60 с: раз в 30 мин сверка, раз в сутки автопродление и напоминания."""
     last_reconcile = 0.0
     last_renew_day = ""
     while not stop.is_set():
@@ -231,6 +276,9 @@ async def billing_background_loop(stop: asyncio.Event) -> None:
                     n = process_autorenewals(db)
                     if n:
                         log.info("Autorenew started %s", n)
+                    n_mail = notify_expiring_subscriptions(db)
+                    if n_mail:
+                        log.info("Expiry notices sent %s", n_mail)
                 finally:
                     db.close()
                 last_renew_day = day

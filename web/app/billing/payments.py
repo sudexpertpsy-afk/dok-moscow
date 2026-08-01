@@ -16,10 +16,12 @@ from app.billing.tbank import (
     TBankConfig,
     TBankError,
     build_subscription_receipt,
+    extract_receipt_fields,
     verify_token,
 )
 from app.config import get_settings
 from app.models import (
+    Organization,
     Payment,
     PaymentSettings,
     PaymentSource,
@@ -28,10 +30,12 @@ from app.models import (
     SubscriptionPeriod,
     SubscriptionStatus,
     Tariff,
+    User,
     utcnow,
 )
 from app.services.audit import record_event
 from app.services.billing import transition_subscription
+from app.services.billing_mail import notify_payment_success
 
 log = logging.getLogger("dok.billing")
 
@@ -141,6 +145,16 @@ def create_card_payment(
     pay.append_event(
         {
             "event": "init",
+            "email": email,
+            "receipt": {
+                "Email": email,
+                "Taxation": taxation,
+                "Tax": vat,
+                "Name": purpose[:128],
+                "Amount": pay.amount_kop,
+                "PaymentObject": "service",
+                "PaymentMethod": "full_prepayment",
+            },
             "response": {
                 k: resp.get(k)
                 for k in ("PaymentId", "Status", "PaymentURL", "OrderId", "Success", "ErrorCode")
@@ -218,23 +232,61 @@ def apply_payment_notification(
             else:
                 pay.status = new_status
 
+    # Чек 54-ФЗ до письма об оплате (чтобы в письмо попала ссылка)
+    r_status, r_url = extract_receipt_fields(payload)
+    if r_status:
+        pay.receipt_status = r_status
+    if r_url:
+        pay.receipt_url = r_url
+
     if status_raw.upper() == "CONFIRMED" and not already_confirmed:
         _activate_subscription_for_payment(db, pay, payload)
+        _notify_success_email(db, pay)
 
     # Возврат после подтверждения
     if new_status in (PaymentStatus.refunded, PaymentStatus.partial_refund):
         pay.status = new_status
 
-    # Чек из фискализации (если поля есть в нотификации)
-    if payload.get("Receipt") and isinstance(payload["Receipt"], dict):
-        rec = payload["Receipt"]
-        pay.receipt_status = str(rec.get("Status") or rec.get("status") or pay.receipt_status or "")
-        url = rec.get("Url") or rec.get("url") or rec.get("OfdReceiptUrl")
-        if url:
-            pay.receipt_url = str(url)
-
     db.flush()
     return pay
+
+
+def payment_payer_email(pay: Payment) -> str | None:
+    for event in reversed(pay.raw_events or []):
+        if isinstance(event, dict) and event.get("event") == "init" and event.get("email"):
+            return str(event["email"]).strip() or None
+    return None
+
+
+def org_billing_email(db: Session, org: Organization) -> str:
+    """E-mail для чеков/писем: реквизиты организации → первый пользователь → админ."""
+    req = org.requisites or {}
+    block = req.get("организация") if isinstance(req, dict) else None
+    if isinstance(block, dict):
+        email = (block.get("email") or "").strip()
+        if email and "@" in email:
+            return email
+    user = db.scalar(
+        select(User).where(User.org_id == org.id, User.is_active.is_(True)).order_by(User.id)
+    )
+    if user:
+        return user.email
+    settings = get_settings()
+    return settings.admin_notify_email or settings.bootstrap_admin_email or "noreply@dok.moscow"
+
+
+def _notify_success_email(db: Session, pay: Payment) -> None:
+    org = db.get(Organization, pay.org_id)
+    if org is None:
+        return
+    to_addr = payment_payer_email(pay) or org_billing_email(db, org)
+    sub = db.get(Subscription, pay.subscription_id) if pay.subscription_id else None
+    notify_payment_success(
+        to_addr=to_addr,
+        org=org,
+        payment=pay,
+        ends_at=sub.ends_at if sub else None,
+    )
 
 
 def _activate_subscription_for_payment(
@@ -290,6 +342,28 @@ def _activate_subscription_for_payment(
         },
         commit=False,
     )
+
+
+def apply_receipt_only_notification(db: Session, payload: dict[str, Any]) -> Payment | None:
+    """Сохранить ссылку/статус чека, если нотификация пришла отдельно от смены Status."""
+    r_status, r_url = extract_receipt_fields(payload)
+    if not r_status and not r_url:
+        return None
+    order_id = str(payload.get("OrderId") or "")
+    try:
+        pay_uuid = uuid.UUID(order_id)
+    except ValueError:
+        return None
+    pay = db.get(Payment, pay_uuid)
+    if pay is None:
+        return None
+    if r_status:
+        pay.receipt_status = r_status
+    if r_url:
+        pay.receipt_url = r_url
+    pay.append_event({"event": "receipt_notification", "Status": r_status, "Url": r_url})
+    db.flush()
+    return pay
 
 
 def reconcile_payment(db: Session, payment: Payment) -> Payment:

@@ -13,7 +13,12 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.billing.crypto import encrypt_secret
-from app.billing.payments import load_tbank_client, period_delta, reconcile_payment
+from app.billing.payments import (
+    load_tbank_client,
+    org_billing_email,
+    period_delta,
+    reconcile_payment,
+)
 from app.billing.tbank import TBankError
 from app.config import get_settings
 from app.db import get_db
@@ -33,6 +38,7 @@ from app.models import (
 from app.routers.admin import _ctx
 from app.services.audit import record_event
 from app.services.billing import ensure_tariffs, get_tariff, transition_subscription
+from app.services.billing_mail import notify_manual_extend
 from app.templating import templates
 
 router = APIRouter(prefix="/admin", tags=["admin-billing"])
@@ -471,6 +477,13 @@ def manual_extend(
         user_id=user.id,
         details={"payment_id": str(pay.id), "basis": basis.strip()},
         commit=False,
+    )
+    db.flush()
+    notify_manual_extend(
+        to_addr=org_billing_email(db, org),
+        org=org,
+        payment=pay,
+        ends_at=sub.ends_at,
     )
     db.commit()
     return RedirectResponse(f"/admin/payments/{pay.id}", status_code=303)

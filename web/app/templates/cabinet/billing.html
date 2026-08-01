@@ -78,7 +78,7 @@
               <option value="year">Год (−2 месяца)</option>
             </select>
             <label for="receipt_email">E-mail для чека</label>
-            <input id="receipt_email" name="receipt_email" type="email" value="{{ user.email }}">
+            <input id="receipt_email" name="receipt_email" type="email" value="{{ receipt_email_default or user.email }}">
             {% if recurrents_enabled %}
             <label style="display:flex;align-items:center;gap:0.5rem;margin-top:0.9rem">
               <input type="checkbox" name="auto_renew" value="1" style="width:auto">

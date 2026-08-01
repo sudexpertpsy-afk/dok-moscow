@@ -1,0 +1,37 @@
+{% extends "landing/base.html" %}
+{% block title %}Реквизиты — {{ app_name }}{% endblock %}
+{% block meta_description %}Реквизиты оператора сервиса Док.Москва (ООО «УСЭ»).{% endblock %}
+{% block canonical %}{{ public_base_url }}/requisites{% endblock %}
+{% block og_title %}Реквизиты — {{ app_name }}{% endblock %}
+{% block og_url %}{{ public_base_url }}/requisites{% endblock %}
+
+{% block content %}
+<article class="lp-legal">
+  <div class="lp-wrap">
+    <h1>Реквизиты</h1>
+    <p class="lp-section-lead">Черновик для публикации. Проверьте ИНН, ОГРН, расчётный счёт и юридический адрес перед боевыми оплатами.</p>
+
+    <h2>Исполнитель / оператор сервиса</h2>
+    <ul class="lp-contacts">
+      <li><span>Полное наименование</span> ООО «Учреждение судебной экспертизы»</li>
+      <li><span>Краткое наименование</span> ООО «УСЭ»</li>
+      <li><span>ИНН / КПП</span> указать перед публикацией</li>
+      <li><span>ОГРН</span> указать перед публикацией</li>
+      <li><span>Юридический адрес</span> указать перед публикацией</li>
+      <li><span>Расчётный счёт</span> указать перед публикацией</li>
+      <li><span>Банк / БИК / к/с</span> указать перед публикацией</li>
+    </ul>
+
+    <h2>Контакты</h2>
+    <ul class="lp-contacts">
+      <li><span>Общие вопросы</span> <a href="mailto:hello@dok.moscow">hello@dok.moscow</a></li>
+      <li><span>Персональные данные</span> <a href="mailto:privacy@dok.moscow">privacy@dok.moscow</a></li>
+      <li><span>Сайт</span> <a href="{{ public_base_url }}/">{{ public_base_url }}</a></li>
+      <li><span>Кабинет</span> <a href="{{ app_base_url }}/login">{{ app_base_url }}</a></li>
+    </ul>
+
+    <p>Платежи принимаются через интернет-эквайринг Т‑Банка (АО «ТБанк»). Чеки 54‑ФЗ формирует облачная касса банка.</p>
+    <p>См. также: <a href="/offer">Оферта</a>, <a href="/privacy">Политика ПДн</a>, <a href="/tariffs">Тарифы</a>.</p>
+  </div>
+</article>
+{% endblock %}

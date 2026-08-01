@@ -168,6 +168,33 @@ def privacy_page(request: Request):
     )
 
 
+@router.get("/offer", response_class=HTMLResponse)
+def offer_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/offer.html",
+        context=_public_ctx(request),
+    )
+
+
+@router.get("/requisites", response_class=HTMLResponse)
+def requisites_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/requisites.html",
+        context=_public_ctx(request),
+    )
+
+
+@router.get("/tariffs", response_class=HTMLResponse)
+def tariffs_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/tariffs.html",
+        context=_public_ctx(request),
+    )
+
+
 @router.get("/contacts", response_class=HTMLResponse)
 def contacts_page(request: Request):
     return templates.TemplateResponse(
@@ -196,7 +223,7 @@ def robots_txt():
 @router.get("/sitemap.xml")
 def sitemap_xml():
     base = get_settings().public_base_url.rstrip("/")
-    paths = ["/", "/privacy", "/contacts"]
+    paths = ["/", "/privacy", "/offer", "/requisites", "/tariffs", "/contacts"]
     body = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',

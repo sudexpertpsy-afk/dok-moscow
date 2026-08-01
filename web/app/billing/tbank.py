@@ -166,20 +166,66 @@ def build_subscription_receipt(
     amount_kop: int,
     description: str,
     vat: str = "none",
+    phone: str | None = None,
+    ffd_version: str | None = None,
 ) -> dict[str, Any]:
-    """Receipt для 54-ФЗ: одна услуга, полная предоплата."""
-    return {
-        "Email": email,
-        "Taxation": taxation,
-        "Items": [
-            {
-                "Name": description[:128],
-                "Price": int(amount_kop),
-                "Quantity": 1.0,
-                "Amount": int(amount_kop),
-                "Tax": vat if vat != "none" else "none",
-                "PaymentMethod": "full_prepayment",
-                "PaymentObject": "service",
-            }
-        ],
+    """Receipt для 54-ФЗ: одна услуга, полная предоплата, СНО из настроек.
+
+    Позиция: «Подписка Док.Москва, тариф …, период …» (description).
+    Taxation по умолчанию usn_income; Tax=none (без НДС) — сверить с бухгалтером.
+    """
+    item: dict[str, Any] = {
+        "Name": (description or "Подписка Док.Москва")[:128],
+        "Price": int(amount_kop),
+        "Quantity": 1.0,
+        "Amount": int(amount_kop),
+        "Tax": vat if vat else "none",
+        "PaymentMethod": "full_prepayment",
+        "PaymentObject": "service",
     }
+    if ffd_version == "1.2":
+        item["MeasurementUnit"] = "шт"
+    receipt: dict[str, Any] = {
+        "Email": email,
+        "Taxation": taxation or "usn_income",
+        "Items": [item],
+    }
+    if phone:
+        receipt["Phone"] = phone
+    if ffd_version:
+        receipt["FfdVersion"] = ffd_version
+    return receipt
+
+
+def extract_receipt_fields(payload: dict[str, Any]) -> tuple[str | None, str | None]:
+    """Достать статус и URL чека из Notification / GetState / вложенного Receipt."""
+    status: str | None = None
+    url: str | None = None
+
+    rec = payload.get("Receipt")
+    if isinstance(rec, dict):
+        status = _as_str(rec.get("Status") or rec.get("status"))
+        url = _as_str(
+            rec.get("Url")
+            or rec.get("url")
+            or rec.get("OfdReceiptUrl")
+            or rec.get("ReceiptUrl")
+        )
+
+    # Иногда банк кладёт ссылку на верхний уровень
+    if not url:
+        url = _as_str(
+            payload.get("ReceiptUrl")
+            or payload.get("OfdReceiptUrl")
+            or payload.get("FiscalReceiptUrl")
+        )
+    if not status:
+        status = _as_str(payload.get("ReceiptStatus") or payload.get("FiscalStatus"))
+    return status, url
+
+
+def _as_str(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
