@@ -37,6 +37,7 @@ _ADMIN_ACTIVE_KEYS = {
     "payments": "admin_payments",
     "paysettings": "admin_paysettings",
     "status": "admin_status",
+    "legal": "admin_legal",
 }
 
 

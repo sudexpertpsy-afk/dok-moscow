@@ -14,7 +14,15 @@ def test_admin_sections_and_org_detail(app):
     client, dbmod = app
     assert login(client, "admin@dok.moscow", "AdminPass123!").status_code == 303
 
-    for path in ("/admin/", "/admin/organizations", "/admin/users", "/admin/leads", "/admin/invites", "/admin/status"):
+    for path in (
+        "/admin/",
+        "/admin/organizations",
+        "/admin/users",
+        "/admin/leads",
+        "/admin/invites",
+        "/admin/status",
+        "/admin/legal/",
+    ):
         r = client.get(path)
         assert r.status_code == 200, path
         assert "Администратор сервиса" in r.text

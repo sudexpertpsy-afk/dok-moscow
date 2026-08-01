@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Новый акт — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+
+<section class="panel">
+  <p class="muted"><a href="/admin/legal/">← К реестру</a></p>
+  <h1>Добавить акт</h1>
+  <form method="post" action="/admin/legal/new" class="stack" hx-boost="false">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div>
+      <label>Название *</label>
+      <input type="text" name="title" required>
+    </div>
+    <div>
+      <label>Slug (латиница; пусто — из названия)</label>
+      <input type="text" name="slug" placeholder="73-fz-…">
+    </div>
+    <div class="grid-2">
+      <div>
+        <label>Категория</label>
+        <select name="category">
+          {% for c in categories %}
+          <option value="{{ c.value }}">{{ c.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Режим</label>
+        <select name="mode">
+          {% for m in modes %}
+          <option value="{{ m.value }}">{{ m.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <label>Номер</label>
+        <input type="text" name="number">
+      </div>
+      <div>
+        <label>Вид акта</label>
+        <input type="text" name="act_kind" placeholder="Федеральный закон">
+      </div>
+    </div>
+    <div>
+      <label>Орган</label>
+      <input type="text" name="authority" value="Российская Федерация">
+    </div>
+    <div>
+      <label>URL источника</label>
+      <input type="text" name="source_url">
+    </div>
+    <div>
+      <label><input type="checkbox" name="watch_enabled" value="1"> Включить мониторинг</label>
+    </div>
+    <div>
+      <label>Отслеживаемые статьи (по строке)</label>
+      <textarea name="tracked_articles" rows="4"></textarea>
+    </div>
+    <button type="submit">Создать</button>
+  </form>
+</section>
+
+{% include "admin/_layout_end.html" %}
+{% endblock %}

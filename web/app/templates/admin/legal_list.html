@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Законодательство — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+
+<section class="panel">
+  <div class="actions" style="justify-content:space-between;align-items:center">
+    <div>
+      <h1>Законодательство</h1>
+      <p class="muted">Реестр НПА, черновики мониторинга и подтверждение редакций (W-19).</p>
+    </div>
+    <a class="btn" href="/admin/legal/new">Добавить акт</a>
+  </div>
+
+  <ul class="status-list" style="margin:1rem 0">
+    <li><span><span class="badge ok">Сверено</span> — проверка &lt; 30 дней, без черновика</span></li>
+    <li><span><span class="badge warn">Ждёт</span> — есть черновик новой редакции</span></li>
+    <li><span><span class="badge danger">Ошибка</span> — сбой источника / 3 ошибки подряд</span></li>
+  </ul>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Статус</th>
+        <th>Акт</th>
+        <th>Режим</th>
+        <th>Мониторинг</th>
+        <th>Черновик</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>
+          {% if row.health.value == 'green' %}<span class="badge ok">{{ health_label[row.health.value] }}</span>
+          {% elif row.health.value == 'yellow' %}<span class="badge warn">{{ health_label[row.health.value] }}</span>
+          {% elif row.health.value == 'red' %}<span class="badge danger">{{ health_label[row.health.value] }}</span>
+          {% else %}<span class="badge">{{ health_label[row.health.value] }}</span>{% endif %}
+        </td>
+        <td>
+          <strong>{{ row.act.title }}</strong>
+          <div class="muted mono">{{ row.act.slug }} · {{ row.act.status.value }}</div>
+        </td>
+        <td class="muted">{{ row.act.mode.value }}</td>
+        <td class="muted">{% if row.act.watch_enabled %}вкл.{% else %}выкл.{% endif %}</td>
+        <td class="muted">{% if row.draft %}#{{ row.draft.id }}{% else %}—{% endif %}</td>
+        <td><a href="/admin/legal/{{ row.act.id }}">Открыть</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">Реестр пуст — выполните bootstrap или добавьте акт.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% include "admin/_layout_end.html" %}
+{% endblock %}

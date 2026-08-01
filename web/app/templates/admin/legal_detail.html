@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}{{ act.title }} — Законодательство{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+
+<section class="panel">
+  <p class="muted"><a href="/admin/legal/">← К реестру</a>
+    · <a href="{{ public_base_url }}/zakon/{{ act.slug }}" target="_blank" rel="noopener" hx-boost="false">Публичная страница</a>
+  </p>
+  <h1>{{ act.title }}</h1>
+  <p class="muted mono">{{ act.slug }} · {{ act.number or 'без номера' }} · {{ act.mode.value }}</p>
+</section>
+
+{% if draft %}
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Черновик редакции #{{ draft.id }}</h2>
+  <p class="muted">
+    Загружен: {{ draft.loaded_at }}
+    {% if draft.revision_date %} · дата редакции: {{ draft.revision_date }}{% endif %}
+    {% if draft.change_basis %}<br>{{ draft.change_basis }}{% endif %}
+  </p>
+  <div class="diff-wrap">{{ diff_html }}</div>
+  <details style="margin-top:1rem">
+    <summary>Полный HTML черновика</summary>
+    <div class="legal-body" style="margin-top:.75rem">{{ draft.body_html|safe }}</div>
+  </details>
+  <div class="actions" style="margin-top:1.25rem">
+    <form method="post" action="/admin/legal/{{ act.id }}/publish/{{ draft.id }}" hx-boost="false">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Опубликовать редакцию</button>
+    </form>
+    <form method="post" action="/admin/legal/{{ act.id }}/reject/{{ draft.id }}" hx-boost="false"
+          onsubmit="return confirm('Отклонить черновик?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary">Отклонить</button>
+    </form>
+  </div>
+</section>
+{% else %}
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Черновик</h2>
+  <p class="muted">Нет ожидающей редакции. Мониторинг создаст черновик при находке, либо загрузите текст вручную.</p>
+</section>
+{% endif %}
+
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Ручная загрузка текста</h2>
+  <p class="muted">Для приказов и актов без программного источника. Поле «Источник» обязательно.</p>
+  <form method="post" action="/admin/legal/{{ act.id }}/upload" class="stack" hx-boost="false">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div>
+      <label>Источник *</label>
+      <input type="text" name="source" required placeholder="URL или реквизиты официального опубликования">
+    </div>
+    <div>
+      <label>Дата редакции</label>
+      <input type="date" name="revision_date">
+    </div>
+    <div>
+      <label>Основание изменения</label>
+      <input type="text" name="change_basis" placeholder="Напр. ФЗ от … № …">
+    </div>
+    <div>
+      <label>Текст (HTML)</label>
+      <textarea name="body_html" rows="12" required placeholder="<p>…</p>"></textarea>
+    </div>
+    <button type="submit">Создать черновик</button>
+  </form>
+</section>
+
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Настройки акта</h2>
+  <form method="post" action="/admin/legal/{{ act.id }}/settings" class="stack" hx-boost="false">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="grid-2">
+      <div>
+        <label>Режим</label>
+        <select name="mode">
+          {% for m in modes %}
+          <option value="{{ m.value }}" {% if act.mode == m %}selected{% endif %}>{{ m.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Статус</label>
+        <select name="status">
+          {% for s in statuses %}
+          <option value="{{ s.value }}" {% if act.status == s %}selected{% endif %}>{{ s.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div>
+      <label>URL источника</label>
+      <input type="text" name="source_url" value="{{ act.source_url or '' }}">
+    </div>
+    <div>
+      <label><input type="checkbox" name="watch_enabled" value="1" {% if act.watch_enabled %}checked{% endif %}> Мониторинг официального опубликования</label>
+    </div>
+    <div>
+      <label>Отслеживаемые статьи (по одной на строку)</label>
+      <textarea name="tracked_articles" rows="5">{{ tracked_articles_text }}</textarea>
+    </div>
+    <div>
+      <label>Заметки</label>
+      <textarea name="notes" rows="3">{{ act.notes or '' }}</textarea>
+    </div>
+    <button type="submit">Сохранить</button>
+  </form>
+  <p class="muted" style="margin-top:1rem">
+    Статус <code>repealed</code> («утратил силу») сохраняет архив редакций; публичный каталог показывает только <code>active</code>.
+  </p>
+</section>
+
+{% if published %}
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Опубликованная редакция #{{ published.id }}</h2>
+  <p class="muted">Сверено: {{ act.last_verified_at or '—' }} · дата редакции: {{ published.revision_date or '—' }}</p>
+</section>
+{% endif %}
+
+{% if archived %}
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Архив / отклонённые</h2>
+  <ul>
+    {% for v in archived %}
+    <li class="muted">#{{ v.id }} · {{ v.status.value }} · {{ v.reviewed_at or v.loaded_at }}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if logs %}
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Журнал мониторинга</h2>
+  <table class="table">
+    <thead><tr><th>Когда</th><th>Результат</th><th>Детали</th></tr></thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td class="muted">{{ log.checked_at }}</td>
+        <td>{{ log.result.value }}</td>
+        <td class="muted">{{ log.details or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+{% include "admin/_layout_end.html" %}
+{% endblock %}

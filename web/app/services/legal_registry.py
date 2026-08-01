@@ -459,6 +459,8 @@ def publish_version(
     """Опубликовать редакцию: прежняя published → archived (одна published на акт)."""
     if version.status == ActVersionStatus.published:
         return version
+    if version.status != ActVersionStatus.draft:
+        raise ValueError("Можно публиковать только черновик")
     current = published_version(db, version.act_id)
     if current is not None and current.id != version.id:
         current.status = ActVersionStatus.archived
@@ -473,6 +475,22 @@ def publish_version(
     from app.services.legal_search import rebuild_act_index
 
     rebuild_act_index(db, version.act_id)
+    return version
+
+
+def reject_version(
+    db: Session,
+    version: ActVersion,
+    *,
+    reviewed_by_user_id: int | None = None,
+) -> ActVersion:
+    """Отклонить черновик → archived (на публичном сайте не виден)."""
+    if version.status != ActVersionStatus.draft:
+        raise ValueError("Можно отклонять только черновик")
+    version.status = ActVersionStatus.archived
+    version.reviewed_at = utcnow()
+    version.reviewed_by_user_id = reviewed_by_user_id
+    db.flush()
     return version
 
 

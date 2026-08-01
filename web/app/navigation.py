@@ -333,6 +333,15 @@ NAV_REGISTRY: tuple[NavItem, ...] = (
         group="Администрирование",
     ),
     _item(
+        "admin_legal",
+        "Законодательство",
+        "/admin/legal/",
+        synonyms=("нпа", "законы", "редакции", "мониторинг нпа", "zakon"),
+        roles=frozenset({NavRole.service_admin}),
+        area="admin",
+        group="Администрирование",
+    ),
+    _item(
         "admin_payments",
         "Платежи",
         "/admin/payments",
@@ -469,6 +478,12 @@ ROUTE_EXCEPTION_NOTES: dict[str, str] = {
     "/admin/templates/rename": "POST",
     "/admin/templates/delete": "POST",
     "/admin/templates/role": "POST",
+    "/admin/legal/new": "форма нового акта НПА",
+    "/admin/legal/{act_id}": "карточка акта",
+    "/admin/legal/{act_id}/publish/{version_id}": "POST публикация редакции",
+    "/admin/legal/{act_id}/reject/{version_id}": "POST отклонение черновика",
+    "/admin/legal/{act_id}/upload": "POST ручная загрузка",
+    "/admin/legal/{act_id}/settings": "POST настройки акта",
 }
 
 ROUTE_EXCEPTIONS: frozenset[str] = frozenset(ROUTE_EXCEPTION_NOTES)

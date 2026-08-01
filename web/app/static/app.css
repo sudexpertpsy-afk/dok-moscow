@@ -576,3 +576,14 @@ body.gs-open { overflow: hidden; }
   border-top: 1px solid var(--line);
   font-size: 0.8rem;
 }
+
+/* W-19: diff редакций НПА в админке */
+.diff-wrap { margin-top: 0.75rem; max-height: 28rem; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 0.75rem 1rem; background: #fafcfb; }
+.diff-preview p { margin: 0.35rem 0; font-size: 0.9rem; line-height: 1.45; }
+.diff-del { background: #fde8e8; color: #8a1f1f; text-decoration: line-through; }
+.diff-ins { background: #e7f6ee; color: #145c38; }
+.stack > * + * { margin-top: 0.85rem; }
+.stack label { display: block; font-size: 0.85rem; margin-bottom: 0.25rem; color: var(--muted); }
+.stack input[type="text"], .stack input[type="date"], .stack textarea, .stack select {
+  width: 100%; max-width: 48rem;
+}

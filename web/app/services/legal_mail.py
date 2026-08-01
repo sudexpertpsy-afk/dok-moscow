@@ -29,8 +29,8 @@ def notify_legal_change(
         f"  eoNumber: {eos}\n"
         f"  черновик редакции id: {draft_version_id or '—'}\n\n"
         f"{change_summary}\n\n"
-        f"Подтвердите публикацию в админке (W-19).\n"
-        f"{settings.app_base_url.rstrip('/')}/admin/\n"
+        f"Подтвердите публикацию в админке:\n"
+        f"{settings.app_base_url.rstrip('/')}/admin/legal/\n"
     )
     return send_email(
         settings,
