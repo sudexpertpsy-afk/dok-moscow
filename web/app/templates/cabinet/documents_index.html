@@ -28,13 +28,14 @@
           {% for t in templates_list %}
           <tr>
             <td>
-              <strong>{{ t.stem }}</strong>
+              <strong>{{ t.title or t.stem }}</strong>
+              {% if t.source == "org" %}<span class="badge">свой</span>{% endif %}
               <div class="muted">{{ t.description }}</div>
             </td>
             <td><a class="btn" href="/cabinet/documents/new/{{ t.name }}">Заполнить</a></td>
           </tr>
           {% else %}
-          <tr><td colspan="2" class="muted">Шаблоны не найдены</td></tr>
+          <tr><td colspan="2" class="muted">Шаблоны не найдены. Загрузите свои в «Мои шаблоны» или проверьте каталог общих шаблонов.</td></tr>
           {% endfor %}
         </tbody>
       </table>

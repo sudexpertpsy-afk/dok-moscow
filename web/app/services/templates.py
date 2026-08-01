@@ -61,7 +61,7 @@ def list_templates() -> list[dict]:
 
 
 def template_path(name: str) -> Path:
-    """Безопасный путь к шаблону (без path traversal)."""
+    """Безопасный путь к общему шаблону (без path traversal)."""
     safe = Path(name).name
     if safe != name or not safe.endswith(".docx"):
         raise FileNotFoundError("Шаблон не найден")
@@ -71,13 +71,47 @@ def template_path(name: str) -> Path:
     return path
 
 
-def template_variables(name: str, requisites: dict | None = None) -> list[str]:
+def resolve_template_path(name: str, org_id: int | None = None) -> Path:
+    """Путь к шаблону: сначала каталог организации, затем общие Шаблоны."""
+    safe = Path(name).name
+    if safe != name or not safe.endswith(".docx"):
+        raise FileNotFoundError("Шаблон не найден")
+    if org_id is not None:
+        from app.services.org_templates import org_templates_dir
+
+        org_path = org_templates_dir(org_id) / safe
+        if org_path.is_file():
+            return org_path
+    return template_path(safe)
+
+
+def list_templates_for_org(org_id: int) -> list[dict]:
+    """Общие шаблоны + свои шаблоны организации (свои выше при совпадении имени)."""
+    from app.services.org_templates import list_org_templates
+
+    shared = []
+    for item in list_templates():
+        shared.append({**item, "source": "shared", "title": item["stem"].replace("_", " ")})
+    org_items = list_org_templates(org_id)
+    org_names = {i["name"] for i in org_items}
+    # свои перекрывают одноимённые общие в списке
+    merged = [i for i in shared if i["name"] not in org_names] + org_items
+    merged.sort(key=lambda x: (0 if x.get("source") == "org" else 1, x["name"].lower()))
+    return merged
+
+
+def template_variables(
+    name: str,
+    requisites: dict | None = None,
+    *,
+    org_id: int | None = None,
+) -> list[str]:
     ensure_core_on_path()
     from docfiller_core.config import settings_from_dict
     from docfiller_core.filler import list_template_variables
 
     settings = settings_from_dict(requisites or {})
-    return list_template_variables(template_path(name), settings=settings)
+    return list_template_variables(resolve_template_path(name, org_id), settings=settings)
 
 
 def org_month_dir(org_id: int, when: date | None = None) -> Path:
@@ -101,7 +135,7 @@ def generate_docx(
     from docfiller_core.filler import fill_template
     from docfiller_core.utils import safe_filename
 
-    src = template_path(template_name)
+    src = resolve_template_path(template_name, org.id)
     stem = safe_filename(number or context.get("номер_договора") or src.stem)
     out_dir = org_month_dir(org.id)
     out_name = f"{stem}.docx"

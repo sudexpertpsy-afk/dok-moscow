@@ -6,7 +6,7 @@ from datetime import date
 from typing import Any
 
 from app.models import CounterpartyType
-from app.services.templates import ensure_core_on_path, templates_dir
+from app.services.templates import ensure_core_on_path, resolve_template_path, templates_dir
 
 TYPE_LABELS = ("Физлицо", "Юрлицо", "Эксперт (ГПД)")
 
@@ -35,8 +35,21 @@ def _packages():
     return packages
 
 
-def contract_options(тип: str) -> list[str]:
-    return _master().contract_options(тип, templates_dir())
+def contract_options(тип: str, org_id: int | None = None) -> list[str]:
+    opts = _master().contract_options(тип, templates_dir())
+    if org_id is None:
+        return opts
+    from app.services.org_templates import org_contract_names
+
+    # «Без договора» всегда последний
+    bare = opts[-1] if opts and opts[-1] == _master().БЕЗ_ДОГОВОРА else None
+    base = [x for x in opts if x != bare]
+    for name in org_contract_names(org_id, тип):
+        if name not in base:
+            base.append(name)
+    if bare:
+        base.append(bare)
+    return base
 
 
 def extra_options(тип: str, contract_template: str, requisites: dict | None) -> list[tuple[str, bool]]:
@@ -55,12 +68,49 @@ def selected_templates(contract_template: str, extras: list[str]) -> list[str]:
     return _master().selected_templates_list(contract_template, extras)
 
 
-def collect_fields(selected: list[str], тип: str) -> tuple[list[str], list[str]]:
-    return _master().collect_variables(templates_dir(), selected, тип)
+def collect_fields(
+    selected: list[str],
+    тип: str,
+    org_id: int | None = None,
+) -> tuple[list[str], list[str]]:
+    """Переменные комплекта с учётом своих шаблонов организации."""
+    ensure_core_on_path()
+    from docfiller_core.filler import list_template_variables
+    from docfiller_core.master import core_fields
+
+    core = set(core_fields(тип))
+    all_vars: set[str] = set()
+    for tpl in selected or []:
+        try:
+            path = resolve_template_path(tpl, org_id)
+            all_vars |= set(list_template_variables(path))
+        except Exception:
+            continue
+    additional = sorted(all_vars - core)
+    return sorted(core), additional
 
 
-def build_contexts(selected: list[str], core_values: dict, additional: dict) -> dict[str, dict]:
-    return _master().build_contexts(templates_dir(), selected, core_values, additional)
+def build_contexts(
+    selected: list[str],
+    core_values: dict,
+    additional: dict,
+    org_id: int | None = None,
+) -> dict[str, dict]:
+    ensure_core_on_path()
+    from docfiller_core.filler import list_template_variables
+
+    merged = {}
+    merged.update(core_values or {})
+    merged.update(additional or {})
+    contexts: dict[str, dict] = {}
+    for tpl in selected or []:
+        try:
+            path = resolve_template_path(tpl, org_id)
+            needed = set(list_template_variables(path))
+        except Exception:
+            needed = set()
+        contexts[tpl] = {k: merged.get(k, "") for k in needed}
+    return contexts
 
 
 def field_defaults(

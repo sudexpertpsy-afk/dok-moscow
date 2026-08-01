@@ -187,7 +187,7 @@ def package_step2_get(
     if not data.get("тип") or not data.get("core_values"):
         return RedirectResponse("/cabinet/package/", status_code=303)
     тип = data["тип"]
-    contracts = contract_options(тип)
+    contracts = contract_options(тип, org.id)
     chosen = data.get("contract_template") or (contracts[0] if contracts else "")
     extras = extra_options(тип, chosen, org.requisites)
     return templates.TemplateResponse(
@@ -243,7 +243,7 @@ async def package_step2_post(
                 org,
                 2,
                 wizard=data,
-                contracts=contract_options(data["тип"]),
+                contracts=contract_options(data["тип"], org.id),
                 chosen=contract,
                 extras=extras_meta,
                 display_name=display_name,
@@ -267,7 +267,7 @@ def package_step3_get(
     selected = data.get("selected") or []
     if not selected:
         return RedirectResponse("/cabinet/package/step2", status_code=303)
-    core_names, additional = collect_fields(selected, data["тип"])
+    core_names, additional = collect_fields(selected, data["тип"], org.id)
     defaults = field_defaults(
         data.get("contract_template") or "",
         data.get("core_values") or {},
@@ -310,7 +310,7 @@ async def package_step3_post(
     if not selected:
         return RedirectResponse("/cabinet/package/step2", status_code=303)
 
-    core_names, additional = collect_fields(selected, data["тип"])
+    core_names, additional = collect_fields(selected, data["тип"], org.id)
     core_values = {f: str(form.get(f) or "").strip() for f in core_names}
     additional_values = {f: str(form.get(f) or "").strip() for f in additional}
     data["core_values"] = core_values
@@ -468,7 +468,7 @@ def package_repeat(
         contract = ""
         extras = []
 
-    additional_all = collect_fields(selected, тип)[1] if selected else []
+    additional_all = collect_fields(selected, тип, org.id)[1] if selected else []
     additional_values = {k: str(ctx.get(k) or "") for k in additional_all}
 
     data = {

@@ -18,6 +18,7 @@ router = APIRouter(prefix="/cabinet", tags=["cabinet"])
 NAV = [
     ("documents", "Документы", "/cabinet/documents/"),
     ("package", "Комплект", "/cabinet/package/"),
+    ("templates", "Мои шаблоны", "/cabinet/templates/"),
     ("counterparties", "Контрагенты", "/cabinet/counterparties/"),
     ("journal", "Журнал", "/cabinet/journal"),
     ("calendar", "Календарь", "/cabinet/calendar/"),

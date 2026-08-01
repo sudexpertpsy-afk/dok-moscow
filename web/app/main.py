@@ -17,7 +17,22 @@ from app import db as dbmod
 from app.config import get_settings
 from app.db import Base
 from app.models import User, UserRole
-from app.routers import admin, admin_billing, admin_templates, auth, billing, cabinet, cabinet_billing, calendar, counterparties, documents, journal, landing, package
+from app.routers import (
+    admin,
+    admin_billing,
+    admin_templates,
+    auth,
+    billing,
+    cabinet,
+    cabinet_billing,
+    cabinet_templates,
+    calendar,
+    counterparties,
+    documents,
+    journal,
+    landing,
+    package,
+)
 from app.routers import settings as settings_routes
 from app.security import hash_password
 
@@ -127,6 +142,7 @@ def create_app() -> FastAPI:
     app.include_router(billing.router)
     app.include_router(cabinet.router)
     app.include_router(cabinet_billing.router)
+    app.include_router(cabinet_templates.router)
     app.include_router(documents.router)
     app.include_router(package.router)
     app.include_router(counterparties.router)

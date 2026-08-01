@@ -18,7 +18,7 @@ from app.services.limits import assert_can_generate, needs_watermark
 from app.services.templates import (
     absolute_file,
     generate_docx,
-    list_templates,
+    list_templates_for_org,
     template_variables,
 )
 from app.services.watermark import apply_guest_watermark
@@ -62,7 +62,12 @@ def documents_index(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/documents_index.html",
-        context=_page(request, user, org, templates_list=list_templates()),
+        context=_page(
+            request,
+            user,
+            org,
+            templates_list=list_templates_for_org(org.id),
+        ),
     )
 
 
@@ -75,7 +80,7 @@ def document_form(
 ):
     org = get_org_for_user(db, user)
     try:
-        variables = template_variables(template_name, org.requisites)
+        variables = template_variables(template_name, org.requisites, org_id=org.id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Шаблон не найден") from exc
     return templates.TemplateResponse(
@@ -102,7 +107,7 @@ async def document_generate(
     org = get_org_for_user(db, user)
     org_id = require_org_id(user)
     try:
-        variables = template_variables(template_name, org.requisites)
+        variables = template_variables(template_name, org.requisites, org_id=org.id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Шаблон не найден") from exc
 

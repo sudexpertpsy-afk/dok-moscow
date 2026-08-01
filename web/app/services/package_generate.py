@@ -103,7 +103,7 @@ def generate_package(
     additional_values.update({k: v for k, v in merged.items() if k not in core_values})
 
     cp = upsert_counterparty(db, org.id, тип, core_values, counterparty_id)
-    contexts = build_contexts(selected, core_values, additional_values)
+    contexts = build_contexts(selected, core_values, additional_values, org_id=org.id)
 
     docs: list[Document] = []
     for tpl in selected:
