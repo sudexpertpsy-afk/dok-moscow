@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Организации — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+
+<div class="grid-2">
+  <section class="panel">
+    <h1>Новая организация</h1>
+    <form method="post" action="/admin/organizations">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label for="name">Название</label>
+      <input id="name" name="name" required maxlength="255" autofocus>
+      <div class="actions"><button type="submit">Создать</button></div>
+    </form>
+  </section>
+  <section class="panel">
+    <h1>Подсказка</h1>
+    <p class="muted">После создания откройте карточку организации и выдайте приглашение пользователю. Реквизиты организация заполняет сама в кабинете.</p>
+  </section>
+</div>
+
+<section class="panel" style="margin-top:1rem">
+  <h1>Все организации</h1>
+  <table class="table">
+    <thead><tr><th>ID</th><th>Название</th><th>Пользователи</th><th>Открытые инвайты</th><th>Создана</th></tr></thead>
+    <tbody>
+      {% for o in orgs %}
+      <tr>
+        <td>{{ o.id }}</td>
+        <td><a href="/admin/organizations/{{ o.id }}">{{ o.name }}</a></td>
+        <td>{{ org_stats.get(o.id, {}).get('users', 0) }}</td>
+        <td>{{ org_stats.get(o.id, {}).get('open_invites', 0) }}</td>
+        <td class="muted">{{ o.created_at }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted">Пока пусто</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% include "admin/_layout_end.html" %}
+{% endblock %}

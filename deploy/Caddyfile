@@ -25,6 +25,9 @@ dok.moscow, www.dok.moscow {
 	@legacy_year path_regexp year_archive ^/20[12][0-9]/[0-1][0-9]/?$
 	redir @legacy_year / 301
 
+	@static path /static/*
+	header @static Cache-Control "public, max-age=604800, immutable"
+
 	reverse_proxy app:8000
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
@@ -37,6 +40,10 @@ dok.moscow, www.dok.moscow {
 
 app.dok.moscow {
 	encode gzip
+
+	@static path /static/*
+	header @static Cache-Control "public, max-age=604800, immutable"
+
 	reverse_proxy app:8000
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"

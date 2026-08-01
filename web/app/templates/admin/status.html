@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Статус — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+
+<section class="panel">
+  <h1>Статус конфигурации</h1>
+  <p class="muted">Проверка окружения без секретов в открытом виде.</p>
+  <ul class="status-list" style="margin-top:1rem">
+    {% for label, detail, ok in checks %}
+    <li>
+      <span><strong>{{ label }}</strong> — <span class="muted">{{ detail }}</span></span>
+      {% if ok %}<span class="badge ok">ok</span>{% else %}<span class="badge warn">проверить</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+{% include "admin/_layout_end.html" %}
+{% endblock %}

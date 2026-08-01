@@ -15,7 +15,7 @@
   <main class="content">
     <div class="topbar">
       <span>{{ user.email }}</span>
-      <form method="post" action="/logout">
+      <form method="post" action="/logout" hx-boost="false">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit">Выйти</button>
       </form>
@@ -30,7 +30,7 @@
           <tr>
             <td>{{ display_name(d.template) }}</td>
             <td class="muted">{{ d.number or '—' }}</td>
-            <td><a href="/cabinet/documents/{{ d.id }}/download">Скачать</a>
+            <td><a href="/cabinet/documents/{{ d.id }}/download" hx-boost="false">Скачать</a>
               · <a href="/cabinet/documents/{{ d.id }}">Карточка</a>
               · <a href="/cabinet/package/repeat/{{ d.id }}">Повторить</a>
             </td>

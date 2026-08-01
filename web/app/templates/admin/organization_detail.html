@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ org.name }} — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+
+<section class="panel">
+  <p class="muted"><a href="/admin/organizations">← Организации</a></p>
+  <h1>{{ org.name }}</h1>
+  <p class="muted">ID {{ org.id }} · создана {{ org.created_at }}</p>
+  <form method="post" action="/admin/organizations/{{ org.id }}/rename" style="margin-top:1rem;max-width:28rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="name">Переименовать</label>
+    <input id="name" name="name" value="{{ org.name }}" required maxlength="255">
+    <div class="actions"><button type="submit">Сохранить</button>
+      <a class="btn secondary" href="/admin/invites">Выдать приглашение</a></div>
+  </form>
+</section>
+
+<div class="grid-2" style="margin-top:1rem">
+  <section class="panel">
+    <h1>Пользователи</h1>
+    <table class="table">
+      <thead><tr><th>E-mail</th><th>Роль</th><th>Статус</th><th>Вход</th></tr></thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>{{ u.email }}</td>
+          <td class="mono">{{ u.role.value }}</td>
+          <td>{% if u.is_active %}<span class="badge ok">активен</span>{% else %}<span class="badge danger">выкл</span>{% endif %}</td>
+          <td class="muted">{{ u.last_login_at or "—" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted">Пока нет пользователей — создайте приглашение</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <section class="panel">
+    <h1>Приглашения</h1>
+    <table class="table">
+      <thead><tr><th>E-mail</th><th>Статус</th><th>Истекает</th></tr></thead>
+      <tbody>
+        {% for i in invites %}
+        <tr>
+          <td>{{ i.email }}</td>
+          <td>
+            {% if i.used_at %}<span class="badge ok">использован</span>
+            {% elif i.is_expired() %}<span class="badge danger">истёк</span>
+            {% else %}<span class="badge warn">открыт</span>{% endif %}
+          </td>
+          <td class="muted">{{ i.expires_at }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="muted">Нет приглашений</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+
+{% include "admin/_layout_end.html" %}
+{% endblock %}

@@ -86,6 +86,18 @@ def list_counterparties(db: Session, org_id: int) -> list[Counterparty]:
     )
 
 
+def list_counterparty_options(db: Session, org_id: int, limit: int = 300) -> list[Counterparty]:
+    """Лёгкий список для фильтров (журнал) — без полной картотеки на каждый запрос сверх лимита."""
+    return list(
+        db.scalars(
+            select(Counterparty)
+            .where(Counterparty.org_id == org_id)
+            .order_by(Counterparty.id.desc())
+            .limit(limit)
+        ).all()
+    )
+
+
 def list_contracts(db: Session, org_id: int) -> list[Contract]:
     return list(
         db.scalars(

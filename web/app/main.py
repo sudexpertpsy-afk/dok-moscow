@@ -79,7 +79,7 @@ def create_app() -> FastAPI:
             "default-src 'self'; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "script-src 'self' https://unpkg.com https://mc.yandex.ru 'unsafe-inline'; "
+            "script-src 'self' https://mc.yandex.ru 'unsafe-inline'; "
             "img-src 'self' data: https://mc.yandex.ru; "
             "connect-src 'self' https://mc.yandex.ru; "
             "frame-src https://mc.yandex.ru; "

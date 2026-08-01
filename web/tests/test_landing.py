@@ -141,7 +141,7 @@ def test_admin_sees_leads(app):
         db.close()
 
     assert login(client, "admin@dok.moscow", "AdminPass123!").status_code == 303
-    r = client.get("/admin/")
+    r = client.get("/admin/leads")
     assert r.status_code == 200
     assert "Заявки с лендинга" in r.text
     assert "seen@example.com" in r.text

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, require_org_user
-from app.org_scope import get_org_for_user, list_counterparties, require_org_id
+from app.org_scope import get_org_for_user, list_counterparty_options, require_org_id
 from app.routers.cabinet import NAV
 from app.security import get_csrf_token
 from app.services.journal import distinct_templates, list_journal, parse_date, search_all
@@ -62,7 +62,7 @@ def journal_page(
         per_page=per_page,
     )
     pages = max(1, (total + per_page - 1) // per_page)
-    cps = list_counterparties(db, org_id)
+    cps = list_counterparty_options(db, org_id)
     cp_map = {c.id: (c.name or c.fio or f"#{c.id}") for c in cps}
 
     return templates.TemplateResponse(
