@@ -154,19 +154,28 @@ def validate_device_token(token: str | None, user: User, settings: Settings | No
 
 def set_device_cookie(response: Response, user: User, settings: Settings | None = None) -> None:
     settings = settings or get_settings()
-    response.set_cookie(
-        DEVICE_COOKIE,
-        issue_device_token(user, settings),
-        max_age=DEVICE_MAX_AGE,
-        httponly=True,
-        samesite="lax",
-        secure=False,
-        path="/",
-    )
+    cookie_kw: dict = {
+        "key": DEVICE_COOKIE,
+        "value": issue_device_token(user, settings),
+        "max_age": DEVICE_MAX_AGE,
+        "httponly": True,
+        "samesite": "lax",
+        "secure": bool(settings.session_https_only),
+        "path": "/",
+    }
+    domain = (settings.session_cookie_domain or "").strip()
+    if domain:
+        cookie_kw["domain"] = domain
+    response.set_cookie(**cookie_kw)
 
 
-def clear_device_cookie(response: Response) -> None:
-    response.delete_cookie(DEVICE_COOKIE, path="/")
+def clear_device_cookie(response: Response, settings: Settings | None = None) -> None:
+    settings = settings or get_settings()
+    cookie_kw: dict = {"key": DEVICE_COOKIE, "path": "/"}
+    domain = (settings.session_cookie_domain or "").strip()
+    if domain:
+        cookie_kw["domain"] = domain
+    response.delete_cookie(**cookie_kw)
 
 
 def require_2fa_for_org_admins(db: Session) -> bool:

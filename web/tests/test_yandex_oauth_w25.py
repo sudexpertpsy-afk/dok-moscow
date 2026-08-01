@@ -260,6 +260,30 @@ def test_invalid_state_rejected(app):
     assert "state/PKCE" in r.text
 
 
+def test_signed_state_works_without_session(app):
+    """Callback не зависит от cookie хоста: PKCE verifier внутри signed state."""
+    client, dbmod = app
+    _set_yandex_env()
+    from app.yandex_oauth import issue_oauth_state, new_pkce_pair
+
+    _nonce, verifier = new_pkce_pair()
+    state = issue_oauth_state(code_verifier=verifier, intent="login")
+    profile = YandexProfile(sub="ya-signed", email="signed@example.com")
+    # Новая «сессия» без oauth-ключей: очищаем cookies клиента
+    client.cookies.clear()
+    with patch(
+        "app.routers.yandex_auth.exchange_code_for_profile",
+        return_value=profile,
+    ) as mocked:
+        r = client.get(
+            f"/auth/yandex/callback?code=c&state={state}",
+            follow_redirects=False,
+        )
+    assert r.status_code == 303
+    assert r.headers["location"] == "/cabinet/"
+    assert mocked.call_args.kwargs["code_verifier"] == verifier
+
+
 def test_unlink_last_method_forbidden(app):
     client, dbmod = app
     _set_yandex_env()

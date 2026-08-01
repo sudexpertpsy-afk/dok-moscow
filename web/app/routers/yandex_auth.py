@@ -18,7 +18,9 @@ from app.totp_2fa import DEVICE_COOKIE, validate_device_token
 from app.yandex_oauth import (
     build_authorize_url,
     exchange_code_for_profile,
+    issue_oauth_state,
     link_identity,
+    load_oauth_state,
     new_pkce_pair,
     resolve_login_user,
     yandex_button_visible,
@@ -64,10 +66,10 @@ def yandex_start(
         )
 
     intent = request.session.get("yandex_oauth_intent") or "login"
+    link_uid = request.session.get("yandex_oauth_link_user_id")
     if intent == "link":
         if user is None:
             return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
-        link_uid = request.session.get("yandex_oauth_link_user_id")
         if int(link_uid or 0) != user.id:
             _clear_oauth_session(request)
             return RedirectResponse(
@@ -75,7 +77,14 @@ def yandex_start(
             )
 
     try:
-        state, verifier = new_pkce_pair()
+        _nonce, verifier = new_pkce_pair()
+        state = issue_oauth_state(
+            code_verifier=verifier,
+            intent=intent if intent == "link" else "login",
+            link_user_id=int(link_uid) if intent == "link" and link_uid else None,
+            settings=settings,
+        )
+        # Дублируем в сессию (удобно для одного хоста); callback опирается на signed state.
         request.session["yandex_oauth_state"] = state
         request.session["yandex_oauth_verifier"] = verifier
         if intent != "link":
@@ -125,12 +134,26 @@ def yandex_callback(
 
     code = request.query_params.get("code")
     state = request.query_params.get("state")
-    expected_state = request.session.get("yandex_oauth_state")
-    verifier = request.session.get("yandex_oauth_verifier")
-    intent = request.session.get("yandex_oauth_intent") or "login"
-    link_uid = request.session.get("yandex_oauth_link_user_id")
+    payload = load_oauth_state(state or "", settings=settings) if state else None
 
-    if not code or not state or not verifier or state != expected_state:
+    # Fallback на сессию того же хоста (старые вкладки / тесты).
+    if payload is None:
+        expected = request.session.get("yandex_oauth_state")
+        verifier = request.session.get("yandex_oauth_verifier")
+        if state and expected and state == expected and verifier:
+            from app.yandex_oauth import OAuthStatePayload
+
+            payload = OAuthStatePayload(
+                verifier=str(verifier),
+                intent=str(request.session.get("yandex_oauth_intent") or "login"),
+                link_user_id=(
+                    int(request.session["yandex_oauth_link_user_id"])
+                    if request.session.get("yandex_oauth_link_user_id")
+                    else None
+                ),
+            )
+
+    if not code or payload is None:
         _clear_oauth_session(request)
         return _render(
             request,
@@ -141,6 +164,10 @@ def yandex_callback(
             },
             status_code=400,
         )
+
+    intent = payload.intent or "login"
+    link_uid = payload.link_user_id
+    verifier = payload.verifier
 
     try:
         profile = exchange_code_for_profile(
@@ -161,7 +188,7 @@ def yandex_callback(
 
     if intent == "link":
         _clear_oauth_session(request)
-        if user is None or int(link_uid or 0) != user.id:
+        if user is None or link_uid is None or int(link_uid) != user.id:
             return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
         db_user = db.get(User, user.id)
         assert db_user is not None
@@ -227,7 +254,12 @@ def yandex_callback(
             type="oauth_login_blocked",
             org_id=None,
             user_id=None,
-            details={"provider": "yandex", "email": profile.email, "ip": ip, "reason": "email_exists"},
+            details={
+                "provider": "yandex",
+                "email": profile.email,
+                "ip": ip,
+                "reason": "email_exists",
+            },
         )
         return _render(
             request,
@@ -267,7 +299,6 @@ def yandex_callback(
     if db_user.totp_enabled:
         device_ok = validate_device_token(request.cookies.get(DEVICE_COOKIE), db_user)
         if not device_ok:
-            # события login_success после 2FA; фиксируем промежуточный oauth
             record_event(
                 db,
                 type="oauth_login_pending_2fa",

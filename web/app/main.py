@@ -117,14 +117,16 @@ def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.app_name, docs_url=None, redoc_url=None, lifespan=lifespan)
 
-    app.add_middleware(
-        SessionMiddleware,
-        secret_key=settings.secret_key,
-        session_cookie=settings.session_cookie,
-        max_age=settings.session_max_age,
-        same_site="lax",
-        https_only=False,
-    )
+    session_kw: dict = {
+        "secret_key": settings.secret_key,
+        "session_cookie": settings.session_cookie,
+        "max_age": settings.session_max_age,
+        "same_site": "lax",
+        "https_only": bool(settings.session_https_only),
+    }
+    if (settings.session_cookie_domain or "").strip():
+        session_kw["domain"] = settings.session_cookie_domain.strip()
+    app.add_middleware(SessionMiddleware, **session_kw)
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):

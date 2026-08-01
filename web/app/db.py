@@ -22,8 +22,13 @@ def _make_engine(db_url: str | None = None):
     if url.startswith("sqlite"):
 
         @event.listens_for(eng, "connect")
-        def _sqlite_fk(dbapi_conn, _):
+        def _sqlite_pragma(dbapi_conn, _):
             dbapi_conn.execute("PRAGMA foreign_keys=ON")
+            dbapi_conn.execute("PRAGMA busy_timeout=5000")
+            try:
+                dbapi_conn.execute("PRAGMA journal_mode=WAL")
+            except Exception:
+                pass
 
     return eng
 

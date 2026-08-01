@@ -140,12 +140,15 @@ def test_http_generate_and_download(app, tmp_path, monkeypatch):
 def test_parallel_counter_allocation(app):
     client, dbmod = app
     org_id, _ = _seed_org_user(dbmod, email="cnt@example.com")
+    from app.services.counters import allocation_section
 
     def once(_):
         db = dbmod.SessionLocal()
         try:
-            _, formatted = allocate_number(db, org_id, "dogovor", prefix="Д-")
-            db.commit()
+            # На SQLite lock должен покрывать commit, иначе видны дубликаты номеров.
+            with allocation_section(db):
+                _, formatted = allocate_number(db, org_id, "dogovor", prefix="Д-")
+                db.commit()
             return formatted
         finally:
             db.close()

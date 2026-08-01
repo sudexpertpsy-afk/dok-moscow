@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     db_url: str = "sqlite+pysqlite:////tmp/dok_moscow_dev.db"
     session_cookie: str = "dok_session"
     session_max_age: int = 60 * 60 * 12  # 12 часов
+    # Для продакшена с HTTPS (Caddy): SESSION_HTTPS_ONLY=true
+    session_https_only: bool = False
+    # Опционально: общий домен cookie (например ".dok.moscow") для поддоменов
+    session_cookie_domain: str = ""
     csrf_cookie: str = "dok_csrf"
     invite_ttl_hours: int = 72
     login_rate_limit: int = 5
@@ -47,10 +51,12 @@ class Settings(BaseSettings):
     backup_require_age: bool = False
     # W-10: окончание бета-подписки «Специалист» для существующих организаций
     beta_trial_until: date = date(2026, 10, 1)
-    # W-25: Яндекс ID OAuth (секрет только из .env, не из репозитория)
+    # W-25: Яндекс ID OAuth (секрет только из .env, не из репозитория).
+    # Redirect URI должен быть на том же хосте, что и /login (app.dok.moscow),
+    # и совпадать с настройкой в консоли Яндекс OAuth.
     yandex_client_id: str = "453c829f555c4e94a1f77c16313854a9"
     yandex_client_secret: str = ""
-    yandex_redirect_uri: str = "https://dok.moscow/auth/yandex/callback"
+    yandex_redirect_uri: str = "https://app.dok.moscow/auth/yandex/callback"
 
 
 @lru_cache

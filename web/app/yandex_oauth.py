@@ -12,8 +12,10 @@ import logging
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
+
 from authlib.common.security import generate_token
 from authlib.integrations.requests_client import OAuth2Session
+from itsdangerous import BadSignature, BadTimeSignature, URLSafeTimedSerializer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -42,6 +44,8 @@ TOKEN_URL = "https://oauth.yandex.ru/token"
 INFO_URL = "https://login.yandex.ru/info"
 # login:info — профиль; login:email — default_email
 DEFAULT_SCOPE = "login:info login:email"
+OAUTH_STATE_SALT = "dok-yandex-oauth-state"
+OAUTH_STATE_MAX_AGE = 10 * 60  # 10 минут — срок кода Яндекса
 
 
 @dataclass(frozen=True)
@@ -49,6 +53,13 @@ class YandexProfile:
     sub: str
     email: str
     login: str | None = None
+
+
+@dataclass(frozen=True)
+class OAuthStatePayload:
+    verifier: str
+    intent: str = "login"
+    link_user_id: int | None = None
 
 
 def yandex_credentials_configured(settings: Settings | None = None) -> bool:
@@ -72,7 +83,52 @@ def yandex_button_visible(db: Session, settings: Settings | None = None) -> bool
 
 def redirect_uri(settings: Settings | None = None) -> str:
     settings = settings or get_settings()
-    return (settings.yandex_redirect_uri or "").strip() or "https://dok.moscow/auth/yandex/callback"
+    configured = (settings.yandex_redirect_uri or "").strip()
+    if configured:
+        return configured
+    # По умолчанию — хост кабинета (тот же, что /login), иначе ломается session cookie.
+    base = (settings.app_base_url or "https://app.dok.moscow").rstrip("/")
+    return f"{base}/auth/yandex/callback"
+
+
+def _state_serializer(settings: Settings | None = None) -> URLSafeTimedSerializer:
+    settings = settings or get_settings()
+    return URLSafeTimedSerializer(settings.secret_key, salt=OAUTH_STATE_SALT)
+
+
+def issue_oauth_state(
+    *,
+    code_verifier: str,
+    intent: str = "login",
+    link_user_id: int | None = None,
+    settings: Settings | None = None,
+) -> str:
+    """Подписанный state: PKCE verifier + intent (не зависит от cookie хоста)."""
+    payload = {
+        "v": code_verifier,
+        "i": intent,
+        "u": link_user_id,
+        "n": generate_token(8),
+    }
+    return _state_serializer(settings).dumps(payload)
+
+
+def load_oauth_state(state: str, settings: Settings | None = None) -> OAuthStatePayload | None:
+    try:
+        data = _state_serializer(settings).loads(state, max_age=OAUTH_STATE_MAX_AGE)
+    except (BadSignature, BadTimeSignature):
+        return None
+    if not isinstance(data, dict):
+        return None
+    verifier = str(data.get("v") or "")
+    if not verifier:
+        return None
+    uid = data.get("u")
+    return OAuthStatePayload(
+        verifier=verifier,
+        intent=str(data.get("i") or "login"),
+        link_user_id=int(uid) if uid is not None else None,
+    )
 
 
 def build_authorize_url(
@@ -98,8 +154,8 @@ def build_authorize_url(
 
 
 def new_pkce_pair() -> tuple[str, str]:
-    """Вернуть (state, code_verifier)."""
-    return generate_token(32), generate_token(64)
+    """Вернуть (nonce, code_verifier). State формируйте через issue_oauth_state."""
+    return generate_token(16), generate_token(64)
 
 
 def exchange_code_for_profile(

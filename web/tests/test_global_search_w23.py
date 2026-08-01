@@ -62,22 +62,36 @@ def _org_user(dbmod, email: str, *, tariff: TariffCode = TariffCode.specialist):
         db.close()
 
 
+def _iter_route_paths(routes) -> list[str]:
+    """Обойти вложенные APIRouter (Starlette _IncludedRouter без .path)."""
+    out: list[str] = []
+    for route in routes:
+        path = getattr(route, "path", None)
+        if path:
+            out.append(path)
+            continue
+        inner = getattr(route, "app", None)
+        nested = getattr(inner, "routes", None) if inner is not None else None
+        if nested is None:
+            nested = getattr(route, "routes", None)
+        if nested:
+            out.extend(_iter_route_paths(nested))
+    return out
+
+
 def test_registry_covers_app_routes():
     """Каждый роут приложения — в реестре или в явном списке исключений."""
     app = create_app()
     registered = registry_urls()
     uncovered: list[str] = []
-    for route in app.routes:
-        path = getattr(route, "path", None)
-        if not path or path.startswith("/static"):
+    for path in _iter_route_paths(app.routes):
+        if path.startswith("/static"):
             continue
-        # нормализуем
         candidates = {path, path.rstrip("/") or "/", path + "/" if not path.endswith("/") else path}
         if candidates & registered:
             continue
         if path in ROUTE_EXCEPTIONS:
             continue
-        # prefix match for parameterized routes already exact in exceptions
         uncovered.append(path)
     assert uncovered == [], f"Маршруты вне реестра/исключений: {uncovered}"
 
