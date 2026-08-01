@@ -9,3 +9,6 @@ core/Готовые_документы/
 .pytest_cache/
 dist/
 screenshots/
+# W-31: манифест хэшированной статики (собирается в Docker / scripts/hash_static.py)
+web/app/static/manifest.json
+

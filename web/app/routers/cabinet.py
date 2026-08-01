@@ -8,11 +8,10 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
-from app.deps import CurrentUser, assert_same_org, get_current_user, require_org_user
-from app.models import Organization
+from app.deps import CurrentUser, assert_same_org, require_org_user
+from app.models import Organization, TariffCode
 from app.nav_context import cabinet_nav
 from app.navigation import cabinet_menu_tuples, roles_for_user
-from app.models import TariffCode
 from app.security import get_csrf_token
 from app.templating import templates
 
@@ -106,25 +105,3 @@ def settings_page(
     request: Request, user: CurrentUser = Depends(require_org_user), db: Session = Depends(get_db)
 ):
     return RedirectResponse("/cabinet/settings/", status_code=status.HTTP_303_SEE_OTHER)
-
-
-@router.get("/org/{org_id}", response_class=HTMLResponse)
-def org_scoped_probe(
-    org_id: int,
-    request: Request,
-    user: CurrentUser = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Проверочный эндпойнт изоляции: чужой org_id → 404."""
-    assert_same_org(user, org_id)
-    org = db.get(Organization, org_id)
-    if org is None:
-        raise HTTPException(status_code=404, detail="Не найдено")
-    return _cabinet(
-        request,
-        user,
-        db,
-        "documents",
-        "Документы",
-        f"Организация «{org.name}».",
-    )

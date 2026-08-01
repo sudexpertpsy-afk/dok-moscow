@@ -1,0 +1,20 @@
+{% extends "landing/base.html" %}
+{% block title %}{% if status_code == 404 %}Страница не найдена{% else %}Ошибка {{ status_code }}{% endif %} — {{ app_name }}{% endblock %}
+{% block content %}
+<section class="lp-hero" aria-label="Ошибка">
+  <div class="lp-hero-copy">
+    <p class="lp-brand">{{ app_name }}</p>
+    <h1 class="lp-headline">
+      {% if status_code == 404 %}Страница не найдена
+      {% elif status_code == 403 %}Доступ ограничен
+      {% else %}Что-то пошло не так{% endif %}
+    </h1>
+    <p class="lp-sub">{{ detail }}</p>
+    <div class="lp-cta">
+      <a class="lp-btn" href="/">На главную</a>
+      <a class="lp-btn lp-btn-ghost" href="/zakon">Нормативная база</a>
+      <a class="lp-btn lp-btn-ghost" href="{{ app_base_url }}/login">Войти в кабинет</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

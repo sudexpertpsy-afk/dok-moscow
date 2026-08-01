@@ -18,7 +18,15 @@
   <noscript>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   </noscript>
-  <link rel="stylesheet" href="/static/landing.css">
+  {# W-31: критические правила выше сгиба — полный CSS следом #}
+  <style>
+    :root{--ink:#14201c;--bg:#f3f6f2;--accent:#1f6b4a}
+    body.lp{margin:0;font-family:Manrope,system-ui,sans-serif;color:var(--ink);background:linear-gradient(160deg,#e8f0ea,#f7faf7 45%,#eef3ef)}
+    .lp-nav{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.25rem;gap:1rem}
+    .lp-nav-brand{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:1.35rem;text-decoration:none;color:var(--ink)}
+    .skip{position:absolute;left:-9999px}.skip:focus{left:1rem;top:1rem;z-index:9;background:#fff;padding:.5rem}
+  </style>
+  <link rel="stylesheet" href="{{ static_url('landing.css') }}">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",

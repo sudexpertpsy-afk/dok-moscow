@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}{{ status_code }} — {{ app_name }}{% endblock %}
+{% block body %}
+<main id="main" class="content" style="max-width:40rem;margin:3rem auto;padding:0 1.25rem">
+  <section class="panel">
+    <h1>{% if status_code == 403 %}Доступ ограничен{% elif status_code == 404 %}Не найдено{% elif status_code == 401 %}Требуется вход{% else %}Ошибка {{ status_code }}{% endif %}</h1>
+    <p>{{ detail }}</p>
+    <div class="actions" style="margin-top:1.25rem">
+      <a class="btn" href="/cabinet/">В кабинет</a>
+      <a class="btn secondary" href="/login">Войти</a>
+      <a class="btn secondary" href="{{ public_base_url }}/" hx-boost="false">На сайт</a>
+    </div>
+  </section>
+</main>
+{% endblock %}

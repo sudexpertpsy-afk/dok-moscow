@@ -123,10 +123,10 @@ def test_org_isolation(app):
         db.close()
 
     assert login(client, "a@example.com", "Passw0rd!").status_code == 303
-    ok = client.get(f"/cabinet/org/{a_org}")
-    assert ok.status_code == 200
-    forbidden = client.get(f"/cabinet/org/{b_org}")
-    assert forbidden.status_code == 404
+    assert client.get("/cabinet/documents/").status_code == 200
+    # W-33: заглушка /cabinet/org/{id} удалена — оба URL дают 404
+    assert client.get(f"/cabinet/org/{a_org}").status_code == 404
+    assert client.get(f"/cabinet/org/{b_org}").status_code == 404
 
 
 def test_login_rate_limit(app):

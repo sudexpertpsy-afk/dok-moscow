@@ -34,6 +34,20 @@ def _page(request: Request, user: CurrentUser, org, db, active: str, **extra):
     return ctx
 
 
+def _journal_filters(request: Request):
+    q = request.query_params
+    date_from = parse_date(q.get("from"))
+    date_to = parse_date(q.get("to"))
+    template = (q.get("template") or "").strip() or None
+    cp_raw = (q.get("counterparty_id") or "").strip()
+    counterparty_id = int(cp_raw) if cp_raw.isdigit() else None
+    try:
+        page = int(q.get("page") or "1")
+    except ValueError:
+        page = 1
+    return date_from, date_to, template, counterparty_id, cp_raw, max(1, page)
+
+
 @router.get("/journal", response_class=HTMLResponse)
 def journal_page(
     request: Request,
@@ -42,13 +56,7 @@ def journal_page(
 ):
     org = get_org_for_user(db, user)
     org_id = require_org_id(user)
-    q = request.query_params
-    date_from = parse_date(q.get("from"))
-    date_to = parse_date(q.get("to"))
-    template = (q.get("template") or "").strip() or None
-    cp_raw = (q.get("counterparty_id") or "").strip()
-    counterparty_id = int(cp_raw) if cp_raw.isdigit() else None
-    page = int(q.get("page") or "1")
+    date_from, date_to, template, counterparty_id, cp_raw, page = _journal_filters(request)
     per_page = 20
 
     rows, total = list_journal(
@@ -77,12 +85,54 @@ def journal_page(
             counterparties=cps,
             cp_map=cp_map,
             filters={
-                "from": q.get("from") or "",
-                "to": q.get("to") or "",
+                "from": request.query_params.get("from") or "",
+                "to": request.query_params.get("to") or "",
                 "template": template or "",
                 "counterparty_id": cp_raw,
             },
         ),
+    )
+
+
+@router.get("/journal/rows", response_class=HTMLResponse)
+def journal_rows(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    """HTMX-фрагмент следующей страницы журнала (W-31)."""
+    org_id = require_org_id(user)
+    date_from, date_to, template, counterparty_id, cp_raw, page = _journal_filters(request)
+    per_page = 20
+    rows, total = list_journal(
+        db,
+        org_id,
+        date_from=date_from,
+        date_to=date_to,
+        template=template,
+        counterparty_id=counterparty_id,
+        page=page,
+        per_page=per_page,
+    )
+    pages = max(1, (total + per_page - 1) // per_page)
+    cps = list_counterparty_options(db, org_id)
+    cp_map = {c.id: (c.name or c.fio or f"#{c.id}") for c in cps}
+    return templates.TemplateResponse(
+        request=request,
+        name="cabinet/partials/journal_rows.html",
+        context={
+            "request": request,
+            "rows": rows,
+            "page": page,
+            "pages": pages,
+            "cp_map": cp_map,
+            "filters": {
+                "from": request.query_params.get("from") or "",
+                "to": request.query_params.get("to") or "",
+                "template": template or "",
+                "counterparty_id": cp_raw,
+            },
+        },
     )
 
 

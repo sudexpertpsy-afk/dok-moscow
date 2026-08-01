@@ -1,4 +1,4 @@
-"""Отдельный процесс worker: jobs + периодические задачи (W-30).
+"""Отдельный процесс worker: jobs + периодические задачи (W-30/W-32).
 
 Запуск: python -m app.worker
 """
@@ -13,6 +13,7 @@ import signal
 from app import db as dbmod
 from app.billing.jobs import billing_background_loop
 from app.services.jobs import process_pending_batch
+from app.services.ops import ops_loop_tick
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("dok.worker")
@@ -37,6 +38,24 @@ async def jobs_loop(stop: asyncio.Event) -> None:
             pass
 
 
+async def ops_loop(stop: asyncio.Event) -> None:
+    """Heartbeat + алерты + еженедельный дайджест (W-32)."""
+    await asyncio.sleep(3)
+    while not stop.is_set():
+        try:
+            db = dbmod.SessionLocal()
+            try:
+                await asyncio.to_thread(ops_loop_tick, db)
+            finally:
+                db.close()
+        except Exception:
+            log.exception("ops loop error")
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=60)
+        except TimeoutError:
+            pass
+
+
 async def main() -> None:
     stop = asyncio.Event()
 
@@ -51,6 +70,7 @@ async def main() -> None:
     await asyncio.gather(
         jobs_loop(stop),
         billing_background_loop(stop),
+        ops_loop(stop),
     )
     log.info("Worker stopped")
 

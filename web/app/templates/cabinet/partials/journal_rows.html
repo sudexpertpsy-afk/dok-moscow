@@ -1,0 +1,28 @@
+{% for d in rows %}
+<tr>
+  <td class="muted">{{ d.created_at }}</td>
+  <td>{{ d.template }}</td>
+  <td class="mono">{{ d.number or '—' }}</td>
+  <td>{% if d.counterparty_id %}<a href="/cabinet/counterparties/{{ d.counterparty_id }}">{{ cp_map.get(d.counterparty_id, d.counterparty_id) }}</a>{% else %}—{% endif %}</td>
+  <td>
+    <a href="/cabinet/documents/{{ d.id }}">Открыть</a>
+    · <a href="/cabinet/package/repeat/{{ d.id }}">Повторить</a>
+  </td>
+</tr>
+{% endfor %}
+{% if page < pages %}
+<tr id="journal-more" hx-swap-oob="true">
+  <td colspan="5" class="muted" style="text-align:center;padding:1rem">
+    <button type="button"
+            class="btn secondary"
+            hx-get="/cabinet/journal/rows?page={{ page + 1 }}&from={{ filters.from }}&to={{ filters.to }}&template={{ filters.template }}&counterparty_id={{ filters.counterparty_id }}"
+            hx-target="#journal-body"
+            hx-swap="beforeend"
+            hx-trigger="intersect once">
+      Ещё…
+    </button>
+  </td>
+</tr>
+{% else %}
+<tr id="journal-more" hx-swap-oob="true" style="display:none"></tr>
+{% endif %}

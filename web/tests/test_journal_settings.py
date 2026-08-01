@@ -19,7 +19,9 @@ from app.models import (
     UserRole,
 )
 from app.security import hash_password
-from app.services.journal import list_journal, search_all
+from app.deps import CurrentUser
+from app.services.global_search import global_search
+from app.services.journal import list_journal
 from app.services.settings_svc import ensure_requisites, update_section
 from conftest import csrf_from, login
 
@@ -217,9 +219,21 @@ def test_search_isolation(app):
         org_b = db.scalar(select(Organization).where(Organization.name == "ЖурналОрг").order_by(Organization.id.desc()))
         # both named same — get user b org
         user_b = db.scalar(select(User).where(User.email == "b06@example.com"))
-        res = search_all(db, user_b.org_id, "Иванов")
-        assert all(
-            db.get(Counterparty, c["id"]).org_id == user_b.org_id for c in res["counterparties"]
+        assert user_b is not None
+        cu = CurrentUser(
+            id=user_b.id,
+            email=user_b.email,
+            org_id=user_b.org_id,
+            role=user_b.role,
+            is_active=True,
+            org_role=getattr(user_b, "org_role", None),
         )
+        res = global_search(db, cu, "Иванов", limit=20)
+        cp_group = next((g for g in res.groups if g.key == "counterparties"), None)
+        assert cp_group is not None
+        for item in cp_group.items:
+            # url вида /cabinet/counterparties/{id}
+            cp_id = int(item.url.rstrip("/").rsplit("/", 1)[-1])
+            assert db.get(Counterparty, cp_id).org_id == user_b.org_id
     finally:
         db.close()

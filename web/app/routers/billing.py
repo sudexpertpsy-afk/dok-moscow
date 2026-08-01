@@ -14,6 +14,7 @@ from app.db import get_db
 from app.deps import client_ip
 from app.rate_limit import LoginRateLimiter
 from app.services.audit import record_event
+from app.services.ops import record_webhook_fail, record_webhook_ok
 
 log = logging.getLogger("dok.billing.webhook")
 
@@ -34,6 +35,7 @@ async def tbank_webhook(request: Request, db: Session = Depends(get_db)):
         payload = await request.json()
     except Exception:
         webhook_limiter.register_failure(ip)
+        record_webhook_fail("bad_json")
         record_event(
             db,
             type="billing_webhook_rejected",
@@ -44,6 +46,7 @@ async def tbank_webhook(request: Request, db: Session = Depends(get_db)):
         return PlainTextResponse("OK", status_code=200)
 
     if not isinstance(payload, dict):
+        record_webhook_fail("not_object")
         return PlainTextResponse("OK", status_code=200)
 
     try:
@@ -52,6 +55,7 @@ async def tbank_webhook(request: Request, db: Session = Depends(get_db)):
     except TBankError as exc:
         webhook_limiter.register_failure(ip)
         log.info("webhook rejected: %s", exc)
+        record_webhook_fail(str(exc))
         record_event(
             db,
             type="billing_webhook_rejected",
@@ -70,7 +74,9 @@ async def tbank_webhook(request: Request, db: Session = Depends(get_db)):
     except Exception:
         log.exception("webhook processing error")
         db.rollback()
+        record_webhook_fail("processing_error")
         # 500 — банк повторит доставку
         return PlainTextResponse("ERROR", status_code=500)
 
+    record_webhook_ok()
     return PlainTextResponse("OK", status_code=200)

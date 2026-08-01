@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
@@ -16,6 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app import db as dbmod
 from app.config import get_settings
 from app.db import Base
+from app.http_cache import apply_response_cache_headers
 from app.models import User, UserRole
 from app.routers import (
     admin,
@@ -41,8 +43,10 @@ from app.routers import (
 )
 from app.routers import settings as settings_routes
 from app.security import hash_password
+from app.templating import templates
 
 BASE_DIR = Path(__file__).resolve().parent
+log = logging.getLogger("dok.access")
 
 
 def _bootstrap_admin() -> None:
@@ -132,6 +136,28 @@ def create_app() -> FastAPI:
     app.add_middleware(SessionMiddleware, **session_kw)
 
     @app.middleware("http")
+    async def request_timing(request: Request, call_next):
+        """W-32: access-лог и кольцевой буфер латентности."""
+        from app.services.ops import record_timing, route_group
+
+        started = time.perf_counter()
+        response = await call_next(request)
+        ms = (time.perf_counter() - started) * 1000.0
+        path = request.url.path
+        if not path.startswith("/static"):
+            record_timing(path, ms)
+            log.info(
+                "%s %s → %s %.1fms group=%s",
+                request.method,
+                path,
+                response.status_code,
+                ms,
+                route_group(path),
+            )
+        response.headers["X-Response-Time"] = f"{ms:.1f}ms"
+        return response
+
+    @app.middleware("http")
     async def host_routing(request: Request, call_next):
         """W-26: публичные пути ↔ dok.moscow, кабинет ↔ app.dok.moscow."""
         from app.hosting import host_role, path_surface, redirect_url_for_path, request_host
@@ -139,11 +165,15 @@ def create_app() -> FastAPI:
         path = request.url.path
         surface = path_surface(path)
         if surface == "shared":
-            return await call_next(request)
+            response = await call_next(request)
+            apply_response_cache_headers(request, response)
+            return response
         host = request_host(request.headers.get("host"))
         role = host_role(host)
         if role == "dev":
-            return await call_next(request)
+            response = await call_next(request)
+            apply_response_cache_headers(request, response)
+            return response
         if role == "public" and surface == "app":
             return RedirectResponse(
                 redirect_url_for_path(path, query=request.url.query or ""),
@@ -157,6 +187,7 @@ def create_app() -> FastAPI:
         response = await call_next(request)
         if role == "app":
             response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        apply_response_cache_headers(request, response)
         return response
 
     @app.middleware("http")
@@ -207,7 +238,41 @@ def create_app() -> FastAPI:
     app.include_router(admin_billing.router)
     app.include_router(admin_templates.router)
 
-    templates_404 = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+    def _error_context(request: Request, *, status_code: int, detail: str) -> dict:
+        from app.hosting import host_role, path_surface, request_host
+
+        s = get_settings()
+        role = host_role(request_host(request.headers.get("host")))
+        if role == "public":
+            surface = "public"
+        elif role == "app":
+            surface = "app"
+        else:
+            surface = "public" if path_surface(request.url.path) == "public" else "app"
+        csrf = ""
+        try:
+            from app.security import get_csrf_token
+
+            csrf = get_csrf_token(request)
+        except Exception:
+            csrf = ""
+        titles = {
+            401: "Требуется вход",
+            403: "Доступ ограничен",
+            404: "Страница не найдена",
+            500: "Внутренняя ошибка сервера",
+        }
+        return {
+            "request": request,
+            "app_name": s.app_name,
+            "public_base_url": s.public_base_url.rstrip("/"),
+            "app_base_url": s.app_base_url.rstrip("/"),
+            "yandex_metrika_id": (s.yandex_metrika_id or "").strip(),
+            "csrf_token": csrf,
+            "status_code": status_code,
+            "detail": detail if isinstance(detail, str) and detail else titles.get(status_code, "Ошибка"),
+            "error_surface": surface,
+        }
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
@@ -220,35 +285,36 @@ def create_app() -> FastAPI:
 
         accept = request.headers.get("accept", "")
         wants_html = "text/html" in accept
-        if exc.status_code == 404 and wants_html:
-            s = get_settings()
-            return templates_404.TemplateResponse(
-                request,
-                "landing/404.html",
-                {
-                    "app_name": s.app_name,
-                    "public_base_url": s.public_base_url.rstrip("/"),
-                    "app_base_url": s.app_base_url.rstrip("/"),
-                    "yandex_metrika_id": (s.yandex_metrika_id or "").strip(),
-                    "csrf_token": "",
-                },
-                status_code=404,
+        if wants_html and exc.status_code in (401, 403, 404, 500):
+            detail = exc.detail if isinstance(exc.detail, str) else "Ошибка"
+            ctx = _error_context(request, status_code=exc.status_code, detail=detail)
+            name = (
+                "errors/public.html"
+                if ctx["error_surface"] == "public"
+                else "errors/app.html"
             )
-        # Браузерная навигация (в т.ч. hx-boost) — не показывать сырой JSON.
-        if wants_html and exc.status_code in (401, 403):
-            detail = exc.detail if isinstance(exc.detail, str) else "Ошибка доступа"
-            return HTMLResponse(
-                content=(
-                    "<!DOCTYPE html><html lang=\"ru\"><head><meta charset=\"utf-8\">"
-                    f"<title>{exc.status_code}</title></head><body>"
-                    f"<p>{detail}</p>"
-                    "<p><a href=\"/login\">Войти</a></p>"
-                    "</body></html>"
-                ),
+            return templates.TemplateResponse(
+                request,
+                name,
+                ctx,
                 status_code=exc.status_code,
                 headers=headers,
             )
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=headers)
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        log.exception("Unhandled error on %s", request.url.path)
+        accept = request.headers.get("accept", "")
+        if "text/html" in accept:
+            ctx = _error_context(request, status_code=500, detail="Внутренняя ошибка сервера")
+            name = (
+                "errors/public.html"
+                if ctx["error_surface"] == "public"
+                else "errors/app.html"
+            )
+            return templates.TemplateResponse(request, name, ctx, status_code=500)
+        return JSONResponse({"detail": "Internal Server Error"}, status_code=500)
 
     return app
 

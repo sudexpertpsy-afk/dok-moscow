@@ -16,5 +16,56 @@
   </ul>
 </section>
 
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Фоновые задачи и инфраструктура</h2>
+  <p class="muted">Маркеры worker, вебхука и бэкапа (W-32).</p>
+  <ul class="status-list" style="margin-top:1rem">
+    {% for label, detail, ok in ops.background %}
+    <li>
+      <span><strong>{{ label }}</strong> — <span class="muted">{{ detail }}</span></span>
+      {% if ok %}<span class="badge ok">ok</span>{% else %}<span class="badge warn">проверить</span>{% endif %}
+    </li>
+    {% endfor %}
+    <li>
+      <span><strong>Вебхук Т-Кассы</strong> — <span class="muted">успех: {{ ops.webhook.last_ok }}; отказов подряд: {{ ops.webhook.fail_streak }}</span></span>
+      {% if ops.webhook.ok %}<span class="badge ok">ok</span>{% else %}<span class="badge warn">проверить</span>{% endif %}
+    </li>
+    <li>
+      <span><strong>Диск (FILES_ROOT)</strong> — <span class="muted">{{ ops.disk.used_pct }}% · свободно {{ ops.disk.free_gb }} ГБ из {{ ops.disk.total_gb }} ГБ</span></span>
+      {% if ops.disk.ok %}<span class="badge ok">ok</span>{% else %}<span class="badge warn">проверить</span>{% endif %}
+    </li>
+    <li>
+      <span><strong>Размер БД</strong> — <span class="muted">{% if ops.db_size_mb is not none %}{{ ops.db_size_mb }} МБ{% else %}н/д{% endif %}</span></span>
+      <span class="badge ok">info</span>
+    </li>
+    <li>
+      <span><strong>Ожидающие jobs</strong> — <span class="muted">{{ ops.pending_jobs }}</span></span>
+      {% if ops.pending_jobs < 50 %}<span class="badge ok">ok</span>{% else %}<span class="badge warn">очередь</span>{% endif %}
+    </li>
+  </ul>
+</section>
+
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Латентность за час (P50 / P95)</h2>
+  <p class="muted">Кольцевой буфер ответов приложения (без статики).</p>
+  {% if ops.latency %}
+  <table class="table" style="margin-top:1rem">
+    <thead><tr><th>Группа</th><th>n</th><th>P50</th><th>P95</th></tr></thead>
+    <tbody>
+      {% for s in ops.latency %}
+      <tr>
+        <td>{{ s.group }}</td>
+        <td class="mono">{{ s.count }}</td>
+        <td class="mono">{{ s.p50_ms }} ms</td>
+        <td class="mono">{{ s.p95_ms }} ms</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted" style="margin-top:1rem">Пока нет замеров в этом процессе.</p>
+  {% endif %}
+</section>
+
 {% include "admin/_layout_end.html" %}
 {% endblock %}

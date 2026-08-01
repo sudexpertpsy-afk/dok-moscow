@@ -524,6 +524,8 @@ def admin_status(
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
 ):
+    from app.services.ops import status_snapshot
+
     settings = get_settings()
     admin_n = (
         db.scalar(
@@ -542,8 +544,15 @@ def admin_status(
         ("FILES_ROOT", settings.files_root, True),
         ("Шаблоны", settings.templates_dir, True),
     ]
+    snap = status_snapshot(db)
     return templates.TemplateResponse(
         request=request,
         name="admin/status.html",
-        context=_ctx(request, user, "status", checks=checks),
+        context=_ctx(
+            request,
+            user,
+            "status",
+            checks=checks,
+            ops=snap,
+        ),
     )

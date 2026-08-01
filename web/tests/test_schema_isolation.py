@@ -210,8 +210,10 @@ def test_http_org_isolation(two_orgs):
     from conftest import login
 
     assert login(client, "alpha@example.com", "Passw0rd!").status_code == 303
-    assert client.get(f"/cabinet/org/{ids['org_a']}").status_code == 200
-    assert client.get(f"/cabinet/org/{ids['org_b']}").status_code == 404
+    assert client.get(f"/cabinet/documents/{ids['doc_a']}").status_code == 200
+    assert client.get(f"/cabinet/documents/{ids['doc_b']}").status_code == 404
+    assert client.get(f"/cabinet/counterparties/{ids['cp_a']}").status_code == 200
+    assert client.get(f"/cabinet/counterparties/{ids['cp_b']}").status_code == 404
 
 
 def test_same_inn_allowed_in_different_orgs(two_orgs):

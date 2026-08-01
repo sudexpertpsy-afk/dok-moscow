@@ -10,6 +10,7 @@ from markupsafe import Markup
 
 from app.config import get_settings
 from app.hosting import public_url
+from app.static_assets import static_url
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -24,6 +25,7 @@ def _inject_globals() -> None:
     templates.env.globals["public_base_url"] = s.public_base_url.rstrip("/")
     templates.env.globals["app_base_url"] = s.app_base_url.rstrip("/")
     templates.env.globals["public_url"] = public_url
+    templates.env.globals["static_url"] = static_url
 
 
 templates.env.filters["tojson"] = _tojson

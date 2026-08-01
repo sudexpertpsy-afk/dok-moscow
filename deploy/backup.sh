@@ -99,4 +99,20 @@ echo "[$STAMP] → ротация (30 daily / 12 monthly)"
 ls -1t "$DAILY_DIR"/dok_* 2>/dev/null | tail -n +31 | xargs -r rm -f
 ls -1t "$MONTHLY_DIR"/dok_* 2>/dev/null | tail -n +13 | xargs -r rm -f
 
+# W-32: маркер успеха для /admin/status и алертов (файл в томе files)
+MARKER_DIR="${FILES_ROOT_HOST:-/srv/dok/files}/.ops"
+mkdir -p "$MARKER_DIR"
+python3 - <<PY
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+p = Path("$MARKER_DIR") / "backup_ok.json"
+p.write_text(json.dumps({
+    "at": datetime.now(timezone.utc).isoformat(),
+    "file": "$OUT",
+    "stamp": "$STAMP",
+}, ensure_ascii=False), encoding="utf-8")
+print(f"[$STAMP] маркер: {p}")
+PY
+
 echo "[$STAMP] ✓ бэкап: $OUT"

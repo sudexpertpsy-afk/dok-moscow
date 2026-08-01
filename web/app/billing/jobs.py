@@ -56,6 +56,9 @@ def reconcile_stale_payments(db: Session, *, older_than_min: int = 15) -> int:
             log.exception("GetState failed payment=%s", pay.id)
     if done:
         db.commit()
+    from app.services.ops import write_marker
+
+    write_marker("billing_reconcile", reconciled=done)
     return done
 
 
@@ -254,6 +257,8 @@ def _notify_renewal_failed(db: Session, sub: Subscription) -> None:
 
 def _run_daily_jobs() -> None:
     """Синхронные суточные задачи (вызывать через asyncio.to_thread)."""
+    from app.services.ops import write_marker
+
     db = dbmod.SessionLocal()
     try:
         n = process_autorenewals(db)
@@ -267,11 +272,19 @@ def _run_daily_jobs() -> None:
         n_cal = process_calendar_reminders(db)
         if n_cal:
             log.info("Calendar reminders sent %s", n_cal)
+        watch_stats = None
         if os.environ.get("LEGAL_WATCH_WORKER", "1") != "0":
             from app.services.legal_monitor import run_daily_watch
 
             watch_stats = run_daily_watch(db)
             log.info("Legal watch: %s", watch_stats)
+            write_marker("legal_watch", stats=watch_stats or {})
+        write_marker(
+            "billing_daily",
+            autorenew=n,
+            expiry_notices=n_mail,
+            calendar_reminders=n_cal,
+        )
     finally:
         db.close()
 

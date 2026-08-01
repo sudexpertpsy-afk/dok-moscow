@@ -2,7 +2,7 @@
 # DNS A-записи dok.moscow и app.dok.moscow → IP VDS.
 
 dok.moscow, www.dok.moscow {
-	encode gzip
+	encode zstd gzip
 
 	# 410 Gone — сканеры WordPress / мусорные пути (до FastAPI не доходят)
 	@wp_junk_path {
@@ -25,8 +25,17 @@ dok.moscow, www.dok.moscow {
 	@legacy_year path_regexp year_archive ^/20[12][0-9]/[0-1][0-9]/?$
 	redir @legacy_year / 301
 
-	@static path /static/*
-	header @static Cache-Control "public, max-age=604800, immutable"
+	# W-31: хэшированная статика — год; PDF-образцы — сутки
+	@static_hashed path_regexp hashed_static ^/static/.+\.[a-f0-9]{8,}\.(css|js)$
+	header @static_hashed Cache-Control "public, max-age=31536000, immutable"
+	@static_samples path /static/samples/*
+	header @static_samples Cache-Control "public, max-age=86400"
+	@static_other {
+		path /static/*
+		not path_regexp hashed_static ^/static/.+\.[a-f0-9]{8,}\.(css|js)$
+		not path /static/samples/*
+	}
+	header @static_other Cache-Control "public, max-age=604800"
 
 	reverse_proxy app:8000
 	header {
@@ -39,10 +48,26 @@ dok.moscow, www.dok.moscow {
 }
 
 app.dok.moscow {
-	encode gzip
+	encode zstd gzip
 
-	@static path /static/*
-	header @static Cache-Control "public, max-age=604800, immutable"
+	@static_hashed path_regexp hashed_static_app ^/static/.+\.[a-f0-9]{8,}\.(css|js)$
+	header @static_hashed Cache-Control "public, max-age=31536000, immutable"
+	@static_samples path /static/samples/*
+	header @static_samples Cache-Control "public, max-age=86400"
+	@static_other {
+		path /static/*
+		not path_regexp hashed_static_app ^/static/.+\.[a-f0-9]{8,}\.(css|js)$
+		not path /static/samples/*
+	}
+	header @static_other Cache-Control "public, max-age=604800"
+
+	# Кабинетные HTML — не кэшировать на краю
+	@html_pages {
+		not path /static/*
+		not path /api/*
+		not path /billing/webhook
+	}
+	header @html_pages Cache-Control "no-store"
 
 	reverse_proxy app:8000
 	header {
