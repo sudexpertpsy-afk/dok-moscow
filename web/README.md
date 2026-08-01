@@ -28,4 +28,5 @@ cd web && PYTHONPATH=. pytest tests -q
 
 - W-01 — каркас, auth, инвайты
 - W-02 — схема PostgreSQL + Alembic + изоляция org_id
-- W-03… — генерация документов и далее по ТЗ
+- W-03 — генерация DOCX (ядро), счётчики FOR UPDATE, PDF через Gotenberg
+- W-04… — мастер комплектов и далее по ТЗ

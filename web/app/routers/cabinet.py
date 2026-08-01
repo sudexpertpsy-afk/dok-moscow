@@ -16,7 +16,7 @@ from app.templating import templates
 router = APIRouter(prefix="/cabinet", tags=["cabinet"])
 
 NAV = [
-    ("documents", "Документы", "/cabinet/"),
+    ("documents", "Документы", "/cabinet/documents/"),
     ("package", "Комплект", "/cabinet/package"),
     ("counterparties", "Контрагенты", "/cabinet/counterparties"),
     ("journal", "Журнал", "/cabinet/journal"),
@@ -61,14 +61,7 @@ def _cabinet(
 
 @router.get("/", response_class=HTMLResponse)
 def documents(request: Request, user: CurrentUser = Depends(require_org_user), db: Session = Depends(get_db)):
-    return _cabinet(
-        request,
-        user,
-        db,
-        "documents",
-        "Документы",
-        "Раздел появится в W-03: отдельный документ и генерация DOCX/PDF.",
-    )
+    return RedirectResponse("/cabinet/documents/", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/package", response_class=HTMLResponse)
