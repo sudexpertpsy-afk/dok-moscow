@@ -1,3 +1,26 @@
-dok.moscow {
-    reverse_proxy app:8000
+# Авто-HTTPS Let's Encrypt через Caddy.
+# DNS A-записи dok.moscow и app.dok.moscow → IP VDS.
+
+dok.moscow, www.dok.moscow {
+	encode gzip
+	reverse_proxy app:8000
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
+
+app.dok.moscow {
+	encode gzip
+	reverse_proxy app:8000
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
 }

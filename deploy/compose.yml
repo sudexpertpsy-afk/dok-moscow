@@ -1,19 +1,46 @@
-# Черновик по Приложению Б ТЗ — доводится в W-07
+# Док.Москва — Docker Compose (W-07)
+# Запуск из каталога deploy/: docker compose --env-file .env up -d
+name: dok
+
 services:
   caddy:
     image: caddy:2
-    ports: ["80:80", "443:443"]
+    ports:
+      - "80:80"
+      - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
     restart: unless-stopped
+    networks: [dok]
+
   app:
-    build: ../web
-    env_file: .env    # DADATA_KEY, DB_URL, SECRET_KEY
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DB_URL: postgresql+psycopg://dok:${POSTGRES_PASSWORD}@postgres:5432/dok
+      FILES_ROOT: /srv/dok/files
+      GOTENBERG_URL: http://gotenberg:3000
+      CORE_PATH: /app/core
+      TEMPLATES_DIR: /app/core/Шаблоны
     volumes:
       - files:/srv/dok/files
-    depends_on: [postgres, gotenberg]
+      - ../core:/app/core:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      gotenberg:
+        condition: service_started
     restart: unless-stopped
+    networks: [dok]
+    expose:
+      - "8000"
+
   postgres:
     image: postgres:16
     environment:
@@ -22,11 +49,29 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dok -d dok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
+    networks: [dok]
+
   gotenberg:
     image: gotenberg/gotenberg:8
+    command:
+      - "gotenberg"
+      - "--chromium-disable-javascript"
+      - "--api-timeout=120s"
     restart: unless-stopped
+    networks: [dok]
+
+networks:
+  dok:
+    driver: bridge
+
 volumes:
   caddy_data: {}
+  caddy_config: {}
   pgdata: {}
   files: {}
