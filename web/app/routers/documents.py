@@ -23,7 +23,7 @@ from app.services.templates import (
 )
 from app.services.watermark import apply_guest_watermark
 from app.templating import templates
-from app.routers.cabinet import NAV
+from app.nav_context import cabinet_nav
 
 router = APIRouter(prefix="/cabinet/documents", tags=["documents"])
 
@@ -36,14 +36,14 @@ _NUMBER_FIELDS = {
 }
 
 
-def _page(request: Request, user: CurrentUser, org, **extra):
+def _page(request: Request, user: CurrentUser, org, db, **extra):
     ctx = {
         "request": request,
         "csrf_token": get_csrf_token(request),
         "app_name": get_settings().app_name,
         "user": user,
         "org": org,
-        "nav": NAV,
+        "nav": cabinet_nav(db, user),
         "active": "documents",
         "flash_error": None,
         "flash_ok": None,
@@ -62,11 +62,7 @@ def documents_index(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/documents_index.html",
-        context=_page(
-            request,
-            user,
-            org,
-            templates_list=list_templates_for_org(org.id),
+        context=_page(request, user, org, db, templates_list=list_templates_for_org(org.id),
         ),
     )
 
@@ -96,11 +92,7 @@ def document_form(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/document_form.html",
-        context=_page(
-            request,
-            user,
-            org,
-            template_name=template_name,
+        context=_page(request, user, org, db, template_name=template_name,
             variables=variables,
             values={},
             normative_links=normative_links,
@@ -157,11 +149,7 @@ async def document_generate(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/document_form.html",
-            context=_page(
-                request,
-                user,
-                org,
-                template_name=template_name,
+            context=_page(request, user, org, db, template_name=template_name,
                 variables=variables,
                 values=context,
                 flash_error=f"Ошибка генерации: {exc}",
@@ -187,7 +175,7 @@ def document_view(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/document_view.html",
-        context=_page(request, user, org, doc=doc),
+        context=_page(request, user, org, db, doc=doc),
     )
 
 

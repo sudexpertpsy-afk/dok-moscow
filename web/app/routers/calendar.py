@@ -19,7 +19,7 @@ from app.models import (
     Counterparty,
 )
 from app.org_scope import get_org_for_user
-from app.routers.cabinet import NAV
+from app.nav_context import cabinet_nav
 from app.security import get_csrf_token
 from app.services.calendar_svc import (
     KIND_LABELS,
@@ -52,14 +52,14 @@ _MONTH_NAMES = (
 _WEEKDAYS = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
 
 
-def _ctx(request: Request, user: CurrentUser, org, **extra):
+def _ctx(request: Request, user: CurrentUser, org, db, **extra):
     base = {
         "request": request,
         "csrf_token": get_csrf_token(request),
         "app_name": get_settings().app_name,
         "user": user,
         "org": org,
-        "nav": NAV,
+        "nav": cabinet_nav(db, user),
         "active": "calendar",
         "flash_error": None,
         "flash_ok": None,
@@ -130,11 +130,7 @@ def calendar_home(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/calendar.html",
-        context=_ctx(
-            request,
-            user,
-            org,
-            year=y,
+        context=_ctx(request, user, org, db, year=y,
             month=m,
             month_title=f"{_MONTH_NAMES[m]} {y}",
             weeks=weeks,
@@ -186,11 +182,7 @@ def calendar_new(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/calendar_event_form.html",
-        context=_ctx(
-            request,
-            user,
-            org,
-            event=None,
+        context=_ctx(request, user, org, db, event=None,
             due_on=due.isoformat(),
             counterparties=counterparties,
             kind_choices=list(CalendarEventKind),
@@ -268,11 +260,7 @@ def calendar_edit(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/calendar_event_form.html",
-        context=_ctx(
-            request,
-            user,
-            org,
-            event=ev,
+        context=_ctx(request, user, org, db, event=ev,
             due_on=ev.due_on.isoformat(),
             counterparties=counterparties,
             kind_choices=list(CalendarEventKind),
@@ -391,11 +379,7 @@ def _form_error(request, user, org, db, message, title, due_on, kind, notes, rem
     return templates.TemplateResponse(
         request=request,
         name="cabinet/calendar_event_form.html",
-        context=_ctx(
-            request,
-            user,
-            org,
-            event=None,
+        context=_ctx(request, user, org, db, event=None,
             due_on=due_on,
             counterparties=counterparties,
             kind_choices=list(CalendarEventKind),

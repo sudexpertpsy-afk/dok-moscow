@@ -29,6 +29,7 @@ from app.routers import (
     calendar,
     counterparties,
     documents,
+    global_search,
     journal,
     landing,
     package,
@@ -154,6 +155,7 @@ def create_app() -> FastAPI:
     app.include_router(zakon.router)
     app.include_router(auth.router)
     app.include_router(billing.router)
+    app.include_router(global_search.router)
     app.include_router(cabinet.router)
     app.include_router(cabinet_billing.router)
     app.include_router(cabinet_templates.router)

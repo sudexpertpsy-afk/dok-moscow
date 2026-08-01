@@ -13,7 +13,7 @@ from app.deps import CurrentUser, require_org_user
 from app.models import Counterparty, CounterpartySource, CounterpartyType, Document
 from app.org_scope import get_counterparty_for_org, get_org_for_user, list_counterparties, require_org_id
 from app.privacy import counterparty_list_item, mask_address, mask_passport
-from app.routers.cabinet import NAV
+from app.nav_context import cabinet_nav
 from app.security import check_csrf, get_csrf_token
 from app.services.counterparties import (
     apply_fields,
@@ -37,14 +37,14 @@ TYPE_LABELS = {
 }
 
 
-def _page(request: Request, user: CurrentUser, org, **extra):
+def _page(request: Request, user: CurrentUser, org, db, **extra):
     ctx = {
         "request": request,
         "csrf_token": get_csrf_token(request),
         "app_name": get_settings().app_name,
         "user": user,
         "org": org,
-        "nav": NAV,
+        "nav": cabinet_nav(db, user),
         "active": "counterparties",
         "flash_error": None,
         "flash_ok": None,
@@ -66,7 +66,7 @@ def cp_list(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/counterparties_list.html",
-        context=_page(request, user, org, items=items),
+        context=_page(request, user, org, db, items=items),
     )
 
 
@@ -81,11 +81,7 @@ def cp_new_form(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/counterparty_form.html",
-        context=_page(
-            request,
-            user,
-            org,
-            mode="new",
+        context=_page(request, user, org, db, mode="new",
             cp=None,
             тип=тип,
             values={},
@@ -116,11 +112,7 @@ async def cp_create(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/counterparty_form.html",
-            context=_page(
-                request,
-                user,
-                org,
-                mode="new",
+            context=_page(request, user, org, db, mode="new",
                 cp=None,
                 тип=тип,
                 values=fields,
@@ -229,11 +221,7 @@ def cp_view(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/counterparty_view.html",
-        context=_page(
-            request,
-            user,
-            org,
-            cp=cp,
+        context=_page(request, user, org, db, cp=cp,
             documents=docs,
             passport_masked=mask_passport(cp.passport_series, cp.passport_number),
             address_masked=mask_address(cp.address),
@@ -254,11 +242,7 @@ def cp_edit_form(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/counterparty_form.html",
-        context=_page(
-            request,
-            user,
-            org,
-            mode="edit",
+        context=_page(request, user, org, db, mode="edit",
             cp=cp,
             тип=cp.type,
             values=values,
@@ -286,11 +270,7 @@ async def cp_update(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/counterparty_form.html",
-            context=_page(
-                request,
-                user,
-                org,
-                mode="edit",
+            context=_page(request, user, org, db, mode="edit",
                 cp=cp,
                 тип=тип,
                 values=fields,

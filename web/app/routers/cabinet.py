@@ -10,22 +10,19 @@ from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, assert_same_org, get_current_user, require_org_user
 from app.models import Organization
+from app.nav_context import cabinet_nav
+from app.navigation import cabinet_menu_tuples, roles_for_user
+from app.models import TariffCode
 from app.security import get_csrf_token
 from app.templating import templates
 
 router = APIRouter(prefix="/cabinet", tags=["cabinet"])
 
-NAV = [
-    ("documents", "Документы", "/cabinet/documents/"),
-    ("package", "Комплект", "/cabinet/package/"),
-    ("templates", "Мои шаблоны", "/cabinet/templates/"),
-    ("counterparties", "Контрагенты", "/cabinet/counterparties/"),
-    ("party_check", "Проверка контрагента", "/cabinet/party-check/"),
-    ("journal", "Журнал", "/cabinet/journal"),
-    ("calendar", "Календарь", "/cabinet/calendar/"),
-    ("billing", "Тариф и оплата", "/cabinet/billing/"),
-    ("settings", "Настройки", "/cabinet/settings/"),
-]
+# Обратная совместимость импортов: статический снимок меню (полный доступ).
+NAV = cabinet_menu_tuples(
+    roles=roles_for_user(is_service_admin=False, has_org=True),
+    tariff=TariffCode.organization,
+)
 
 
 def _cabinet(
@@ -55,7 +52,7 @@ def _cabinet(
             "app_name": get_settings().app_name,
             "user": user,
             "org": org,
-            "nav": NAV,
+            "nav": cabinet_nav(db, user),
             "active": page,
             "title": title,
             "hint": hint,

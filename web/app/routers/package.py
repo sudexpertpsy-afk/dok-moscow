@@ -12,7 +12,7 @@ from app.db import get_db
 from app.deps import CurrentUser, require_org_user
 from app.models import Counterparty, Document
 from app.org_scope import get_document_for_org, get_org_for_user, list_counterparties, require_org_id
-from app.routers.cabinet import NAV
+from app.nav_context import cabinet_nav
 from app.security import check_csrf, get_csrf_token
 from app.services.package_generate import (
     build_merged_pdf,
@@ -57,14 +57,14 @@ def _clear(request: Request) -> None:
     request.session.pop(SESSION_KEY, None)
 
 
-def _page(request: Request, user: CurrentUser, org, step: int, **extra):
+def _page(request: Request, user: CurrentUser, org, db, step: int, **extra):
     ctx = {
         "request": request,
         "csrf_token": get_csrf_token(request),
         "app_name": get_settings().app_name,
         "user": user,
         "org": org,
-        "nav": NAV,
+        "nav": cabinet_nav(db, user),
         "active": "package",
         "step": step,
         "steps": [
@@ -116,11 +116,7 @@ def package_start(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/package_step1.html",
-        context=_page(
-            request,
-            user,
-            org,
-            1,
+        context=_page(request, user, org, db, 1,
             wizard=data,
             counterparties=cps,
             core_fields=_core_field_names(тип),
@@ -177,11 +173,7 @@ async def package_step1(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/package_step1.html",
-            context=_page(
-                request,
-                user,
-                org,
-                1,
+            context=_page(request, user, org, db, 1,
                 wizard=data,
                 counterparties=cps,
                 core_fields=_core_field_names(тип),
@@ -221,11 +213,7 @@ def package_step2_get(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/package_step2.html",
-        context=_page(
-            request,
-            user,
-            org,
-            2,
+        context=_page(request, user, org, db, 2,
             wizard=data,
             contracts=contracts,
             chosen=chosen,
@@ -265,11 +253,7 @@ async def package_step2_post(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/package_step2.html",
-            context=_page(
-                request,
-                user,
-                org,
-                2,
+            context=_page(request, user, org, db, 2,
                 wizard=data,
                 contracts=contract_options(data["тип"], org.id),
                 chosen=contract,
@@ -318,11 +302,7 @@ def package_step3_get(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/package_step3.html",
-        context=_page(
-            request,
-            user,
-            org,
-            3,
+        context=_page(request, user, org, db, 3,
             wizard=data,
             core_names=core_names,
             additional=additional,
@@ -376,11 +356,7 @@ async def package_step3_post(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/package_step3.html",
-            context=_page(
-                request,
-                user,
-                org,
-                3,
+            context=_page(request, user, org, db, 3,
                 wizard=data,
                 core_names=core_names,
                 additional=additional,
@@ -418,11 +394,7 @@ def package_done(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/package_done.html",
-        context=_page(
-            request,
-            user,
-            org,
-            4,
+        context=_page(request, user, org, db, 4,
             wizard=data,
             documents=docs,
             display_name=display_name,

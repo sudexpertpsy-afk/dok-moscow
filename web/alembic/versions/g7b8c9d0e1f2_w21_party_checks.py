@@ -1,7 +1,7 @@
 """W-21: журнал проверок контрагента, статус ЕГРЮЛ, лимит
 
 Revision ID: g7b8c9d0e1f2
-Revises: f6a7b8c9d0e1
+Revises: h8c9d0e1f2a3
 Create Date: 2026-08-01 18:00:00.000000
 
 """
@@ -14,7 +14,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "g7b8c9d0e1f2"
-down_revision: str | None = "f6a7b8c9d0e1"
+down_revision: str | None = "h8c9d0e1f2a3"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -23,7 +23,7 @@ from app.models import (
     TariffCode,
 )
 from app.org_scope import get_org_for_user
-from app.routers.cabinet import NAV
+from app.nav_context import cabinet_nav
 from app.security import get_csrf_token
 from app.services.billing import get_current_subscription, get_tariff
 from app.services.limits import usage_snapshot
@@ -32,14 +32,14 @@ from app.templating import templates
 router = APIRouter(prefix="/cabinet/billing", tags=["cabinet-billing"])
 
 
-def _ctx(request: Request, user: CurrentUser, org, **extra):
+def _ctx(request: Request, user: CurrentUser, org, db, **extra):
     base = {
         "request": request,
         "csrf_token": get_csrf_token(request),
         "app_name": get_settings().app_name,
         "user": user,
         "org": org,
-        "nav": NAV,
+        "nav": cabinet_nav(db, user),
         "active": "billing",
         "flash_error": None,
         "flash_ok": None,
@@ -76,11 +76,7 @@ def billing_page(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/billing.html",
-        context=_ctx(
-            request,
-            user,
-            org,
-            snap=snap,
+        context=_ctx(request, user, org, db, snap=snap,
             sub=sub,
             tariffs=tariffs,
             payments=payments,
@@ -153,11 +149,7 @@ def billing_pay(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/billing.html",
-            context=_ctx(
-                request,
-                user,
-                org,
-                snap=snap,
+            context=_ctx(request, user, org, db, snap=snap,
                 sub=get_current_subscription(db, org.id),
                 tariffs=db.scalars(select(Tariff).where(Tariff.is_active.is_(True))).all(),
                 payments=db.scalars(
@@ -198,11 +190,7 @@ def billing_success(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/billing_result.html",
-        context=_ctx(
-            request,
-            user,
-            org,
-            ok=True,
+        context=_ctx(request, user, org, db, ok=True,
             pay=pay,
             title="Оплата принята",
             hint="Если статус ещё не обновился — подождите минуту или обновите страницу.",
@@ -228,11 +216,7 @@ def billing_fail(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/billing_result.html",
-        context=_ctx(
-            request,
-            user,
-            org,
-            ok=False,
+        context=_ctx(request, user, org, db, ok=False,
             pay=pay,
             title="Оплата не завершена",
             hint="Средства не списаны или платёж отклонён. Можно попробовать снова.",

@@ -14,22 +14,14 @@ from app.db import get_db
 from app.defaults import empty_requisites
 from app.deps import CurrentUser, require_csrf, require_service_admin
 from app.models import Invite, Lead, Organization, User, UserRole, utcnow
+from app.nav_context import admin_nav
 from app.security import get_csrf_token, new_invite_token
 from app.templating import templates
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-ADMIN_NAV = [
-    ("home", "Обзор", "/admin/"),
-    ("orgs", "Организации", "/admin/organizations"),
-    ("users", "Пользователи", "/admin/users"),
-    ("leads", "Заявки", "/admin/leads"),
-    ("invites", "Приглашения", "/admin/invites"),
-    ("templates", "Шаблоны", "/admin/templates"),
-    ("payments", "Платежи", "/admin/payments"),
-    ("paysettings", "Платёжная система", "/admin/payment-settings"),
-    ("status", "Статус", "/admin/status"),
-]
+# Совместимость: меню строится из app.navigation
+ADMIN_NAV = admin_nav()
 
 
 def _ctx(request: Request, user: CurrentUser, active: str, **extra):
@@ -38,7 +30,7 @@ def _ctx(request: Request, user: CurrentUser, active: str, **extra):
         "csrf_token": get_csrf_token(request),
         "app_name": get_settings().app_name,
         "user": user,
-        "admin_nav": ADMIN_NAV,
+        "admin_nav": admin_nav(),
         "active": active,
         "flash_error": None,
         "flash_ok": None,

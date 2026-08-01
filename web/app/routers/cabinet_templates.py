@@ -12,7 +12,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, require_csrf, require_org_user
 from app.org_scope import get_org_for_user
-from app.routers.cabinet import NAV
+from app.nav_context import cabinet_nav
 from app.security import get_csrf_token
 from app.services.audit import record_event
 from app.services.org_templates import (
@@ -48,7 +48,7 @@ def _page(request: Request, user: CurrentUser, org, db: Session, **extra):
         "app_name": get_settings().app_name,
         "user": user,
         "org": org,
-        "nav": NAV,
+        "nav": cabinet_nav(db, user),
         "active": "templates",
         "flash_error": None,
         "flash_ok": None,

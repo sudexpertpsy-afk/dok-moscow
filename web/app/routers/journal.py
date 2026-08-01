@@ -10,7 +10,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, require_org_user
 from app.org_scope import get_org_for_user, list_counterparty_options, require_org_id
-from app.routers.cabinet import NAV
+from app.nav_context import cabinet_nav
 from app.security import get_csrf_token
 from app.services.journal import distinct_templates, list_journal, parse_date, search_all
 from app.templating import templates
@@ -18,14 +18,14 @@ from app.templating import templates
 router = APIRouter(prefix="/cabinet", tags=["journal"])
 
 
-def _page(request: Request, user: CurrentUser, org, active: str, **extra):
+def _page(request: Request, user: CurrentUser, org, db, active: str, **extra):
     ctx = {
         "request": request,
         "csrf_token": get_csrf_token(request),
         "app_name": get_settings().app_name,
         "user": user,
         "org": org,
-        "nav": NAV,
+        "nav": cabinet_nav(db, user),
         "active": active,
         "flash_error": None,
         "flash_ok": None,
@@ -68,11 +68,7 @@ def journal_page(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/journal.html",
-        context=_page(
-            request,
-            user,
-            org,
-            "journal",
+        context=_page(request, user, org, db, "journal",
             rows=rows,
             total=total,
             page=page,
@@ -102,5 +98,5 @@ def search_page(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/search.html",
-        context=_page(request, user, org, "journal", result=result, q=q),
+        context=_page(request, user, org, db, "journal", result=result, q=q),
     )

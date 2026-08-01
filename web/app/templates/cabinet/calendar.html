@@ -1,26 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Календарь — {{ app_name }}{% endblock %}
 {% block body %}
-<div class="layout">
-  <aside class="sidebar">
-    <div class="brand">{{ app_name }}</div>
-    <div class="org">{{ org.name }}</div>
-    <nav class="nav">
-      {% for key, label, href in nav %}
-        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
-      {% endfor %}
-    </nav>
-  </aside>
-  <main id="main" class="content" tabindex="-1">
-    <div class="topbar">
-      <span>{{ user.email }}</span>
-      <form method="post" action="/logout" hx-boost="false">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit">Выйти</button>
-      </form>
-    </div>
-
-    {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+{% include "cabinet/_layout_start.html" %}
+{% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
     {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
 
     <section class="panel">
@@ -119,6 +101,5 @@
         {% endif %}
       </section>
     </div>
-  </main>
-</div>
+  {% include "cabinet/_layout_end.html" %}
 {% endblock %}

@@ -11,7 +11,7 @@ from app.db import get_db
 from app.deps import CurrentUser, require_org_user
 from app.models import CounterpartyType
 from app.org_scope import get_org_for_user, list_counterparties
-from app.routers.cabinet import NAV
+from app.nav_context import cabinet_nav
 from app.security import check_csrf, get_csrf_token
 from app.services.dadata import PartyCard, parse_party_suggestion
 from app.services.package_master import SESSION_KEY, core_from_counterparty, CP_TO_TYPE
@@ -32,14 +32,14 @@ from app.templating import templates
 router = APIRouter(prefix="/cabinet/party-check", tags=["party-check"])
 
 
-def _page(request: Request, user: CurrentUser, org, **extra):
+def _page(request: Request, user: CurrentUser, org, db, **extra):
     ctx = {
         "request": request,
         "csrf_token": get_csrf_token(request),
         "app_name": get_settings().app_name,
         "user": user,
         "org": org,
-        "nav": NAV,
+        "nav": cabinet_nav(db, user),
         "active": "party_check",
         "flash_error": None,
         "flash_ok": None,
@@ -73,16 +73,12 @@ def party_check_home(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/party_check_paywall.html",
-            context=_page(request, user, org, access=state),
+            context=_page(request, user, org, db, access=state),
         )
     return templates.TemplateResponse(
         request=request,
         name="cabinet/party_check_search.html",
-        context=_page(
-            request,
-            user,
-            org,
-            access=state,
+        context=_page(request, user, org, db, access=state,
             query="",
             candidates=None,
             card=None,
@@ -123,11 +119,7 @@ async def party_check_search(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/party_check_search.html",
-        context=_page(
-            request,
-            user,
-            org,
-            access=state,
+        context=_page(request, user, org, db, access=state,
             query=query,
             candidates=candidates or [],
             card=None,
@@ -161,11 +153,7 @@ def party_check_card(
             return templates.TemplateResponse(
                 request=request,
                 name="cabinet/party_check_search.html",
-                context=_page(
-                    request,
-                    user,
-                    org,
-                    access=state,
+                context=_page(request, user, org, db, access=state,
                     query=inn,
                     candidates=[],
                     flash_error=error or "Не найдено",
@@ -179,11 +167,7 @@ def party_check_card(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/party_check_card.html",
-        context=_page(
-            request,
-            user,
-            org,
-            access=state,
+        context=_page(request, user, org, db, access=state,
             card=card,
             existing=existing,
             diffs=None,
@@ -213,11 +197,7 @@ async def party_check_select(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/party_check_search.html",
-            context=_page(
-                request,
-                user,
-                org,
-                access=state,
+            context=_page(request, user, org, db, access=state,
                 query=inn,
                 candidates=[],
                 flash_error=error or "Не найдено",
@@ -264,11 +244,7 @@ async def party_check_save(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/party_check_card.html",
-        context=_page(
-            request,
-            user,
-            org,
-            access=state,
+        context=_page(request, user, org, db, access=state,
             card=card,
             existing=cp,
             diffs=diffs,
@@ -366,11 +342,7 @@ def party_check_journal(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/party_check_journal.html",
-        context=_page(
-            request,
-            user,
-            org,
-            access=state,
+        context=_page(request, user, org, db, access=state,
             rows=rows,
             counterparties=cps,
             filter_cp_id=counterparty_id,
@@ -397,11 +369,7 @@ def party_check_journal_item(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/party_check_card.html",
-        context=_page(
-            request,
-            user,
-            org,
-            access=state,
+        context=_page(request, user, org, db, access=state,
             card=card,
             existing=find_counterparty_by_inn(db, org.id, row.inn) if row.inn else None,
             diffs=None,

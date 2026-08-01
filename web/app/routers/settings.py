@@ -10,7 +10,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, require_org_user
 from app.org_scope import get_org_for_user, list_events, require_org_id
-from app.routers.cabinet import NAV
+from app.nav_context import cabinet_nav
 from app.security import check_csrf, get_csrf_token
 from app.services.retention import get_retention_days, set_retention_days
 from app.services.settings_svc import (
@@ -37,7 +37,7 @@ _AUTH_EVENT_TYPES = {
 router = APIRouter(prefix="/cabinet/settings", tags=["settings"])
 
 
-def _page(request: Request, user: CurrentUser, org, section: str, **extra):
+def _page(request: Request, user: CurrentUser, org, db, section: str, **extra):
     req = ensure_requisites(org)
     ctx = {
         "request": request,
@@ -45,7 +45,7 @@ def _page(request: Request, user: CurrentUser, org, section: str, **extra):
         "app_name": get_settings().app_name,
         "user": user,
         "org": org,
-        "nav": NAV,
+        "nav": cabinet_nav(db, user),
         "active": "settings",
         "section": section,
         "sections": [
@@ -78,7 +78,7 @@ def settings_org(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(request, user, org, "реквизиты"),
+        context=_page(request, user, org, db, "реквизиты"),
     )
 
 
@@ -98,7 +98,7 @@ async def settings_org_save(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/settings.html",
-            context=_page(request, user, org, "реквизиты", flash_error="; ".join(errors)),
+            context=_page(request, user, org, db, "реквизиты", flash_error="; ".join(errors)),
             status_code=400,
         )
     db.add(org)
@@ -107,7 +107,7 @@ async def settings_org_save(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(request, user, org, "реквизиты", flash_ok="Реквизиты сохранены."),
+        context=_page(request, user, org, db, "реквизиты", flash_ok="Реквизиты сохранены."),
     )
 
 
@@ -121,7 +121,7 @@ def settings_bank(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(request, user, org, "банк"),
+        context=_page(request, user, org, db, "банк"),
     )
 
 
@@ -141,7 +141,7 @@ async def settings_bank_save(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/settings.html",
-            context=_page(request, user, org, "банк", flash_error="; ".join(errors)),
+            context=_page(request, user, org, db, "банк", flash_error="; ".join(errors)),
             status_code=400,
         )
     db.add(org)
@@ -150,7 +150,7 @@ async def settings_bank_save(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(request, user, org, "банк", flash_ok="Банковские реквизиты сохранены."),
+        context=_page(request, user, org, db, "банк", flash_ok="Банковские реквизиты сохранены."),
     )
 
 
@@ -164,7 +164,7 @@ def settings_signatories(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(request, user, org, "подписанты"),
+        context=_page(request, user, org, db, "подписанты"),
     )
 
 
@@ -184,7 +184,7 @@ async def settings_signatories_save(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/settings.html",
-            context=_page(request, user, org, "подписанты", flash_error="; ".join(errors)),
+            context=_page(request, user, org, db, "подписанты", flash_error="; ".join(errors)),
             status_code=400,
         )
     db.add(org)
@@ -193,7 +193,7 @@ async def settings_signatories_save(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(request, user, org, "подписанты", flash_ok="Подписанты сохранены."),
+        context=_page(request, user, org, db, "подписанты", flash_ok="Подписанты сохранены."),
     )
 
 
@@ -207,7 +207,7 @@ def settings_price(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(request, user, org, "прайс"),
+        context=_page(request, user, org, db, "прайс"),
     )
 
 
@@ -227,7 +227,7 @@ async def settings_price_save(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/settings.html",
-            context=_page(request, user, org, "прайс", flash_error="; ".join(errors)),
+            context=_page(request, user, org, db, "прайс", flash_error="; ".join(errors)),
             status_code=400,
         )
     db.add(org)
@@ -236,7 +236,7 @@ async def settings_price_save(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(request, user, org, "прайс", flash_ok="Прайс сохранён."),
+        context=_page(request, user, org, db, "прайс", flash_ok="Прайс сохранён."),
     )
 
 
@@ -251,7 +251,7 @@ def settings_counters(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(request, user, org, "счётчики", counters=counters),
+        context=_page(request, user, org, db, "счётчики", counters=counters),
     )
 
 
@@ -272,11 +272,7 @@ async def settings_counters_save(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/settings.html",
-            context=_page(
-                request,
-                user,
-                org,
-                "счётчики",
+            context=_page(request, user, org, db, "счётчики",
                 counters=counters,
                 flash_error="Нужны ключ счётчика и подтверждение.",
             ),
@@ -301,11 +297,7 @@ async def settings_counters_save(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(
-            request,
-            user,
-            org,
-            "счётчики",
+        context=_page(request, user, org, db, "счётчики",
             counters=counters,
             flash_ok=f"Счётчик «{key}» обновлён. Следующий номер: {prefix}{value + 1}{suffix}",
         ),
@@ -327,11 +319,7 @@ def settings_security(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(
-            request,
-            user,
-            org,
-            "безопасность",
+        context=_page(request, user, org, db, "безопасность",
             retention_days=get_retention_days(org),
             security_events=events,
         ),
@@ -362,11 +350,7 @@ async def settings_security_save(
         return templates.TemplateResponse(
             request=request,
             name="cabinet/settings.html",
-            context=_page(
-                request,
-                user,
-                org,
-                "безопасность",
+            context=_page(request, user, org, db, "безопасность",
                 retention_days=get_retention_days(org),
                 security_events=events,
                 flash_error="Укажите срок в днях от 0 (не удалять) до 36500.",
@@ -385,11 +369,7 @@ async def settings_security_save(
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(
-            request,
-            user,
-            org,
-            "безопасность",
+        context=_page(request, user, org, db, "безопасность",
             retention_days=get_retention_days(org),
             security_events=events,
             flash_ok="Срок хранения файлов сохранён.",

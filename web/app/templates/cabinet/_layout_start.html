@@ -1,9 +1,9 @@
 <div class="layout">
   <aside class="sidebar">
     <div class="brand">{{ app_name }}</div>
-    <div class="org">Администратор сервиса</div>
+    <div class="org">{{ org.name }}</div>
     <nav class="nav">
-      {% for key, label, href in admin_nav %}
+      {% for key, label, href in nav %}
         <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
       {% endfor %}
     </nav>
@@ -20,5 +20,3 @@
         <button type="submit">Выйти</button>
       </form>
     </div>
-    {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
-    {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}

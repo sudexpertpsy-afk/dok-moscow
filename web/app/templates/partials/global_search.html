@@ -1,0 +1,19 @@
+<div id="gs-palette" class="gs-palette" hidden role="dialog" aria-modal="true" aria-label="Глобальный поиск">
+  <div class="gs-backdrop" data-gs-close></div>
+  <div class="gs-panel">
+    <div class="gs-input-wrap">
+      <input id="gs-input" type="search" autocomplete="off" placeholder="Раздел, контрагент, документ, закон…" aria-label="Запрос">
+      <kbd class="gs-esc">Esc</kbd>
+    </div>
+    <div id="gs-results" class="gs-results" role="listbox"></div>
+    <div id="gs-empty" class="gs-empty" hidden>
+      <p>Не нашлось. Посмотрите каталог разделов</p>
+      <details id="gs-sitemap">
+        <summary>Карта разделов по вашему доступу</summary>
+        <div id="gs-sitemap-body"></div>
+      </details>
+    </div>
+    <div class="gs-footer muted">↑↓ навигация · Enter открыть · Esc закрыть</div>
+  </div>
+</div>
+<script src="/static/global-search.js" defer></script>
