@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Приглашение — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="shell">
+  <div class="card">
+    <h1 class="brand">{{ app_name }}</h1>
+    {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+    <div class="actions">
+      <a class="btn" href="/login">Ко входу</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
