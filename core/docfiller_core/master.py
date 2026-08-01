@@ -6,12 +6,14 @@ from pathlib import Path
 
 from .filler import list_template_variables
 from . import packages
+from .registry import load_registry
 from .utils import resolve_template_path, normalize_name
 
 ТИПЫ = ('Физлицо', 'Юрлицо', 'Эксперт (ГПД)')
 
 БЕЗ_ДОГОВОРА = 'Без договора'
 
+# Запасной список; актуальный — contracts_registry.json в каталоге шаблонов.
 _CONTRACTS = {
     'Физлицо': [
         'Договор_услуги_v2.docx',
@@ -64,8 +66,10 @@ def first_field(тип):
 def contract_options(тип, templates_dir):
     """Договоры типа + «Без договора» (только существующие файлы)."""
     templates_dir = Path(templates_dir)
+    registry = load_registry(templates_dir)
+    names = registry.get("contracts", {}).get(тип) or _CONTRACTS.get(тип, [])
     opts = []
-    for name in _CONTRACTS.get(тип, []):
+    for name in names:
         if resolve_template_path(templates_dir, name).exists():
             opts.append(name)
     opts.append(БЕЗ_ДОГОВОРА)

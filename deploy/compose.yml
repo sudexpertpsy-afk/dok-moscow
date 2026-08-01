@@ -31,6 +31,8 @@ services:
     volumes:
       - files:/srv/dok/files
       - ../core:/app/core:ro
+      # Каталог шаблонов — RW для загрузки/переименования/удаления из админки
+      - ../core/Шаблоны:/app/core/Шаблоны
     depends_on:
       postgres:
         condition: service_healthy

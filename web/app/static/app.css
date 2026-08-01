@@ -162,6 +162,11 @@ button:hover, .btn:hover { filter: brightness(1.05); }
   font-size: 1.7rem;
   margin: 0 0 0.4rem;
 }
+.panel h2 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  margin: 0 0 0.6rem;
+}
 .panel p { color: var(--muted); margin: 0; }
 .topbar {
   display: flex;

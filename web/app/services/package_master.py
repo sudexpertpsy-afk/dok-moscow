@@ -44,7 +44,11 @@ def extra_options(тип: str, contract_template: str, requisites: dict | None) 
     master = _master()
     if not contract_template or contract_template == master.БЕЗ_ДОГОВОРА:
         return []
-    return pkgs.related_documents(contract_template, settings=requisites or {})
+    return pkgs.related_documents(
+        contract_template,
+        settings=requisites or {},
+        templates_dir=templates_dir(),
+    )
 
 
 def selected_templates(contract_template: str, extras: list[str]) -> list[str]:

@@ -26,6 +26,11 @@ def templates_dir() -> Path:
 _templates_cache: tuple[float, list[dict]] | None = None
 
 
+def invalidate_templates_cache() -> None:
+    global _templates_cache
+    _templates_cache = None
+
+
 def list_templates() -> list[dict]:
     """Каталог шаблонов с кэшем по mtime каталога (без открытия каждого DOCX на каждый запрос)."""
     global _templates_cache

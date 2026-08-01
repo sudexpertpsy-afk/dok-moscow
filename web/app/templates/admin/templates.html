@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Шаблоны — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+
+<section class="panel">
+  <h1>Шаблоны документов</h1>
+  <p class="muted">Файлы .docx для кабинета: загрузка, переименование (как видно в комплекте) и удаление. Договоры комплекта нужно привязать к типу контрагента.</p>
+  {% if not writable %}
+  <div class="alert alert-error">Каталог шаблонов недоступен для записи: {{ write_detail }}. Проверьте том Docker (Шаблоны должны быть RW).</div>
+  {% endif %}
+</section>
+
+<div class="grid-2" style="margin-top:1rem">
+  <section class="panel">
+    <h2>Загрузить шаблон</h2>
+    <form method="post" action="/admin/templates/upload" enctype="multipart/form-data" {% if not writable %}aria-disabled="true"{% endif %}>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label for="file">Файл .docx</label>
+      <input id="file" name="file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required {% if not writable %}disabled{% endif %}>
+      <label for="contract_type">Роль в комплекте</label>
+      <select id="contract_type" name="contract_type" {% if not writable %}disabled{% endif %}>
+        {% for value, label in contract_type_labels.items() %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <p class="muted" style="margin-top:0.5rem">Если это договор для мастера «Комплект», выберите тип. Иначе оставьте «Не договор комплекта» — файл всё равно появится в списке одиночной генерации.</p>
+      <div class="actions"><button type="submit" {% if not writable %}disabled{% endif %}>Загрузить</button></div>
+    </form>
+  </section>
+  <section class="panel">
+    <h2>Как назвать</h2>
+    <p class="muted">Имя файла становится названием в кабинете: подчёркивания показываются как пробелы. Пример: <span class="mono">Договор_рецензия_юрлицо.docx</span> → «Договор рецензия юрлицо».</p>
+    <p class="muted">Для смены названия используйте поле «Новое название» у строки — файл переименуется, ссылки в журнале и реестре комплекта обновятся.</p>
+  </section>
+</div>
+
+<section class="panel" style="margin-top:1rem">
+  <h2>Каталог ({{ items|length }})</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Название</th>
+        <th>Файл</th>
+        <th>Комплект</th>
+        <th>Размер</th>
+        <th>Изменён</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in items %}
+      <tr>
+        <td>
+          <strong>{{ t.title }}</strong>
+          {% if t.description and t.description != t.title %}
+          <div class="muted" style="font-size:0.85rem">{{ t.description }}</div>
+          {% endif %}
+          <form method="post" action="/admin/templates/rename" class="inline-form" style="margin-top:0.5rem; display:flex; gap:0.4rem; flex-wrap:wrap; align-items:end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="name" value="{{ t.name }}">
+            <label class="muted" for="new_title_{{ loop.index }}" style="font-size:0.8rem">Новое название</label>
+            <input id="new_title_{{ loop.index }}" name="new_title" value="{{ t.title }}" maxlength="180" style="min-width:12rem; flex:1" {% if not writable %}disabled{% endif %}>
+            <button type="submit" class="secondary" {% if not writable %}disabled{% endif %}>Переименовать</button>
+          </form>
+        </td>
+        <td class="mono muted">{{ t.name }}</td>
+        <td>
+          <form method="post" action="/admin/templates/role" style="display:flex; gap:0.35rem; align-items:center; flex-wrap:wrap">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="name" value="{{ t.name }}">
+            <select name="contract_type" aria-label="Роль в комплекте" {% if not writable %}disabled{% endif %}>
+              {% set current = t.contract_types[0] if t.contract_types else '' %}
+              {% for value, label in contract_type_labels.items() %}
+              <option value="{{ value }}" {% if value == current %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="secondary" {% if not writable %}disabled{% endif %}>OK</button>
+          </form>
+        </td>
+        <td class="muted">{{ t.size_kb }} КБ</td>
+        <td class="muted">{{ t.mtime_label }}</td>
+        <td>
+          <form method="post" action="/admin/templates/delete" onsubmit="return confirm('Удалить шаблон «{{ t.title }}»? Исторические документы в журнале останутся.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="name" value="{{ t.name }}">
+            <button type="submit" class="danger" {% if not writable %}disabled{% endif %}>Удалить</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">Шаблонов нет</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% include "admin/_layout_end.html" %}
+{% endblock %}

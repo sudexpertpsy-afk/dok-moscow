@@ -24,13 +24,16 @@
 """
 
 from datetime import date
+from pathlib import Path
 
 from . import counters
 from . import filters
 from .config import load_settings
+from . import paths as app_paths
+from .registry import package_name, self_contained_set
 
 
-# Шаблоны пакета
+# Шаблоны пакета (значения по умолчанию; переопределяются реестром)
 BILL_FIZ = 'Счёт_на_оплату.docx'
 BILL_JUR = 'Счёт_на_оплату_юрлицо.docx'
 ACT_FIZ  = 'Акт_оказанных_услуг.docx'
@@ -43,6 +46,23 @@ SELF_CONTAINED_CONTRACTS = {
     # В шаблоне уже находятся счёт, акт и форма ПКО КО-1.
     'Договор_освидетельствование.docx',
 }
+
+
+def _templates_root(settings=None):
+    if settings is not None:
+        root = getattr(settings, 'templates_dir', None)
+        if root:
+            return Path(root)
+        if isinstance(settings, dict) and settings.get('templates_dir'):
+            return Path(settings['templates_dir'])
+    return Path(app_paths.TEMPLATES_DIR)
+
+
+def _pkg(templates_dir, key, fallback):
+    try:
+        return package_name(templates_dir, key)
+    except Exception:
+        return fallback
 
 # Наименование услуги по ключевому слову в имени шаблона договора —
 # используется, когда в договоре нет поля «предмет_договора».
@@ -64,12 +84,13 @@ def _is_jur(template_name):
     return '_юрлицо' in n or '_юл' in n
 
 
-def related_documents(template_name, settings=None):
+def related_documents(template_name, settings=None, templates_dir=None):
     """Список документов пакета для шаблона договора.
 
     Возвращает список пар (имя_шаблона, включён_по_умолчанию).
     Пустой список — пакет не предусмотрен (шаблон не договор).
     settings — объект/словарь настроек (веб); иначе load_settings().
+    templates_dir — каталог шаблонов (веб передаёт явно).
     """
     name = str(template_name or '')
     if not name.startswith('Договор_'):
@@ -81,20 +102,33 @@ def related_documents(template_name, settings=None):
         from .config import settings_from_dict
         settings = settings_from_dict(settings)
 
+    templates_dir = Path(templates_dir) if templates_dir else _templates_root(settings)
     # Переопределение из настроек, если задано
     custom = settings.get('пакеты') or {}
     if name in custom:
         docs = custom[name] or []
         return [(str(d), True) for d in docs]
-    if name in SELF_CONTAINED_CONTRACTS:
+    if name in self_contained_set(templates_dir) or name in SELF_CONTAINED_CONTRACTS:
         return []
 
-    if name == GPD_CONTRACT:
-        return [(ACT_GPD, True), (CONSENT, True)]
+    gpd = _pkg(templates_dir, 'gpd_contract', GPD_CONTRACT)
+    if name == gpd:
+        return [
+            (_pkg(templates_dir, 'act_gpd', ACT_GPD), True),
+            (_pkg(templates_dir, 'consent', CONSENT), True),
+        ]
 
     if _is_jur(name):
-        return [(BILL_JUR, True), (ACT_JUR, True), (PKO, False)]
-    return [(BILL_FIZ, True), (ACT_FIZ, True), (PKO, True)]
+        return [
+            (_pkg(templates_dir, 'bill_jur', BILL_JUR), True),
+            (_pkg(templates_dir, 'act_jur', ACT_JUR), True),
+            (_pkg(templates_dir, 'pko', PKO), False),
+        ]
+    return [
+        (_pkg(templates_dir, 'bill_fiz', BILL_FIZ), True),
+        (_pkg(templates_dir, 'act_fiz', ACT_FIZ), True),
+        (_pkg(templates_dir, 'pko', PKO), True),
+    ]
 
 
 def default_service_name(template_name, contract_context):
