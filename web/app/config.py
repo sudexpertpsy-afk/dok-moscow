@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     files_root: str = str(_REPO_ROOT / "files")
     templates_dir: str = str(_REPO_ROOT / "core" / "Шаблоны")
     gotenberg_url: str = "http://127.0.0.1:3000"
+    dadata_key: str = ""
+    dadata_daily_limit: int = 200
     core_path: str = str(_REPO_ROOT / "core")
 
 

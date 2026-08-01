@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Контрагенты — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">{{ app_name }}</div>
+    <div class="org">{{ org.name }}</div>
+    <nav class="nav">
+      {% for key, label, href in nav %}
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <main class="content">
+    <div class="topbar">
+      <span>{{ user.email }}</span>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+    <section class="panel">
+      <h1>Контрагенты</h1>
+      <div class="actions">
+        <a class="btn" href="/cabinet/counterparties/new?type=ul">Юрлицо</a>
+        <a class="btn secondary" href="/cabinet/counterparties/new?type=fl">Физлицо</a>
+        <a class="btn secondary" href="/cabinet/counterparties/new?type=expert">Эксперт</a>
+      </div>
+      <table class="table" style="margin-top:1rem">
+        <thead><tr><th>Тип</th><th>Наименование / ФИО</th><th>ИНН</th><th>Паспорт</th><th>Адрес</th></tr></thead>
+        <tbody>
+          {% for i in items %}
+          <tr>
+            <td class="muted">{% if i.type == 'ul' %}Юрлицо{% elif i.type == 'expert' %}Эксперт{% else %}Физлицо{% endif %}</td>
+            <td><a href="/cabinet/counterparties/{{ i.id }}">{{ i.name or i.fio or ('#' ~ i.id) }}</a></td>
+            <td class="mono">{{ i.inn or '—' }}</td>
+            <td class="muted">{{ i.passport or '—' }}</td>
+            <td class="muted">{{ i.address or '—' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="muted">Пока пусто</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </main>
+</div>
+{% endblock %}
