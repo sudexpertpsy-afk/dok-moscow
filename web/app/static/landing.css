@@ -369,11 +369,16 @@ a:hover { color: var(--lp-accent-hot); }
 .lp-footer-copy { margin: 0; font-size: 0.85rem; }
 
 @media (max-width: 860px) {
-  .lp-hero { grid-template-columns: 1fr; min-height: auto; }
+  .lp-hero { grid-template-columns: 1fr; min-height: auto; padding-top: 7rem; }
   .lp-hero-visual { order: -1; min-height: 42vh; padding-top: 5rem; }
   .lp-hero-copy { max-width: none; padding-top: 1rem; }
   .lp-tariffs { grid-template-columns: 1fr; }
   .lp-contacts li { grid-template-columns: 1fr; gap: 0.2rem; }
+  /* mobile tap targets: nav links */
+  .lp-nav { padding: 0.9rem 1rem; gap: 0.75rem; flex-wrap: wrap; }
+  .lp-nav-links { gap: 0.4rem 0.9rem; font-size: 0.95rem; }
+  .lp-nav-links a { padding: 0.55rem 0.35rem; min-height: 44px; display: inline-flex; align-items: center; }
+  .lp-nav-login { padding: 0.55rem 0.9rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -382,4 +387,27 @@ a:hover { color: var(--lp-accent-hot); }
     animation: none !important;
   }
   .lines path { stroke-dashoffset: 0; }
+}
+
+/* WCAG 2.4.7 focus-visible */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: 3px solid var(--lp-accent-hot);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.lp-nav-links a:focus-visible,
+.lp-nav-login:focus-visible {
+  outline: 3px solid #ffb87a;
+  outline-offset: 3px;
+}
+
+main[tabindex="-1"]:focus,
+main[tabindex="-1"]:focus-visible {
+  outline: none;
 }

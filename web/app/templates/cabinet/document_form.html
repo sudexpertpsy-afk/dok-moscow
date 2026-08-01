@@ -11,10 +11,10 @@
       {% endfor %}
     </nav>
   </aside>
-  <main class="content">
+  <main id="main" class="content" tabindex="-1">
     <div class="topbar">
       <span>{{ user.email }}</span>
-      <form method="post" action="/logout">
+      <form method="post" action="/logout" hx-boost="false">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit">Выйти</button>
       </form>

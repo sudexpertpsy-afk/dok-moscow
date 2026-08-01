@@ -3,6 +3,31 @@
 
 dok.moscow, www.dok.moscow {
 	encode gzip
+
+	# 410 Gone — сканеры WordPress / мусорные пути (до FastAPI не доходят)
+	@wp_junk_path {
+		path /wp-* /xmlrpc.php /license.txt /readme.html
+	}
+	handle @wp_junk_path {
+		respond 410
+	}
+	@wp_junk_re path_regexp wp_content ^/wp-content/
+	handle @wp_junk_re {
+		respond 410
+	}
+
+	# 301 → / для кириллических URL прежнего WP-сайта (латиницу не трогаем:
+	# иначе сломаются /privacy, /contacts, /static, …)
+	@legacy_cyr path_regexp cyrillic ^/[а-яА-ЯёЁ]
+	redir @legacy_cyr / 301
+
+	# 301 → / для архивных /YYYY/MM/
+	@legacy_year path_regexp year_archive ^/20[12][0-9]/[0-1][0-9]/?$
+	redir @legacy_year / 301
+
+	@static path /static/*
+	header @static Cache-Control "public, max-age=604800, immutable"
+
 	reverse_proxy app:8000
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
@@ -15,6 +40,10 @@ dok.moscow, www.dok.moscow {
 
 app.dok.moscow {
 	encode gzip
+
+	@static path /static/*
+	header @static Cache-Control "public, max-age=604800, immutable"
+
 	reverse_proxy app:8000
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"

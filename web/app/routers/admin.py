@@ -1,4 +1,4 @@
-"""Админка сервиса: организации и приглашения."""
+"""Админка сервиса: организации, пользователи, инвайты, заявки, статус."""
 
 from __future__ import annotations
 
@@ -6,26 +6,37 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
-from app.deps import CurrentUser, require_csrf, require_service_admin
 from app.defaults import empty_requisites
-from app.models import Invite, Lead, Organization, User, utcnow
+from app.deps import CurrentUser, require_csrf, require_service_admin
+from app.models import Invite, Lead, Organization, User, UserRole, utcnow
 from app.security import get_csrf_token, new_invite_token
 from app.templating import templates
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
+ADMIN_NAV = [
+    ("home", "Обзор", "/admin/"),
+    ("orgs", "Организации", "/admin/organizations"),
+    ("users", "Пользователи", "/admin/users"),
+    ("leads", "Заявки", "/admin/leads"),
+    ("invites", "Приглашения", "/admin/invites"),
+    ("status", "Статус", "/admin/status"),
+]
 
-def _ctx(request: Request, user: CurrentUser, **extra):
+
+def _ctx(request: Request, user: CurrentUser, active: str, **extra):
     data = {
         "request": request,
         "csrf_token": get_csrf_token(request),
         "app_name": get_settings().app_name,
         "user": user,
+        "admin_nav": ADMIN_NAV,
+        "active": active,
         "flash_error": None,
         "flash_ok": None,
         "last_invite_link": None,
@@ -34,16 +45,34 @@ def _ctx(request: Request, user: CurrentUser, **extra):
     return data
 
 
-def _home(request: Request, user: CurrentUser, db: Session, status_code: int = 200, **extra):
-    orgs = db.scalars(select(Organization).order_by(Organization.id.desc())).all()
-    invites = db.scalars(select(Invite).order_by(Invite.id.desc()).limit(50)).all()
-    leads = db.scalars(select(Lead).order_by(Lead.id.desc()).limit(50)).all()
-    return templates.TemplateResponse(
-        request=request,
-        name="admin/home.html",
-        context=_ctx(request, user, orgs=orgs, invites=invites, leads=leads, **extra),
-        status_code=status_code,
+def _org_stats(db: Session) -> dict[int, dict]:
+    user_counts = dict(
+        db.execute(
+            select(User.org_id, func.count())
+            .where(User.org_id.is_not(None))
+            .group_by(User.org_id)
+        ).all()
     )
+    invite_counts = dict(
+        db.execute(
+            select(Invite.org_id, func.count())
+            .where(Invite.used_at.is_(None))
+            .group_by(Invite.org_id)
+        ).all()
+    )
+    return {
+        oid: {
+            "users": int(user_counts.get(oid, 0)),
+            "open_invites": int(invite_counts.get(oid, 0)),
+        }
+        for oid in set(user_counts) | set(invite_counts)
+    }
+
+
+def _invite_link(request: Request, token: str) -> str:
+    settings = get_settings()
+    base = (settings.app_base_url or str(request.base_url)).rstrip("/")
+    return f"{base}/invite/{token}"
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -52,7 +81,47 @@ def admin_home(
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
 ):
-    return _home(request, user, db)
+    orgs_n = db.scalar(select(func.count()).select_from(Organization)) or 0
+    users_n = db.scalar(select(func.count()).select_from(User)) or 0
+    leads_n = db.scalar(select(func.count()).select_from(Lead)) or 0
+    open_invites = (
+        db.scalar(select(func.count()).select_from(Invite).where(Invite.used_at.is_(None))) or 0
+    )
+    recent_leads = db.scalars(select(Lead).order_by(Lead.id.desc()).limit(8)).all()
+    recent_orgs = db.scalars(select(Organization).order_by(Organization.id.desc()).limit(8)).all()
+    stats = _org_stats(db)
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/home.html",
+        context=_ctx(
+            request,
+            user,
+            "home",
+            counts={
+                "orgs": orgs_n,
+                "users": users_n,
+                "leads": leads_n,
+                "open_invites": open_invites,
+            },
+            recent_leads=recent_leads,
+            recent_orgs=recent_orgs,
+            org_stats=stats,
+        ),
+    )
+
+
+@router.get("/organizations", response_class=HTMLResponse)
+def admin_organizations(
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+):
+    orgs = db.scalars(select(Organization).order_by(Organization.id.desc())).all()
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/organizations.html",
+        context=_ctx(request, user, "orgs", orgs=orgs, org_stats=_org_stats(db)),
+    )
 
 
 @router.post("/organizations", response_class=HTMLResponse)
@@ -65,11 +134,217 @@ def create_organization(
 ):
     name = name.strip()
     if not name:
-        return _home(request, user, db, status_code=400, flash_error="Укажите название организации.")
+        orgs = db.scalars(select(Organization).order_by(Organization.id.desc())).all()
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/organizations.html",
+            context=_ctx(
+                request,
+                user,
+                "orgs",
+                orgs=orgs,
+                org_stats=_org_stats(db),
+                flash_error="Укажите название организации.",
+            ),
+            status_code=400,
+        )
     org = Organization(name=name, requisites=empty_requisites())
     db.add(org)
     db.commit()
-    return RedirectResponse("/admin/", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(f"/admin/organizations/{org.id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/organizations/{org_id}", response_class=HTMLResponse)
+def admin_organization_detail(
+    org_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+):
+    org = db.get(Organization, org_id)
+    if org is None:
+        return RedirectResponse("/admin/organizations", status_code=status.HTTP_303_SEE_OTHER)
+    users = db.scalars(select(User).where(User.org_id == org_id).order_by(User.id.desc())).all()
+    invites = db.scalars(
+        select(Invite).where(Invite.org_id == org_id).order_by(Invite.id.desc()).limit(50)
+    ).all()
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/organization_detail.html",
+        context=_ctx(
+            request,
+            user,
+            "orgs",
+            org=org,
+            users=users,
+            invites=invites,
+            invite_ttl=get_settings().invite_ttl_hours,
+        ),
+    )
+
+
+@router.post("/organizations/{org_id}/rename", response_class=HTMLResponse)
+def rename_organization(
+    org_id: int,
+    request: Request,
+    name: str = Form(...),
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    org = db.get(Organization, org_id)
+    if org is None:
+        return RedirectResponse("/admin/organizations", status_code=status.HTTP_303_SEE_OTHER)
+    name = name.strip()
+    if name:
+        org.name = name
+        db.commit()
+    return RedirectResponse(f"/admin/organizations/{org_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/users", response_class=HTMLResponse)
+def admin_users(
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+):
+    users = db.scalars(select(User).order_by(User.id.desc()).limit(200)).all()
+    orgs = {o.id: o.name for o in db.scalars(select(Organization)).all()}
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/users.html",
+        context=_ctx(request, user, "users", users=users, org_names=orgs),
+    )
+
+
+@router.post("/users/{user_id}/toggle", response_class=HTMLResponse)
+def toggle_user(
+    user_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    target = db.get(User, user_id)
+    if target is None:
+        return RedirectResponse("/admin/users", status_code=status.HTTP_303_SEE_OTHER)
+    if target.id == user.id:
+        users = db.scalars(select(User).order_by(User.id.desc()).limit(200)).all()
+        orgs = {o.id: o.name for o in db.scalars(select(Organization)).all()}
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/users.html",
+            context=_ctx(
+                request,
+                user,
+                "users",
+                users=users,
+                org_names=orgs,
+                flash_error="Нельзя отключить свою учётную запись.",
+            ),
+            status_code=400,
+        )
+    target.is_active = not target.is_active
+    db.commit()
+    return RedirectResponse("/admin/users", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/leads", response_class=HTMLResponse)
+def admin_leads(
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+):
+    leads = db.scalars(select(Lead).order_by(Lead.id.desc()).limit(100)).all()
+    orgs = db.scalars(select(Organization).order_by(Organization.name)).all()
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/leads.html",
+        context=_ctx(request, user, "leads", leads=leads, orgs=orgs),
+    )
+
+
+@router.post("/leads/{lead_id}/invite", response_class=HTMLResponse)
+def invite_from_lead(
+    lead_id: int,
+    request: Request,
+    org_id: int = Form(...),
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    lead = db.get(Lead, lead_id)
+    org = db.get(Organization, org_id)
+    if lead is None or org is None:
+        return RedirectResponse("/admin/leads", status_code=status.HTTP_303_SEE_OTHER)
+    email_norm = lead.email.strip().lower()
+    if db.scalar(select(User).where(User.email == email_norm)):
+        leads = db.scalars(select(Lead).order_by(Lead.id.desc()).limit(100)).all()
+        orgs = db.scalars(select(Organization).order_by(Organization.name)).all()
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/leads.html",
+            context=_ctx(
+                request,
+                user,
+                "leads",
+                leads=leads,
+                orgs=orgs,
+                flash_error=f"Пользователь {email_norm} уже зарегистрирован.",
+            ),
+            status_code=409,
+        )
+    settings = get_settings()
+    token = new_invite_token()
+    invite = Invite(
+        org_id=org.id,
+        email=email_norm,
+        token=token,
+        expires_at=utcnow() + timedelta(hours=settings.invite_ttl_hours),
+    )
+    db.add(invite)
+    db.commit()
+    invites = db.scalars(select(Invite).order_by(Invite.id.desc()).limit(100)).all()
+    orgs = db.scalars(select(Organization).order_by(Organization.name)).all()
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/invites.html",
+        context=_ctx(
+            request,
+            user,
+            "invites",
+            invites=invites,
+            orgs=orgs,
+            org_names={o.id: o.name for o in orgs},
+            flash_ok="Приглашение создано из заявки.",
+            last_invite_link=_invite_link(request, token),
+            invite_ttl=get_settings().invite_ttl_hours,
+        ),
+    )
+
+
+@router.get("/invites", response_class=HTMLResponse)
+def admin_invites(
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+):
+    invites = db.scalars(select(Invite).order_by(Invite.id.desc()).limit(100)).all()
+    orgs = db.scalars(select(Organization).order_by(Organization.name)).all()
+    org_names = {o.id: o.name for o in orgs}
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/invites.html",
+        context=_ctx(
+            request,
+            user,
+            "invites",
+            invites=invites,
+            orgs=orgs,
+            org_names=org_names,
+            invite_ttl=get_settings().invite_ttl_hours,
+        ),
+    )
 
 
 @router.post("/invites", response_class=HTMLResponse)
@@ -84,19 +359,33 @@ def create_invite(
     settings = get_settings()
     email_norm = email.strip().lower()
     org = db.get(Organization, org_id)
+    invites = db.scalars(select(Invite).order_by(Invite.id.desc()).limit(100)).all()
+    orgs = db.scalars(select(Organization).order_by(Organization.name)).all()
+    org_names = {o.id: o.name for o in orgs}
+
+    def err(msg: str, code: int = 400):
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/invites.html",
+            context=_ctx(
+                request,
+                user,
+                "invites",
+                invites=invites,
+                orgs=orgs,
+                org_names=org_names,
+                flash_error=msg,
+                invite_ttl=settings.invite_ttl_hours,
+            ),
+            status_code=code,
+        )
 
     if org is None:
-        return _home(request, user, db, status_code=404, flash_error="Организация не найдена.")
+        return err("Организация не найдена.", 404)
     if "@" not in email_norm:
-        return _home(request, user, db, status_code=400, flash_error="Некорректный e-mail.")
+        return err("Некорректный e-mail.")
     if db.scalar(select(User).where(User.email == email_norm)):
-        return _home(
-            request,
-            user,
-            db,
-            status_code=409,
-            flash_error="Пользователь с таким e-mail уже есть.",
-        )
+        return err("Пользователь с таким e-mail уже есть.", 409)
 
     token = new_invite_token()
     invite = Invite(
@@ -107,11 +396,66 @@ def create_invite(
     )
     db.add(invite)
     db.commit()
-    link = str(request.base_url).rstrip("/") + f"/invite/{token}"
-    return _home(
-        request,
-        user,
-        db,
-        flash_ok=f"Приглашение создано. Ссылка: {link}",
-        last_invite_link=link,
+    invites = db.scalars(select(Invite).order_by(Invite.id.desc()).limit(100)).all()
+    orgs = db.scalars(select(Organization).order_by(Organization.name)).all()
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/invites.html",
+        context=_ctx(
+            request,
+            user,
+            "invites",
+            invites=invites,
+            orgs=orgs,
+            org_names={o.id: o.name for o in orgs},
+            flash_ok="Приглашение создано.",
+            last_invite_link=_invite_link(request, token),
+            invite_ttl=settings.invite_ttl_hours,
+        ),
+    )
+
+
+@router.post("/invites/{invite_id}/revoke", response_class=HTMLResponse)
+def revoke_invite(
+    invite_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    invite = db.get(Invite, invite_id)
+    if invite and invite.used_at is None:
+        invite.expires_at = utcnow() - timedelta(seconds=1)
+        db.commit()
+    return RedirectResponse("/admin/invites", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/status", response_class=HTMLResponse)
+def admin_status(
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+):
+    settings = get_settings()
+    admin_n = (
+        db.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.role == UserRole.service_admin, User.is_active.is_(True))
+        )
+        or 0
+    )
+    checks = [
+        ("Администраторы сервиса", f"{admin_n} активных", admin_n > 0),
+        ("SECRET_KEY", "задан" if settings.secret_key and "dev-only" not in settings.secret_key else "dev-заглушка", "dev-only" not in (settings.secret_key or "")),
+        ("DaData", "ключ задан" if settings.dadata_key else "нет ключа", bool(settings.dadata_key)),
+        ("SMTP", settings.smtp_host or "не настроен", bool(settings.smtp_host)),
+        ("Gotenberg URL", settings.gotenberg_url, bool(settings.gotenberg_url)),
+        ("FILES_ROOT", settings.files_root, True),
+        ("Шаблоны", settings.templates_dir, True),
+    ]
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/status.html",
+        context=_ctx(request, user, "status", checks=checks),
     )

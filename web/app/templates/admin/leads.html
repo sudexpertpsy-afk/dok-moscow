@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Заявки — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+
+<section class="panel">
+  <h1>Заявки с лендинга</h1>
+  <p class="muted">Можно сразу выдать приглашение в выбранную организацию.</p>
+  <table class="table">
+    <thead><tr><th>ID</th><th>E-mail</th><th>Профиль</th><th>Комментарий</th><th>Когда</th><th>Действие</th></tr></thead>
+    <tbody>
+      {% for L in leads %}
+      <tr>
+        <td>{{ L.id }}</td>
+        <td>{{ L.email }}</td>
+        <td>{{ L.profile or "—" }}</td>
+        <td class="muted">{{ L.comment or "—" }}</td>
+        <td class="muted">{{ L.ts }}</td>
+        <td>
+          <form method="post" action="/admin/leads/{{ L.id }}/invite" style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <select name="org_id" required style="min-width:10rem">
+              {% for o in orgs %}
+                <option value="{{ o.id }}">{{ o.name }}</option>
+              {% else %}
+                <option value="" disabled selected>Нет org</option>
+              {% endfor %}
+            </select>
+            <button type="submit" {% if not orgs %}disabled{% endif %}>Инвайт</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">Заявок пока нет</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% include "admin/_layout_end.html" %}
+{% endblock %}

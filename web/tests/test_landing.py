@@ -37,10 +37,40 @@ def test_robots_and_sitemap(app):
     r = client.get("/robots.txt")
     assert r.status_code == 200
     assert "Sitemap:" in r.text
+    assert "Disallow: /invite" in r.text
+    assert "Disallow: /apply" in r.text
     r = client.get("/sitemap.xml")
     assert r.status_code == 200
     assert "application/xml" in r.headers.get("content-type", "")
     assert "/privacy" in r.text
+
+
+def test_favicon_and_html_404(app):
+    client, _ = app
+    assert client.get("/static/favicon.svg").status_code == 200
+    assert client.get("/static/favicon.ico").status_code == 200
+    r = client.get("/нет-такой-страницы", headers={"Accept": "text/html"})
+    assert r.status_code == 404
+    assert "Страница не найдена" in r.text
+    assert "На главную" in r.text
+    assert "application/json" not in r.headers.get("content-type", "")
+    r_json = client.get("/нет-такой-страницы", headers={"Accept": "application/json"})
+    assert r_json.status_code == 404
+    assert r_json.json()["detail"] == "Not Found"
+
+
+def test_wcag_skip_and_focus_styles(app):
+    client, _ = app
+    r = client.get("/")
+    assert 'href="#main"' in r.text
+    assert 'id="main"' in r.text
+    assert 'tabindex="-1"' in r.text
+    css = client.get("/static/app.css").text
+    assert "focus-visible" in css
+    assert ".skip" in css
+    r = client.get("/login")
+    assert 'class="skip"' in r.text
+    assert 'href="#main"' in r.text
 
 
 def test_sample_pdf_served(app):
@@ -125,7 +155,7 @@ def test_admin_sees_leads(app):
         db.close()
 
     assert login(client, "admin@dok.moscow", "AdminPass123!").status_code == 303
-    r = client.get("/admin/")
+    r = client.get("/admin/leads")
     assert r.status_code == 200
     assert "Заявки с лендинга" in r.text
     assert "seen@example.com" in r.text

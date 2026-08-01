@@ -23,11 +23,23 @@ def templates_dir() -> Path:
     return Path(get_settings().templates_dir)
 
 
+_templates_cache: tuple[float, list[dict]] | None = None
+
+
 def list_templates() -> list[dict]:
+    """Каталог шаблонов с кэшем по mtime каталога (без открытия каждого DOCX на каждый запрос)."""
+    global _templates_cache
     ensure_core_on_path()
     from docfiller_core.filler import describe_template
 
     root = templates_dir()
+    try:
+        stamp = root.stat().st_mtime
+    except OSError:
+        stamp = 0.0
+    if _templates_cache is not None and _templates_cache[0] == stamp:
+        return _templates_cache[1]
+
     items = []
     for path in sorted(root.glob("*.docx")):
         if path.name.startswith("~$"):
@@ -39,6 +51,7 @@ def list_templates() -> list[dict]:
                 "description": describe_template(path) or path.stem.replace("_", " "),
             }
         )
+    _templates_cache = (stamp, items)
     return items
 
 

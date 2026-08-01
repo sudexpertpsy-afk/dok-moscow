@@ -44,6 +44,7 @@ def test_admin_login_and_invite_flow(app):
         follow_redirects=False,
     )
     assert r.status_code == 303
+    assert "/admin/organizations/" in r.headers["location"]
 
     db = dbmod.SessionLocal()
     try:
@@ -53,7 +54,7 @@ def test_admin_login_and_invite_flow(app):
     finally:
         db.close()
 
-    token = csrf_from(client, "/admin/")
+    token = csrf_from(client, "/admin/invites")
     r = client.post(
         "/admin/invites",
         data={"org_id": org_id, "email": "user@example.com", "csrf_token": token},

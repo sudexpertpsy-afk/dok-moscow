@@ -6,8 +6,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import db as dbmod
@@ -76,7 +79,7 @@ def create_app() -> FastAPI:
             "default-src 'self'; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "script-src 'self' https://unpkg.com https://mc.yandex.ru 'unsafe-inline'; "
+            "script-src 'self' https://mc.yandex.ru 'unsafe-inline'; "
             "img-src 'self' data: https://mc.yandex.ru; "
             "connect-src 'self' https://mc.yandex.ru; "
             "frame-src https://mc.yandex.ru; "
@@ -99,6 +102,27 @@ def create_app() -> FastAPI:
     app.include_router(journal.router)
     app.include_router(settings_routes.router)
     app.include_router(admin.router)
+
+    templates_404 = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+        accept = request.headers.get("accept", "")
+        if exc.status_code == 404 and "text/html" in accept:
+            s = get_settings()
+            return templates_404.TemplateResponse(
+                request,
+                "landing/404.html",
+                {
+                    "app_name": s.app_name,
+                    "public_base_url": s.public_base_url.rstrip("/"),
+                    "app_base_url": s.app_base_url.rstrip("/"),
+                    "yandex_metrika_id": (s.yandex_metrika_id or "").strip(),
+                    "csrf_token": "",
+                },
+                status_code=404,
+            )
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
     return app
 
