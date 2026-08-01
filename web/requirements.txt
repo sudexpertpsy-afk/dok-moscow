@@ -11,3 +11,10 @@ itsdangerous>=2.1.0
 psycopg[binary]>=3.1.0
 pydantic-settings>=2.3.0
 pypdf>=4.0.0
+# Ядро генерации DOCX (те же пакеты, что core/requirements.txt)
+python-docx>=1.2.0
+docxtpl>=0.20.0
+lxml>=6.1.0
+num2words>=0.5.14
+petrovich>=2.0.1
+openpyxl>=3.1.5

@@ -37,10 +37,26 @@ def test_robots_and_sitemap(app):
     r = client.get("/robots.txt")
     assert r.status_code == 200
     assert "Sitemap:" in r.text
+    assert "Disallow: /invite" in r.text
+    assert "Disallow: /apply" in r.text
     r = client.get("/sitemap.xml")
     assert r.status_code == 200
     assert "application/xml" in r.headers.get("content-type", "")
     assert "/privacy" in r.text
+
+
+def test_favicon_and_html_404(app):
+    client, _ = app
+    assert client.get("/static/favicon.svg").status_code == 200
+    assert client.get("/static/favicon.ico").status_code == 200
+    r = client.get("/нет-такой-страницы", headers={"Accept": "text/html"})
+    assert r.status_code == 404
+    assert "Страница не найдена" in r.text
+    assert "На главную" in r.text
+    assert "application/json" not in r.headers.get("content-type", "")
+    r_json = client.get("/нет-такой-страницы", headers={"Accept": "application/json"})
+    assert r_json.status_code == 404
+    assert r_json.json()["detail"] == "Not Found"
 
 
 def test_sample_pdf_served(app):

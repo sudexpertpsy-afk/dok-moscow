@@ -181,7 +181,14 @@ def contacts_page(request: Request):
 def robots_txt():
     base = get_settings().public_base_url.rstrip("/")
     return PlainTextResponse(
-        f"User-agent: *\nAllow: /\nDisallow: /cabinet\nDisallow: /admin\nDisallow: /login\n"
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /cabinet\n"
+        "Disallow: /admin\n"
+        "Disallow: /invite\n"
+        "Disallow: /apply\n"
+        "Disallow: /manifest.json\n"
+        "Disallow: /login\n"
         f"Sitemap: {base}/sitemap.xml\n"
     )
 

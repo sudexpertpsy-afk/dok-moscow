@@ -1,0 +1,18 @@
+{% extends "landing/base.html" %}
+{% block title %}Страница не найдена — {{ app_name }}{% endblock %}
+{% block content %}
+<section class="lp-hero" aria-label="Страница не найдена">
+  <div class="lp-hero-copy">
+    <p class="lp-brand">{{ app_name }}</p>
+    <h1 class="lp-headline">Страница не найдена</h1>
+    <p class="lp-sub">
+      Возможно, вы перешли по устаревшей ссылке или адрес введён с опечаткой.
+      Актуальные разделы — на главной; вход в кабинет — по кнопке ниже.
+    </p>
+    <div class="lp-cta">
+      <a class="lp-btn" href="/">На главную</a>
+      <a class="lp-btn lp-btn-ghost" href="{{ app_base_url }}/login">Войти в кабинет</a>
+    </div>
+  </div>
+</section>
+{% endblock %}
