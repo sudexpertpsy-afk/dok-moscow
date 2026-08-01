@@ -388,3 +388,26 @@ a:hover { color: var(--lp-accent-hot); }
   }
   .lines path { stroke-dashoffset: 0; }
 }
+
+/* WCAG 2.4.7 focus-visible */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: 3px solid var(--lp-accent-hot);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.lp-nav-links a:focus-visible,
+.lp-nav-login:focus-visible {
+  outline: 3px solid #ffb87a;
+  outline-offset: 3px;
+}
+
+main[tabindex="-1"]:focus,
+main[tabindex="-1"]:focus-visible {
+  outline: none;
+}

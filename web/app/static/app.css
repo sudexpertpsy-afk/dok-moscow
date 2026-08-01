@@ -241,3 +241,43 @@ button.danger, .btn.danger { background: var(--danger); }
   .sidebar { border-right: 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
   .grid-2 { grid-template-columns: 1fr; }
 }
+
+/* WCAG 2.4.7 — focus-visible для клавиатурной навигации */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: 3px solid var(--accent-2);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* skip-link — WCAG 2.4.1 */
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 0.75rem 1rem;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.skip:focus,
+.skip:focus-visible {
+  left: 1rem;
+  top: 1rem;
+  outline: 3px solid var(--accent-2);
+}
+
+/* skip-link: main получает программный фокус, рамку не показываем */
+main[tabindex="-1"]:focus,
+main[tabindex="-1"]:focus-visible,
+#main[tabindex="-1"]:focus,
+#main[tabindex="-1"]:focus-visible {
+  outline: none;
+}

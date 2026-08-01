@@ -59,6 +59,20 @@ def test_favicon_and_html_404(app):
     assert r_json.json()["detail"] == "Not Found"
 
 
+def test_wcag_skip_and_focus_styles(app):
+    client, _ = app
+    r = client.get("/")
+    assert 'href="#main"' in r.text
+    assert 'id="main"' in r.text
+    assert 'tabindex="-1"' in r.text
+    css = client.get("/static/app.css").text
+    assert "focus-visible" in css
+    assert ".skip" in css
+    r = client.get("/login")
+    assert 'class="skip"' in r.text
+    assert 'href="#main"' in r.text
+
+
 def test_sample_pdf_served(app):
     client, _ = app
     r = client.get("/static/samples/dogovor-fl.pdf")
