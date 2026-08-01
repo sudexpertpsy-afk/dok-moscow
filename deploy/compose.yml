@@ -1,0 +1,32 @@
+# Черновик по Приложению Б ТЗ — доводится в W-07
+services:
+  caddy:
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+    restart: unless-stopped
+  app:
+    build: ../web
+    env_file: .env    # DADATA_KEY, DB_URL, SECRET_KEY
+    volumes:
+      - files:/srv/dok/files
+    depends_on: [postgres, gotenberg]
+    restart: unless-stopped
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: dok
+      POSTGRES_USER: dok
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+volumes:
+  caddy_data: {}
+  pgdata: {}
+  files: {}

@@ -1,0 +1,8 @@
+docxtpl>=0.16.7
+python-docx>=1.0.0
+openpyxl>=3.1.0
+petrovich>=1.0.0
+num2words>=0.5.13
+Jinja2>=3.0
+PyYAML>=6.0
+lxml>=4.9.0
