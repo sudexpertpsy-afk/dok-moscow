@@ -20,7 +20,7 @@ NAV = [
     ("package", "Комплект", "/cabinet/package/"),
     ("counterparties", "Контрагенты", "/cabinet/counterparties/"),
     ("journal", "Журнал", "/cabinet/journal"),
-    ("settings", "Настройки", "/cabinet/settings"),
+    ("settings", "Настройки", "/cabinet/settings/"),
 ]
 
 
@@ -76,30 +76,11 @@ def counterparties(
     return RedirectResponse("/cabinet/counterparties/", status_code=status.HTTP_303_SEE_OTHER)
 
 
-@router.get("/journal", response_class=HTMLResponse)
-def journal(request: Request, user: CurrentUser = Depends(require_org_user), db: Session = Depends(get_db)):
-    return _cabinet(
-        request,
-        user,
-        db,
-        "journal",
-        "Журнал",
-        "Журнал и поиск — пакет W-06.",
-    )
-
-
 @router.get("/settings", response_class=HTMLResponse)
 def settings_page(
     request: Request, user: CurrentUser = Depends(require_org_user), db: Session = Depends(get_db)
 ):
-    return _cabinet(
-        request,
-        user,
-        db,
-        "settings",
-        "Настройки",
-        "Реквизиты организации — пакет W-06.",
-    )
+    return RedirectResponse("/cabinet/settings/", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/org/{org_id}", response_class=HTMLResponse)

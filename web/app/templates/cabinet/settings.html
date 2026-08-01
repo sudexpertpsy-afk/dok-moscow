@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Настройки — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">{{ app_name }}</div>
+    <div class="org">{{ org.name }}</div>
+    <nav class="nav">
+      {% for key, label, href in nav %}
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <main class="content">
+    <div class="topbar">
+      <span>{{ user.email }}</span>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+    <section class="panel">
+      <h1>Настройки</h1>
+      <nav class="steps" style="display:flex;gap:0.4rem;flex-wrap:wrap;margin:0.8rem 0 1rem">
+        {% for key, label, href in sections %}
+          <a href="{{ href }}" style="padding:0.35rem 0.75rem;border-radius:999px;text-decoration:none;
+            {% if section == key %}background:var(--accent);color:#fff{% else %}background:rgba(255,255,255,0.55);color:var(--ink){% endif %}">
+            {{ label }}
+          </a>
+        {% endfor %}
+      </nav>
+      {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+      {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+
+      {% if section == 'реквизиты' %}
+      <form method="post" action="/cabinet/settings/">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% for f in ORG_FIELDS %}
+          <label for="o_{{ loop.index }}">{{ f }}</label>
+          <input id="o_{{ loop.index }}" name="{{ f }}" value="{{ requisites.организация.get(f, '') }}">
+        {% endfor %}
+        <div class="actions"><button type="submit">Сохранить</button></div>
+      </form>
+
+      {% elif section == 'банк' %}
+      <form method="post" action="/cabinet/settings/bank">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% for f in BANK_FIELDS %}
+          <label for="b_{{ loop.index }}">{{ f }}</label>
+          <input id="b_{{ loop.index }}" name="{{ f }}" value="{{ requisites.банк.get(f, '') }}">
+        {% endfor %}
+        <div class="actions"><button type="submit">Сохранить</button></div>
+      </form>
+
+      {% elif section == 'подписанты' %}
+      <form method="post" action="/cabinet/settings/signatories">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% for block, fields in SIGNATORY_BLOCKS.items() %}
+          <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1rem 0 0.35rem">{{ block }}</h2>
+          {% for f in fields %}
+            <label for="s_{{ block }}_{{ f }}">{{ f }}</label>
+            <input id="s_{{ block }}_{{ f }}" name="{{ block }}.{{ f }}"
+                   value="{{ (requisites.get(block) or {}).get(f, '') }}">
+          {% endfor %}
+        {% endfor %}
+        <div class="actions"><button type="submit">Сохранить</button></div>
+      </form>
+
+      {% elif section == 'прайс' %}
+      <form method="post" action="/cabinet/settings/price">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% for f in PRICE_FIELDS %}
+          <label for="p_{{ loop.index }}">{{ f }}</label>
+          <input id="p_{{ loop.index }}" name="{{ f }}" value="{{ requisites.прайс.get(f, 0) }}">
+        {% endfor %}
+        <div class="actions"><button type="submit">Сохранить</button></div>
+      </form>
+
+      {% elif section == 'счётчики' %}
+      <table class="table">
+        <thead><tr><th>Ключ</th><th>Префикс</th><th>Текущее</th><th>Суффикс</th><th>Следующий</th></tr></thead>
+        <tbody>
+          {% for c in counters %}
+          <tr>
+            <td class="mono">{{ c.key }}</td>
+            <td>{{ c.prefix }}</td>
+            <td>{{ c.value }}</td>
+            <td>{{ c.suffix }}</td>
+            <td class="mono">{{ c.prefix }}{{ c.value + 1 }}{{ c.suffix }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="muted">Счётчики появятся после генерации документов</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.2rem 0 0.4rem">Корректировка</h2>
+      <p class="muted">Укажите значение, которое уже использовано (следующий будет +1). Требуется подтверждение.</p>
+      <form method="post" action="/cabinet/settings/counters">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Ключ</label>
+        <input name="key" placeholder="dogovor" required>
+        <label>Префикс</label>
+        <input name="prefix">
+        <label>Текущее число</label>
+        <input name="value" type="number" value="0" required>
+        <label>Суффикс</label>
+        <input name="suffix">
+        <label style="display:flex;align-items:center;gap:0.5rem;margin-top:0.8rem">
+          <input type="checkbox" name="confirm" value="1" required> Подтверждаю изменение счётчика
+        </label>
+        <div class="actions"><button type="submit">Сохранить счётчик</button></div>
+      </form>
+      {% endif %}
+    </section>
+  </main>
+</div>
+{% endblock %}

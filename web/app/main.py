@@ -15,7 +15,8 @@ from app import db as dbmod
 from app.config import get_settings
 from app.db import Base
 from app.models import User, UserRole
-from app.routers import admin, auth, cabinet, counterparties, documents, package
+from app.routers import admin, auth, cabinet, counterparties, documents, journal, package
+from app.routers import settings as settings_routes
 from app.security import hash_password
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -92,6 +93,8 @@ def create_app() -> FastAPI:
     app.include_router(documents.router)
     app.include_router(package.router)
     app.include_router(counterparties.router)
+    app.include_router(journal.router)
+    app.include_router(settings_routes.router)
     app.include_router(admin.router)
 
     @app.get("/")
