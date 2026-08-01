@@ -1,5 +1,6 @@
 """Настройки приложения из переменных окружения."""
 
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
@@ -44,6 +45,8 @@ class Settings(BaseSettings):
     password_reset_ttl_hours: int = 2
     # True — backup.sh завершится ошибкой без AGE_RECIPIENT (прод)
     backup_require_age: bool = False
+    # W-10: окончание бета-подписки «Специалист» для существующих организаций
+    beta_trial_until: date = date(2026, 10, 1)
 
 
 @lru_cache

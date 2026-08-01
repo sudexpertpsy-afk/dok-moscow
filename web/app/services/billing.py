@@ -1,0 +1,228 @@
+"""Биллинг W-10: справочник тарифов, подписки, лимиты из БД."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, time, timezone
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session, joinedload
+
+from app.config import get_settings
+from app.models import (
+    Organization,
+    PaymentMode,
+    PaymentSettings,
+    Subscription,
+    SubscriptionPeriod,
+    SubscriptionStatus,
+    Tariff,
+    TariffCode,
+    utcnow,
+)
+
+# Цены в копейках — единственный источник для сида; рантайм читает из БД.
+DEFAULT_TARIFFS: tuple[dict, ...] = (
+    {
+        "code": TariffCode.guest,
+        "name": "Гость",
+        "price_month_kop": 0,
+        "price_year_kop": 0,
+        "limit_documents_month": 3,
+        "limit_users": 1,
+        "watermark": True,
+    },
+    {
+        "code": TariffCode.specialist,
+        "name": "Специалист",
+        "price_month_kop": 99_000,
+        "price_year_kop": 990_000,
+        "limit_documents_month": None,
+        "limit_users": 1,
+        "watermark": False,
+    },
+    {
+        "code": TariffCode.organization,
+        "name": "Организация",
+        "price_month_kop": 249_000,
+        "price_year_kop": 2_490_000,
+        "limit_documents_month": None,
+        "limit_users": 5,
+        "watermark": False,
+    },
+)
+
+
+@dataclass(frozen=True)
+class TariffLimits:
+    tariff_code: TariffCode
+    tariff_name: str
+    limit_documents_month: int | None
+    limit_users: int | None
+    watermark: bool
+    subscription_status: SubscriptionStatus | None
+    ends_at: datetime | None
+    is_current: bool
+
+
+def ensure_tariffs(db: Session) -> list[Tariff]:
+    """Создать/обновить справочник тарифов (идемпотентно)."""
+    out: list[Tariff] = []
+    for row in DEFAULT_TARIFFS:
+        tariff = db.scalar(select(Tariff).where(Tariff.code == row["code"]))
+        if tariff is None:
+            tariff = Tariff(**row, is_active=True)
+            db.add(tariff)
+        else:
+            tariff.name = row["name"]
+            tariff.price_month_kop = row["price_month_kop"]
+            tariff.price_year_kop = row["price_year_kop"]
+            tariff.limit_documents_month = row["limit_documents_month"]
+            tariff.limit_users = row["limit_users"]
+            tariff.watermark = row["watermark"]
+            tariff.is_active = True
+        out.append(tariff)
+    db.flush()
+    return out
+
+
+def ensure_payment_settings(db: Session) -> PaymentSettings:
+    row = db.get(PaymentSettings, 1)
+    if row is None:
+        row = PaymentSettings(id=1, mode=PaymentMode.test)
+        db.add(row)
+        db.flush()
+    return row
+
+
+def beta_trial_ends_at() -> datetime:
+    settings = get_settings()
+    d = settings.beta_trial_until
+    return datetime.combine(d, time.max.replace(microsecond=0), tzinfo=timezone.utc)
+
+
+def ensure_beta_subscriptions(db: Session) -> int:
+    """У организаций без подписки — trial «Специалист» до BETA_TRIAL_UNTIL."""
+    ensure_tariffs(db)
+    specialist = db.scalar(select(Tariff).where(Tariff.code == TariffCode.specialist))
+    assert specialist is not None
+    ends = beta_trial_ends_at()
+    starts = utcnow()
+    created = 0
+    orgs = db.scalars(select(Organization)).all()
+    for org in orgs:
+        existing = db.scalar(
+            select(Subscription)
+            .where(Subscription.org_id == org.id)
+            .order_by(Subscription.id.desc())
+            .limit(1)
+        )
+        if existing is not None:
+            continue
+        db.add(
+            Subscription(
+                org_id=org.id,
+                tariff_id=specialist.id,
+                period=SubscriptionPeriod.month,
+                starts_at=starts,
+                ends_at=ends,
+                status=SubscriptionStatus.trial,
+                auto_renew=False,
+                is_beta=True,
+            )
+        )
+        created += 1
+    db.flush()
+    return created
+
+
+def bootstrap_billing(db: Session) -> None:
+    ensure_tariffs(db)
+    ensure_payment_settings(db)
+    ensure_beta_subscriptions(db)
+    db.commit()
+
+
+def get_tariff(db: Session, code: TariffCode) -> Tariff | None:
+    return db.scalar(select(Tariff).where(Tariff.code == code, Tariff.is_active.is_(True)))
+
+
+def get_current_subscription(db: Session, org_id: int) -> Subscription | None:
+    """Актуальная подписка: trial/active с неистёкшим сроком, иначе последняя."""
+    rows = db.scalars(
+        select(Subscription)
+        .options(joinedload(Subscription.tariff))
+        .where(Subscription.org_id == org_id)
+        .order_by(Subscription.id.desc())
+    ).all()
+    for sub in rows:
+        if sub.is_current():
+            return sub
+    return rows[0] if rows else None
+
+
+def get_tariff_limits(db: Session, org_id: int) -> TariffLimits:
+    """Лимиты тарифа из БД (не из кода). Без подписки — лимиты «Гость»."""
+    sub = get_current_subscription(db, org_id)
+    if sub is not None and sub.tariff is not None:
+        t = sub.tariff
+        return TariffLimits(
+            tariff_code=t.code,
+            tariff_name=t.name,
+            limit_documents_month=t.limit_documents_month,
+            limit_users=t.limit_users,
+            watermark=t.watermark,
+            subscription_status=sub.status,
+            ends_at=sub.ends_at,
+            is_current=sub.is_current(),
+        )
+    guest = get_tariff(db, TariffCode.guest)
+    if guest is None:
+        ensure_tariffs(db)
+        guest = get_tariff(db, TariffCode.guest)
+    assert guest is not None
+    return TariffLimits(
+        tariff_code=guest.code,
+        tariff_name=guest.name,
+        limit_documents_month=guest.limit_documents_month,
+        limit_users=guest.limit_users,
+        watermark=guest.watermark,
+        subscription_status=None,
+        ends_at=None,
+        is_current=False,
+    )
+
+
+def transition_subscription(
+    sub: Subscription,
+    *,
+    to: SubscriptionStatus,
+    now: datetime | None = None,
+) -> None:
+    """Допустимые переходы статусов подписки."""
+    allowed = {
+        SubscriptionStatus.trial: {
+            SubscriptionStatus.active,
+            SubscriptionStatus.expired,
+            SubscriptionStatus.cancelled,
+        },
+        SubscriptionStatus.active: {
+            SubscriptionStatus.expired,
+            SubscriptionStatus.cancelled,
+            SubscriptionStatus.active,
+        },
+        SubscriptionStatus.expired: {SubscriptionStatus.active, SubscriptionStatus.trial},
+        SubscriptionStatus.cancelled: {SubscriptionStatus.active, SubscriptionStatus.trial},
+    }
+    if to not in allowed[sub.status]:
+        raise ValueError(f"Переход {sub.status.value} → {to.value} запрещён")
+    now = now or utcnow()
+    if to == SubscriptionStatus.active:
+        sub.mark_active()
+    elif to == SubscriptionStatus.expired:
+        sub.mark_expired()
+    elif to == SubscriptionStatus.cancelled:
+        sub.mark_cancelled()
+    elif to == SubscriptionStatus.trial:
+        sub.status = SubscriptionStatus.trial
+    sub.updated_at = now

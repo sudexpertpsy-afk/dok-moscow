@@ -1,8 +1,9 @@
-"""Модели данных Док.Москва (Приложение А ТЗ, пакеты W-01/W-02)."""
+"""Модели данных Док.Москва (Приложение А ТЗ, пакеты W-01/W-02, W-10)."""
 
 from __future__ import annotations
 
 import enum
+import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
@@ -17,6 +18,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    Uuid,
     func,
     text,
 )
@@ -52,6 +54,43 @@ class DocumentFormat(str, enum.Enum):
     pdf = "pdf"
 
 
+class TariffCode(str, enum.Enum):
+    guest = "guest"
+    specialist = "specialist"
+    organization = "organization"
+
+
+class SubscriptionPeriod(str, enum.Enum):
+    month = "month"
+    year = "year"
+
+
+class SubscriptionStatus(str, enum.Enum):
+    trial = "trial"
+    active = "active"
+    expired = "expired"
+    cancelled = "cancelled"
+
+
+class PaymentStatus(str, enum.Enum):
+    created = "created"
+    authorized = "authorized"
+    confirmed = "confirmed"
+    rejected = "rejected"
+    refunded = "refunded"
+    partial_refund = "partial_refund"
+
+
+class PaymentSource(str, enum.Enum):
+    card = "card"
+    manual = "manual"
+
+
+class PaymentMode(str, enum.Enum):
+    test = "test"
+    live = "live"
+
+
 JsonType = JSON().with_variant(JSONB(), "postgresql")
 
 _STR_ENUM = dict(
@@ -78,6 +117,8 @@ class Organization(Base):
     documents: Mapped[list[Document]] = relationship(back_populates="organization")
     counters: Mapped[list[Counter]] = relationship(back_populates="organization")
     events: Mapped[list[Event]] = relationship(back_populates="organization")
+    subscriptions: Mapped[list["Subscription"]] = relationship(back_populates="organization")
+    payments: Mapped[list["Payment"]] = relationship(back_populates="organization")
 
 
 class User(Base):
@@ -337,3 +378,172 @@ class PasswordResetToken(Base):
     @property
     def is_used(self) -> bool:
         return self.used_at is not None
+
+
+class Tariff(Base):
+    """Справочник тарифов SaaS (W-10). Цены — в копейках."""
+
+    __tablename__ = "tariffs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[TariffCode] = mapped_column(
+        Enum(TariffCode, name="tariff_code", **_STR_ENUM),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    price_month_kop: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    price_year_kop: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # NULL = без лимита
+    limit_documents_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    limit_users: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    watermark: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    subscriptions: Mapped[list[Subscription]] = relationship(back_populates="tariff")
+
+
+class Subscription(Base):
+    """Подписка организации на тариф (W-10)."""
+
+    __tablename__ = "subscriptions"
+    __table_args__ = (Index("ix_subscriptions_org_status", "org_id", "status"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    tariff_id: Mapped[int] = mapped_column(
+        ForeignKey("tariffs.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    period: Mapped[SubscriptionPeriod] = mapped_column(
+        Enum(SubscriptionPeriod, name="subscription_period", **_STR_ENUM),
+        nullable=False,
+        default=SubscriptionPeriod.month,
+    )
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[SubscriptionStatus] = mapped_column(
+        Enum(SubscriptionStatus, name="subscription_status", **_STR_ENUM),
+        nullable=False,
+        default=SubscriptionStatus.trial,
+        index=True,
+    )
+    auto_renew: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    customer_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    rebill_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    is_beta: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    organization: Mapped[Organization] = relationship(back_populates="subscriptions")
+    tariff: Mapped[Tariff] = relationship(back_populates="subscriptions")
+    payments: Mapped[list[Payment]] = relationship(back_populates="subscription")
+
+    def is_current(self, now: datetime | None = None) -> bool:
+        now = now or utcnow()
+        if self.status not in (SubscriptionStatus.trial, SubscriptionStatus.active):
+            return False
+        end = self.ends_at
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        return now < end
+
+    def mark_expired(self) -> None:
+        self.status = SubscriptionStatus.expired
+
+    def mark_active(self) -> None:
+        self.status = SubscriptionStatus.active
+
+    def mark_cancelled(self) -> None:
+        self.status = SubscriptionStatus.cancelled
+        self.auto_renew = False
+
+
+class Payment(Base):
+    """Платёж: id = UUID = OrderId для Т-Кассы (W-10). Суммы в копейках."""
+
+    __tablename__ = "payments"
+    __table_args__ = (
+        Index("ix_payments_org_created", "org_id", "created_at"),
+        Index("ix_payments_status", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    subscription_id: Mapped[int | None] = mapped_column(
+        ForeignKey("subscriptions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    amount_kop: Mapped[int] = mapped_column(Integer, nullable=False)
+    purpose: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    status: Mapped[PaymentStatus] = mapped_column(
+        Enum(PaymentStatus, name="payment_status", **_STR_ENUM),
+        nullable=False,
+        default=PaymentStatus.created,
+    )
+    tbank_payment_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    source: Mapped[PaymentSource] = mapped_column(
+        Enum(PaymentSource, name="payment_source", **_STR_ENUM),
+        nullable=False,
+        default=PaymentSource.card,
+    )
+    receipt_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    receipt_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    raw_events: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    manual_basis: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    organization: Mapped[Organization] = relationship(back_populates="payments")
+    subscription: Mapped[Subscription | None] = relationship(back_populates="payments")
+
+    def append_event(self, event: dict) -> None:
+        events = list(self.raw_events or [])
+        events.append(event)
+        self.raw_events = events
+
+
+class PaymentSettings(Base):
+    """Singleton настроек Т-Кассы (строка id=1). Пароль — Fernet (W-13)."""
+
+    __tablename__ = "payment_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    terminal_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    password_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    mode: Mapped[PaymentMode] = mapped_column(
+        Enum(PaymentMode, name="payment_mode", **_STR_ENUM),
+        nullable=False,
+        default=PaymentMode.test,
+    )
+    recurrents_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    taxation: Mapped[str] = mapped_column(String(32), nullable=False, default="usn_income")
+    vat_rate: Mapped[str] = mapped_column(String(16), nullable=False, default="none")
+    default_receipt_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+    updated_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )

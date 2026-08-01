@@ -47,10 +47,21 @@ def _bootstrap_admin() -> None:
         db.close()
 
 
+def _bootstrap_billing() -> None:
+    from app.services.billing import bootstrap_billing
+
+    db = dbmod.SessionLocal()
+    try:
+        bootstrap_billing(db)
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     Base.metadata.create_all(bind=dbmod.engine)
     _bootstrap_admin()
+    _bootstrap_billing()
     yield
 
 
