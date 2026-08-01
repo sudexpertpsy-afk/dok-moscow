@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == 'new' %}Новый контрагент{% else %}Редактирование{% endif %} — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">{{ app_name }}</div>
+    <div class="org">{{ org.name }}</div>
+    <nav class="nav">
+      {% for key, label, href in nav %}
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <main class="content">
+    <div class="topbar">
+      <span>{{ user.email }}</span>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+    <section class="panel">
+      <h1>{% if mode == 'new' %}Новый контрагент{% else %}Редактирование{% endif %}</h1>
+      {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+      {% if not dadata_enabled %}
+        <p class="muted">Подсказки DaData выключены (нет DADATA_KEY) — заполняйте поля вручную.</p>
+      {% endif %}
+      <form method="post"
+            action="{% if mode == 'new' %}/cabinet/counterparties/new{% else %}/cabinet/counterparties/{{ cp.id }}{% endif %}"
+            id="cp-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="source" id="source" value="{{ values.source or 'manual' }}">
+
+        <label for="type">Тип</label>
+        <select id="type" name="type"
+          {% if mode == 'new' %}onchange="location.href='/cabinet/counterparties/new?type='+this.value"{% endif %}>
+          <option value="ul" {% if тип.value == 'ul' %}selected{% endif %}>Юрлицо</option>
+          <option value="fl" {% if тип.value == 'fl' %}selected{% endif %}>Физлицо</option>
+          <option value="expert" {% if тип.value == 'expert' %}selected{% endif %}>Эксперт</option>
+        </select>
+
+        {% if тип.value == 'ul' %}
+        <label for="inn">ИНН (подсказка DaData)</label>
+        <input id="inn" name="inn" value="{{ values.inn or '' }}" autocomplete="off"
+          hx-get="/cabinet/counterparties/suggest/party"
+          hx-trigger="keyup changed delay:300ms"
+          hx-target="#party-suggest"
+          hx-include="[name='inn']">
+        <div id="party-suggest" class="suggest-box"></div>
+        <label for="name">Наименование</label>
+        <input id="name" name="name" value="{{ values.name or '' }}">
+        <label for="kpp">КПП</label>
+        <input id="kpp" name="kpp" value="{{ values.kpp or '' }}">
+        <label for="ogrn">ОГРН</label>
+        <input id="ogrn" name="ogrn" value="{{ values.ogrn or '' }}">
+        <label for="fio">Руководитель (ФИО)</label>
+        <input id="fio" name="fio" value="{{ values.fio or '' }}">
+        {% else %}
+        <label for="fio">ФИО</label>
+        <input id="fio" name="fio" value="{{ values.fio or '' }}">
+        <label for="inn">ИНН</label>
+        <input id="inn" name="inn" value="{{ values.inn or '' }}">
+        <label for="passport_series">Паспорт серия</label>
+        <input id="passport_series" name="passport_series" value="{{ values.passport_series or '' }}">
+        <label for="passport_number">Паспорт номер</label>
+        <input id="passport_number" name="passport_number" value="{{ values.passport_number or '' }}">
+        <label for="passport_issuer">Кем выдан</label>
+        <input id="passport_issuer" name="passport_issuer" value="{{ values.passport_issuer or '' }}">
+        <label for="passport_date">Дата выдачи</label>
+        <input id="passport_date" name="passport_date" value="{{ values.passport_date or '' }}">
+        <label for="snils">СНИЛС</label>
+        <input id="snils" name="snils" value="{{ values.snils or '' }}">
+        {% endif %}
+
+        <label for="address">Адрес</label>
+        <input id="address" name="address" value="{{ values.address or '' }}"
+          hx-get="/cabinet/counterparties/suggest/address"
+          hx-trigger="keyup changed delay:300ms"
+          hx-target="#address-suggest"
+          hx-include="[name='address']">
+        <div id="address-suggest" class="suggest-box"></div>
+
+        <label for="phone">Телефон</label>
+        <input id="phone" name="phone" value="{{ values.phone or '' }}">
+        <label for="email">E-mail</label>
+        <input id="email" name="email" value="{{ values.email or '' }}">
+
+        <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.2rem 0 0.4rem">Банк</h2>
+        <label for="bank_bik">БИК</label>
+        <input id="bank_bik" name="bank_bik" value="{{ values.bank_bik or '' }}"
+          hx-get="/cabinet/counterparties/suggest/bank"
+          hx-trigger="keyup changed delay:300ms"
+          hx-target="#bank-suggest"
+          hx-include="[name='bank_bik']">
+        <div id="bank-suggest" class="suggest-box"></div>
+        <label for="bank_name">Банк</label>
+        <input id="bank_name" name="bank_name" value="{{ values.bank_name or '' }}">
+        <label for="bank_account">Расчётный счёт</label>
+        <input id="bank_account" name="bank_account" value="{{ values.bank_account or '' }}">
+        <label for="bank_corr_account">Корр. счёт</label>
+        <input id="bank_corr_account" name="bank_corr_account" value="{{ values.bank_corr_account or '' }}">
+
+        <label for="notes">Примечания</label>
+        <textarea id="notes" name="notes" rows="2">{{ values.notes or '' }}</textarea>
+
+        <div class="actions">
+          <button type="submit">Сохранить</button>
+          <a class="btn secondary" href="/cabinet/counterparties/">К списку</a>
+        </div>
+      </form>
+    </section>
+  </main>
+</div>
+<style>
+.suggest-box { margin: 0.25rem 0 0.6rem; }
+.suggest-box button {
+  display: block; width: 100%; text-align: left; margin: 0.2rem 0;
+  background: #fff; color: var(--ink); border: 1px solid var(--line);
+  border-radius: 8px; padding: 0.55rem 0.7rem; font-weight: 500;
+}
+.suggest-box button:hover { background: #eef7f4; }
+</style>
+<script>
+function applyParty(btn) {
+  const d = JSON.parse(btn.getAttribute('data-json'));
+  for (const [k, v] of Object.entries(d)) {
+    const el = document.getElementById(k);
+    if (el && v) el.value = v;
+  }
+  document.getElementById('source').value = 'dadata';
+  document.getElementById('party-suggest').innerHTML = '';
+}
+function applyAddress(btn) {
+  document.getElementById('address').value = btn.getAttribute('data-value') || '';
+  document.getElementById('address-suggest').innerHTML = '';
+}
+function applyBank(btn) {
+  const d = JSON.parse(btn.getAttribute('data-json'));
+  for (const [k, v] of Object.entries(d)) {
+    const el = document.getElementById(k);
+    if (el && v) el.value = v;
+  }
+  document.getElementById('bank-suggest').innerHTML = '';
+}
+</script>
+{% endblock %}

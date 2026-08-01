@@ -1,0 +1,5 @@
+{% for item in items %}
+<button type="button" data-value="{{ item.value }}" onclick="applyAddress(this)">
+  {{ item.value }}
+</button>
+{% endfor %}

@@ -1,0 +1,6 @@
+{% for i in range(items|length) %}
+<button type="button" data-json='{{ mapped[i]|tojson }}' onclick="applyParty(this)">
+  {{ items[i].value }}
+  {% if mapped[i].inn %}<span class="muted"> · ИНН {{ mapped[i].inn }}</span>{% endif %}
+</button>
+{% endfor %}

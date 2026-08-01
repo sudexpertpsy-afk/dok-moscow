@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Приглашение — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="shell">
+  <div class="card">
+    <h1 class="brand">{{ app_name }}</h1>
+    <p class="lead">Приглашение в «{{ org_name }}»</p>
+    {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+    <p class="muted">E-mail: <strong>{{ invite.email }}</strong></p>
+    <form method="post" action="/invite/{{ token }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <p class="muted">{{ password_hint }}</p>
+      <label for="password">Пароль</label>
+      <input id="password" name="password" type="password" required minlength="10" autocomplete="new-password">
+      <label for="password2">Повтор пароля</label>
+      <input id="password2" name="password2" type="password" required minlength="10" autocomplete="new-password">
+      <div class="actions">
+        <button type="submit">Создать доступ</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

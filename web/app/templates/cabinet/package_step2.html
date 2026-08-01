@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "cabinet/_steps.html" import steps_bar %}
+{% block title %}Комплект — документы — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">{{ app_name }}</div>
+    <div class="org">{{ org.name }}</div>
+    <nav class="nav">
+      {% for key, label, href in nav %}
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <main class="content">
+    <div class="topbar">
+      <span>{{ user.email }}</span>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+    <section class="panel">
+      <h1>Договор и пакет</h1>
+      {{ steps_bar(step, steps) }}
+      {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+      <form method="post" action="/cabinet/package/step2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="contract_template">Договор</label>
+        <select id="contract_template" name="contract_template"
+                onchange="this.form.action='/cabinet/package/step2'; this.form.querySelector('[name=action]').value='refresh'; this.form.submit()">
+          {% for c in contracts %}
+            <option value="{{ c }}" {% if c == chosen %}selected{% endif %}>{{ display_name(c) if c != 'Без договора' else c }}</option>
+          {% endfor %}
+        </select>
+        <input type="hidden" name="action" value="next">
+
+        {% if extras %}
+        <h2 style="font-family:var(--font-display);font-size:1.2rem;margin:1.2rem 0 0.4rem">Сопутствующие</h2>
+        {% for name, on in extras %}
+          <label style="display:flex;align-items:center;gap:0.5rem;margin:0.4rem 0">
+            <input type="checkbox" name="extra_{{ name }}" value="1"
+              {% if name in (wizard.extras or []) or (not wizard.extras and on) %}checked{% endif %}>
+            {{ display_name(name) }}
+          </label>
+        {% endfor %}
+        {% endif %}
+
+        <div class="actions">
+          <a class="btn secondary" href="/cabinet/package/">Назад</a>
+          <button type="submit" onclick="this.form.querySelector('[name=action]').value='next'">Далее</button>
+        </div>
+      </form>
+    </section>
+  </main>
+</div>
+{% endblock %}

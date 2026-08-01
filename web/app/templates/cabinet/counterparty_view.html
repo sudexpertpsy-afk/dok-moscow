@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ cp.name or cp.fio or 'Контрагент' }} — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">{{ app_name }}</div>
+    <div class="org">{{ org.name }}</div>
+    <nav class="nav">
+      {% for key, label, href in nav %}
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <main class="content">
+    <div class="topbar">
+      <span>{{ user.email }}</span>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+    <section class="panel">
+      <h1>{{ cp.name or cp.fio or ('#' ~ cp.id) }}</h1>
+      <p class="muted">
+        {% if cp.type.value == 'ul' %}Юрлицо{% elif cp.type.value == 'expert' %}Эксперт{% else %}Физлицо{% endif %}
+        · источник: {{ cp.source.value }}
+      </p>
+      <table class="table">
+        <tr><th>ИНН</th><td class="mono">{{ cp.inn or '—' }}</td></tr>
+        <tr><th>КПП</th><td class="mono">{{ cp.kpp or '—' }}</td></tr>
+        <tr><th>ОГРН</th><td class="mono">{{ cp.ogrn or '—' }}</td></tr>
+        <tr><th>ФИО</th><td>{{ cp.fio or '—' }}</td></tr>
+        <tr><th>Паспорт</th><td>{{ passport_masked or '—' }}</td></tr>
+        <tr><th>Адрес</th><td>{{ address_masked or '—' }}</td></tr>
+        <tr><th>Телефон</th><td>{{ cp.phone or '—' }}</td></tr>
+        <tr><th>E-mail</th><td>{{ cp.email or '—' }}</td></tr>
+        <tr><th>Банк</th><td>{{ cp.bank_name or '—' }} · БИК {{ cp.bank_bik or '—' }}</td></tr>
+      </table>
+      <div class="actions">
+        <a class="btn" href="/cabinet/counterparties/{{ cp.id }}/edit">Изменить</a>
+        <a class="btn secondary" href="/cabinet/counterparties/">К списку</a>
+        <form method="post" action="/cabinet/counterparties/{{ cp.id }}/delete" style="display:inline"
+              onsubmit="return confirm('Удалить контрагента?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="secondary">Удалить</button>
+        </form>
+      </div>
+    </section>
+    <section class="panel" style="margin-top:1rem">
+      <h1>Документы</h1>
+      <table class="table">
+        <thead><tr><th>Шаблон</th><th>Номер</th><th>Дата</th><th></th></tr></thead>
+        <tbody>
+          {% for d in documents %}
+          <tr>
+            <td>{{ d.template }}</td>
+            <td class="muted">{{ d.number or '—' }}</td>
+            <td class="muted">{{ d.created_at }}</td>
+            <td><a href="/cabinet/documents/{{ d.id }}">Открыть</a></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="muted">Документов пока нет</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </main>
+</div>
+{% endblock %}

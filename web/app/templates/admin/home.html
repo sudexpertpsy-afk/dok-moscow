@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Админ — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">{{ app_name }}</div>
+    <div class="org">Администратор сервиса</div>
+    <nav class="nav">
+      <a href="/admin/" class="active">Организации</a>
+    </nav>
+  </aside>
+  <main class="content">
+    <div class="topbar">
+      <span>{{ user.email }}</span>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+
+    {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+    {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+
+    <div class="grid-2">
+      <section class="panel">
+        <h1>Новая организация</h1>
+        <form method="post" action="/admin/organizations">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label for="name">Название</label>
+          <input id="name" name="name" required maxlength="255">
+          <div class="actions"><button type="submit">Создать</button></div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h1>Приглашение</h1>
+        <form method="post" action="/admin/invites">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label for="org_id">Организация</label>
+          <select id="org_id" name="org_id" required>
+            {% for o in orgs %}
+              <option value="{{ o.id }}">#{{ o.id }} — {{ o.name }}</option>
+            {% else %}
+              <option value="" disabled selected>Сначала создайте организацию</option>
+            {% endfor %}
+          </select>
+          <label for="email">E-mail пользователя</label>
+          <input id="email" name="email" type="email" required>
+          <div class="actions"><button type="submit">Создать ссылку</button></div>
+        </form>
+        {% if last_invite_link %}
+          <p class="muted" style="margin-top:1rem">Ссылка:</p>
+          <p class="mono">{{ last_invite_link }}</p>
+        {% endif %}
+      </section>
+    </div>
+
+    <section class="panel" style="margin-top:1rem">
+      <h1>Организации</h1>
+      <table class="table">
+        <thead><tr><th>ID</th><th>Название</th><th>Создана</th></tr></thead>
+        <tbody>
+          {% for o in orgs %}
+          <tr><td>{{ o.id }}</td><td>{{ o.name }}</td><td class="muted">{{ o.created_at }}</td></tr>
+          {% else %}
+          <tr><td colspan="3" class="muted">Пока пусто</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel" style="margin-top:1rem">
+      <h1>Заявки с лендинга</h1>
+      <table class="table">
+        <thead><tr><th>ID</th><th>E-mail</th><th>Профиль</th><th>Комментарий</th><th>Когда</th></tr></thead>
+        <tbody>
+          {% for L in leads %}
+          <tr>
+            <td>{{ L.id }}</td>
+            <td>{{ L.email }}</td>
+            <td>{{ L.profile or "—" }}</td>
+            <td class="muted">{{ L.comment or "—" }}</td>
+            <td class="muted">{{ L.ts }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="muted">Пока пусто</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel" style="margin-top:1rem">
+      <h1>Недавние приглашения</h1>
+      <table class="table">
+        <thead><tr><th>Org</th><th>E-mail</th><th>Токен</th><th>Истекает</th><th>Использован</th></tr></thead>
+        <tbody>
+          {% for i in invites %}
+          <tr>
+            <td>{{ i.org_id }}</td>
+            <td>{{ i.email }}</td>
+            <td class="mono"><a href="/invite/{{ i.token }}">{{ i.token[:12] }}…</a></td>
+            <td class="muted">{{ i.expires_at }}</td>
+            <td>{% if i.used_at %}да{% else %}нет{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="muted">Пока пусто</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </main>
+</div>
+{% endblock %}
