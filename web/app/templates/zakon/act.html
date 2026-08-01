@@ -23,6 +23,11 @@
       {% if act.last_verified_at %}
       · сверено {{ act.last_verified_at.strftime('%d.%m.%Y') }}
       {% endif %}
+      {% if published and published.text_origin == 'pdf_extracted' %}
+      · текст распознан из PDF
+      {% elif published and published.text_origin == 'pdf_unrecognized' %}
+      · PDF без текстового слоя (полнотекстовый поиск недоступен)
+      {% endif %}
       · первоисточник:
       <a href="{{ act.source_url }}" rel="noopener noreferrer" target="_blank">официальный интернет-портал правовой информации</a>
     </div>
@@ -46,14 +51,14 @@
       <h2>Оглавление (экспертные нормы)</h2>
       <ol>
         {% for f in fragments %}
-        <li><a href="#frag-{{ loop.index }}">{{ f.article_ref }}{% if f.title and f.title != f.article_ref %} — {{ f.title }}{% endif %}</a></li>
+        <li><a href="#{{ article_anchor(f.article_ref) }}">{{ f.article_ref }}{% if f.title and f.title != f.article_ref %} — {{ f.title }}{% endif %}</a></li>
         {% endfor %}
       </ol>
       <p class="zk-meta">Полный текст кодекса — в <a href="http://pravo.gov.ru/ips/" rel="noopener noreferrer" target="_blank">ИПС «Законодательство России»</a>.</p>
     </div>
     <div class="zk-body">
       {% for f in fragments %}
-      <section id="frag-{{ loop.index }}" class="zk-frag">
+      <section id="{{ article_anchor(f.article_ref) }}" class="zk-frag">
         <h3>{{ f.article_ref }}{% if f.title and f.title != f.article_ref %} — {{ f.title }}{% endif %}</h3>
         {% if f.body_html %}
         {{ f.body_html|safe }}

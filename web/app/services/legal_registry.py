@@ -431,6 +431,7 @@ def create_draft_version(
     loaded_by_user_id: int | None = None,
     pdf_path: str | None = None,
     diff_text: str | None = None,
+    text_origin: str | None = None,
 ) -> ActVersion:
     version = ActVersion(
         act_id=act_id,
@@ -442,6 +443,7 @@ def create_draft_version(
         loaded_by_user_id=loaded_by_user_id,
         pdf_path=pdf_path,
         diff_text=diff_text,
+        text_origin=text_origin,
     )
     db.add(version)
     db.flush()
@@ -467,6 +469,10 @@ def publish_version(
     if act is not None:
         act.last_verified_at = utcnow()
     db.flush()
+    # W-22: пересборка поискового индекса (черновики/архив не индексируются)
+    from app.services.legal_search import rebuild_act_index
+
+    rebuild_act_index(db, version.act_id)
     return version
 
 

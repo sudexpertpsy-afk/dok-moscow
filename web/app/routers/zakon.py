@@ -1,6 +1,8 @@
-"""Публичный раздел «Законодательство» (/zakon) — W-18."""
+"""Публичный раздел «Законодательство» (/zakon) — W-18 / W-22."""
 
 from __future__ import annotations
+
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
@@ -18,8 +20,9 @@ from app.services.legal_public import (
     highlight,
     list_catalog,
     published_for,
-    search_acts,
+    search_acts_grouped,
 )
+from app.services.legal_search import article_anchor
 from app.services.sources.publication_api import PublicationClient
 from app.templating import templates
 
@@ -29,6 +32,7 @@ DISCLAIMER = (
     "Тексты приводятся в справочных целях по официальным источникам "
     "и не являются официальным опубликованием."
 )
+PAGE_SIZE = 20
 
 
 def _ctx(request: Request, **extra):
@@ -42,20 +46,64 @@ def _ctx(request: Request, **extra):
         "yandex_metrika_id": (settings.yandex_metrika_id or "").strip(),
         "disclaimer": DISCLAIMER,
         "category_label": CATEGORY_LABEL,
+        "article_anchor": article_anchor,
     }
     data.update(extra)
     return data
+
+
+def _parse_date(raw: str | None) -> date | None:
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw.strip())
+    except ValueError:
+        return None
 
 
 @router.get("/", response_class=HTMLResponse)
 def zakon_index(
     request: Request,
     q: str = Query(""),
+    category: str = Query(""),
+    authority: str = Query(""),
+    status: str = Query(""),
+    revision_from: str = Query(""),
+    revision_to: str = Query(""),
+    page: int = Query(1, ge=1),
     db: Session = Depends(get_db),
 ):
     query = (q or "").strip()
-    hits = search_acts(db, query) if query else []
-    groups = list_catalog(db) if not query else []
+    status_norm = (status or "").strip().casefold()
+    if status_norm in ("архив", "archive", "repealed"):
+        status_norm = "repealed"
+    elif status_norm in ("действует", "active", ""):
+        status_norm = "active" if status_norm else ""
+
+    result = None
+    hits = []
+    groups_search = []
+    total = 0
+    pages = 1
+    if query:
+        offset = (page - 1) * PAGE_SIZE
+        result = search_acts_grouped(
+            db,
+            query,
+            limit=PAGE_SIZE,
+            offset=offset,
+            category=category or None,
+            authority=authority or None,
+            status=status_norm or None,
+            revision_from=_parse_date(revision_from),
+            revision_to=_parse_date(revision_to),
+        )
+        hits = result.hits
+        groups_search = result.groups
+        total = result.total
+        pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+
+    catalog = list_catalog(db) if not query else []
     return templates.TemplateResponse(
         request=request,
         name="zakon/index.html",
@@ -63,8 +111,20 @@ def zakon_index(
             request,
             query=query,
             hits=hits,
-            groups=groups,
+            groups_search=groups_search,
+            groups=catalog,
             highlight=highlight,
+            filters={
+                "category": category,
+                "authority": authority,
+                "status": status,
+                "revision_from": revision_from,
+                "revision_to": revision_to,
+            },
+            page=page,
+            pages=pages,
+            total=total,
+            direct=result.direct if result else None,
         ),
     )
 

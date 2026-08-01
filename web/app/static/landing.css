@@ -475,6 +475,34 @@ main[tabindex="-1"]:focus-visible {
   font-weight: 600;
   cursor: pointer;
 }
+.zk-filters {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--lp-muted);
+}
+.zk-filters label { display: grid; gap: 0.25rem; min-width: 8rem; }
+.zk-filters input, .zk-filters select {
+  min-height: 36px;
+  border: 1px solid rgba(20, 40, 35, 0.18);
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+  font: inherit;
+  background: #fff;
+  color: var(--lp-ink);
+}
+.zk-group { margin: 1.25rem 0 1.75rem; }
+.zk-group h3 { margin: 0 0 0.25rem; font-size: 1.15rem; }
+.zk-pager {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-top: 1.25rem;
+  font-size: 0.9rem;
+}
 .zk-list {
   list-style: none;
   padding: 0;

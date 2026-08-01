@@ -13,8 +13,38 @@
     <p class="lp-section-lead">Профильный закон, «экспертные» нормы процессуальных кодексов, разъяснения высших судов и ведомственные приказы — с указанием редакции и ссылкой на первоисточник.</p>
     <form class="zk-search" method="get" action="/zakon/" role="search">
       <label class="sr-only" for="zk-q">Поиск по разделу</label>
-      <input id="zk-q" name="q" type="search" value="{{ query }}" placeholder="Например: внушаемость, дополнительная экспертиза, ст. 79" maxlength="200">
+      <input id="zk-q" name="q" type="search" value="{{ query }}" placeholder="Например: внушаемость, дополнительная экспертиза, ст. 79 ГПК" maxlength="200">
       <button type="submit">Найти</button>
+      {% if query %}
+      <div class="zk-filters">
+        <label>Категория
+          <select name="category">
+            <option value="">все</option>
+            <option value="law" {% if filters.category == 'law' %}selected{% endif %}>законы</option>
+            <option value="code" {% if filters.category == 'code' %}selected{% endif %}>кодексы</option>
+            <option value="plenum" {% if filters.category == 'plenum' %}selected{% endif %}>пленумы</option>
+            <option value="order" {% if filters.category == 'order' %}selected{% endif %}>приказы</option>
+            <option value="standard" {% if filters.category == 'standard' %}selected{% endif %}>стандарты</option>
+          </select>
+        </label>
+        <label>Орган
+          <input name="authority" value="{{ filters.authority }}" placeholder="напр. Верховный Суд">
+        </label>
+        <label>Статус
+          <select name="status">
+            <option value="">действует</option>
+            <option value="active" {% if filters.status in ('active', 'действует') %}selected{% endif %}>действует</option>
+            <option value="repealed" {% if filters.status in ('repealed', 'архив', 'archive') %}selected{% endif %}>архив / утратил силу</option>
+          </select>
+        </label>
+        <label>Редакция с
+          <input type="date" name="revision_from" value="{{ filters.revision_from }}">
+        </label>
+        <label>по
+          <input type="date" name="revision_to" value="{{ filters.revision_to }}">
+        </label>
+      </div>
+      {% endif %}
     </form>
   </div>
 </section>
@@ -23,18 +53,43 @@
 <section class="lp-section">
   <div class="lp-wrap">
     <h2>Результаты по запросу «{{ query }}»</h2>
-    {% if hits %}
-    <ul class="zk-list">
-      {% for hit in hits %}
-      <li>
-        <a href="/zakon/{{ hit.act.slug }}">{{ hit.act.title }}</a>
-        <div class="zk-meta">{{ hit.act.number }} · {{ category_label.get(hit.act.category, hit.act.category.value) }}</div>
-        {% if hit.snippet %}
-        <p class="zk-snippet">{{ highlight(hit.snippet, query)|safe }}</p>
-        {% endif %}
-      </li>
-      {% endfor %}
-    </ul>
+    {% if direct %}
+    <p class="zk-meta">Прямой переход по реквизитам →
+      <a href="{{ direct.url }}">{{ direct.article_ref or direct.act.title }}</a>
+    </p>
+    {% endif %}
+    {% if groups_search %}
+    {% for act, act_hits in groups_search %}
+    <div class="zk-group">
+      <h3><a href="/zakon/{{ act.slug }}">{{ act.title }}</a></h3>
+      <div class="zk-meta">{{ act.number }} · {{ category_label.get(act.category, act.category.value) }}</div>
+      <ul class="zk-list">
+        {% for hit in act_hits %}
+        <li>
+          {% if hit.article_ref %}
+          <a href="{{ hit.url }}">{{ hit.article_ref }}{% if hit.heading and hit.article_ref not in hit.heading %} — {{ hit.heading }}{% endif %}</a>
+          {% else %}
+          <a href="{{ hit.url }}">{{ hit.heading or act.title }}</a>
+          {% endif %}
+          {% if hit.snippet %}
+          <p class="zk-snippet">{{ highlight(hit.snippet, query)|safe }}</p>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+    {% if pages > 1 %}
+    <nav class="zk-pager" aria-label="Страницы">
+      {% if page > 1 %}
+      <a href="/zakon/?q={{ query|urlencode }}&amp;page={{ page - 1 }}&amp;category={{ filters.category }}&amp;authority={{ filters.authority|urlencode }}&amp;status={{ filters.status }}&amp;revision_from={{ filters.revision_from }}&amp;revision_to={{ filters.revision_to }}">← Назад</a>
+      {% endif %}
+      <span>стр. {{ page }} / {{ pages }} ({{ total }})</span>
+      {% if page < pages %}
+      <a href="/zakon/?q={{ query|urlencode }}&amp;page={{ page + 1 }}&amp;category={{ filters.category }}&amp;authority={{ filters.authority|urlencode }}&amp;status={{ filters.status }}&amp;revision_from={{ filters.revision_from }}&amp;revision_to={{ filters.revision_to }}">Далее →</a>
+      {% endif %}
+    </nav>
+    {% endif %}
     {% else %}
     <p class="lp-section-lead">Ничего не найдено. Попробуйте другой запрос или откройте <a href="/zakon/">каталог</a>.</p>
     {% endif %}

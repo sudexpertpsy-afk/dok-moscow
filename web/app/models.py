@@ -22,7 +22,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
@@ -737,6 +737,8 @@ class ActVersion(Base):
     body_html: Mapped[str] = mapped_column(Text, nullable=False, default="")
     diff_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     pdf_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    # W-22: происхождение текста — html / pdf_extracted / pdf_unrecognized
+    text_origin: Mapped[str | None] = mapped_column(String(32), nullable=True)
     status: Mapped[ActVersionStatus] = mapped_column(
         Enum(ActVersionStatus, name="act_version_status", **_STR_ENUM),
         nullable=False,
@@ -778,6 +780,43 @@ class ActFragment(Base):
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     act: Mapped[LegalAct] = relationship(back_populates="fragments")
+
+
+class LegalSearchDoc(Base):
+    """Строка поискового индекса НПА (гранулярность — статья/фрагмент, W-22)."""
+
+    __tablename__ = "legal_search_docs"
+    __table_args__ = (
+        Index("ix_legal_search_docs_act", "act_id"),
+        Index("ix_legal_search_docs_version", "version_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    act_id: Mapped[int] = mapped_column(
+        ForeignKey("legal_acts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("act_versions.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    fragment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("act_fragments.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    article_ref: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    heading: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    body_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    requisites: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    # PostgreSQL: tsvector (триггер); SQLite: TEXT-заглушка
+    search_vector: Mapped[str | None] = mapped_column(
+        TSVECTOR().with_variant(Text(), "sqlite"),
+        nullable=True,
+    )
+    indexed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    act: Mapped[LegalAct] = relationship()
+    version: Mapped[ActVersion | None] = relationship()
+    fragment: Mapped[ActFragment | None] = relationship()
 
 
 class ActWatchLog(Base):
