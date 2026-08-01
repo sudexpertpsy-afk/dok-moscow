@@ -61,8 +61,32 @@ def _cabinet(
 
 
 @router.get("/", response_class=HTMLResponse)
-def documents(request: Request, user: CurrentUser = Depends(require_org_user), db: Session = Depends(get_db)):
-    return RedirectResponse("/cabinet/documents/", status_code=status.HTTP_303_SEE_OTHER)
+def cabinet_home(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    """W-28: дашборд вместо редиректа на документы."""
+    from app.services.dashboard import load_dashboard
+
+    org = db.get(Organization, user.org_id)
+    if org is None:
+        raise HTTPException(status_code=404, detail="Организация не найдена")
+    dash = load_dashboard(db, org.id)
+    return templates.TemplateResponse(
+        request=request,
+        name="cabinet/dashboard.html",
+        context={
+            "request": request,
+            "csrf_token": get_csrf_token(request),
+            "app_name": get_settings().app_name,
+            "user": user,
+            "org": org,
+            "nav": cabinet_nav(db, user),
+            "active": "home",
+            "dash": dash,
+        },
+    )
 
 
 @router.get("/package", response_class=HTMLResponse)

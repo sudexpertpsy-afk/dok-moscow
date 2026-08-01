@@ -24,7 +24,7 @@
       <p class="muted">Справочные материалы раздела «Законодательство» (открытый доступ).</p>
       <ul class="list">
         {% for item in normative_links %}
-        <li><a href="/zakon/{{ item.slug }}" target="_blank" rel="noopener">{{ item.title }}</a></li>
+        <li><a href="{{ public_base_url }}/zakon/{{ item.slug }}" target="_blank" rel="noopener">{{ item.title }}</a></li>
         {% endfor %}
       </ul>
     </section>

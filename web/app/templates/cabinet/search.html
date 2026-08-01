@@ -3,43 +3,36 @@
 {% block body %}
 {% include "cabinet/_layout_start.html" %}
 <section class="panel">
-      <h1>Поиск</h1>
-      <form method="get" action="/cabinet/search" style="display:flex;gap:0.5rem;margin:1rem 0">
-        <input name="q" value="{{ q }}" placeholder="Иванов, ИНН, номер…" style="flex:1">
-        <button type="submit">Искать</button>
-      </form>
-      {% if q %}
-      <h2 style="font-family:var(--font-display);font-size:1.2rem">Контрагенты</h2>
-      <table class="table">
-        <tbody>
-          {% for c in result.counterparties %}
-          <tr>
-            <td><a href="/cabinet/counterparties/{{ c.id }}">{{ c.title }}</a></td>
-            <td class="mono">{{ c.inn or '' }}</td>
-            <td class="muted">{{ c.passport }}</td>
-            <td class="muted">{{ c.address }}</td>
-          </tr>
-          {% else %}
-          <tr><td class="muted">Не найдено</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      <h2 style="font-family:var(--font-display);font-size:1.2rem;margin-top:1rem">Документы</h2>
-      <table class="table">
-        <tbody>
-          {% for d in result.documents %}
-          <tr>
-            <td><a href="/cabinet/documents/{{ d.id }}">{{ d.template }}</a></td>
-            <td class="mono">{{ d.number or '—' }}</td>
-            <td class="muted">{{ d.created_at }}</td>
-          </tr>
-          {% else %}
-          <tr><td class="muted">Не найдено</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% endif %}
-      <div class="actions"><a class="btn secondary" href="/cabinet/journal">В журнал</a></div>
-    </section>
-  {% include "cabinet/_layout_end.html" %}
+  <h1>Поиск</h1>
+  <form method="get" action="/cabinet/search" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin:0.75rem 0 1.25rem">
+    <input name="q" value="{{ q }}" placeholder="Запрос…" style="flex:1;min-width:12rem" autofocus>
+    <button type="submit">Найти</button>
+  </form>
+
+  {% if q and q|length < 2 %}
+    <p class="muted">Введите не менее 2 символов.</p>
+  {% elif q %}
+    {% if result.empty %}
+      <p class="muted">Ничего не найдено по запросу «{{ q }}».</p>
+    {% else %}
+      {% for g in result.groups %}
+      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.25rem 0 0.5rem">{{ g.title }}</h2>
+      <ul style="list-style:none;padding:0;margin:0">
+        {% for it in g.items %}
+        <li style="padding:0.45rem 0;border-bottom:1px solid rgba(0,0,0,0.06)">
+          <a href="{{ it.url }}" {% if it.url.startswith('http') %}target="_blank" rel="noopener" hx-boost="false"{% endif %}>{{ it.title }}</a>
+          {% if it.subtitle %}<span class="muted"> — {{ it.subtitle }}</span>{% endif %}
+          {% if it.badge %}<span class="gs-badge">{{ it.badge }}</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% endfor %}
+    {% endif %}
+  {% else %}
+    <p class="muted">Тот же поиск, что и в палитре Ctrl+K. Введите запрос выше.</p>
+  {% endif %}
+
+  <p style="margin-top:1.5rem"><a href="/cabinet/journal">К журналу документов</a></p>
+</section>
+{% include "cabinet/_layout_end.html" %}
 {% endblock %}

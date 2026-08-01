@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Главная — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "cabinet/_layout_start.html" %}
+<section class="panel">
+  <h1>Здравствуйте{% if user.email %}, {{ user.email.split('@')[0] }}{% endif %}</h1>
+  <p class="muted">Кабинет «{{ org.name }}»</p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:1rem;margin:1rem 0 1.5rem">
+    <div><strong>{{ dash.docs_month }}</strong><br><span class="muted">документов за месяц</span></div>
+    <div><strong>{{ dash.packages_month }}</strong><br><span class="muted">комплектов за месяц</span></div>
+    {% if dash.limit_docs is not none %}
+    <div>
+      <strong>{{ dash.usage_docs }} / {{ dash.limit_docs }}</strong><br>
+      <span class="muted">лимит генерации{% if dash.watermark %} · водяной знак{% endif %}</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="actions" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.5rem">
+    <a class="btn" href="/cabinet/package/?autofocus=1">Новый комплект</a>
+    <a class="btn" href="/cabinet/documents/?autofocus=1">Новый документ</a>
+    <a class="btn" href="/cabinet/party-check/">Проверить по ИНН</a>
+  </div>
+
+  {% if dash.empty_org %}
+  <div class="alert alert-ok">
+    <strong>С чего начать</strong>
+    <ol style="margin:0.5rem 0 0;padding-left:1.2rem">
+      <li><a href="/cabinet/settings/">Заполните реквизиты</a></li>
+      <li><a href="/cabinet/package/">Создайте первый комплект</a></li>
+    </ol>
+  </div>
+  {% endif %}
+
+  <h2 style="font-family:var(--font-display);font-size:1.25rem;margin:1.5rem 0 0.5rem">Требуют внимания</h2>
+  {% if dash.attention %}
+  <ul style="list-style:none;padding:0;margin:0">
+    {% for item in dash.attention %}
+    <li style="padding:0.5rem 0;border-bottom:1px solid rgba(0,0,0,0.06)">
+      <a href="{{ item.url }}">{{ item.title }}</a>
+      {% if item.subtitle %}<span class="muted"> — {{ item.subtitle }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Пока нет срочных задач.</p>
+  {% endif %}
+
+  <h2 style="font-family:var(--font-display);font-size:1.25rem;margin:1.5rem 0 0.5rem">Ближайшие события</h2>
+  {% if dash.calendar %}
+  <ul style="list-style:none;padding:0;margin:0">
+    {% for ev in dash.calendar %}
+    <li style="padding:0.4rem 0">
+      <a href="/cabinet/calendar/{{ ev.id }}">{{ ev.due_on.strftime('%d.%m.%Y') }} — {{ ev.title }}</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Нет предстоящих событий. <a href="/cabinet/calendar/">Открыть календарь</a></p>
+  {% endif %}
+
+  <h2 style="font-family:var(--font-display);font-size:1.25rem;margin:1.5rem 0 0.5rem">Что нового в законодательстве</h2>
+  {% if dash.legal_news %}
+  <ul style="list-style:none;padding:0;margin:0">
+    {% for act in dash.legal_news %}
+    <li style="padding:0.4rem 0">
+      <a href="{{ public_base_url }}/zakon/{{ act.slug }}" target="_blank" rel="noopener" hx-boost="false">{{ act.title }}</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted"><a href="{{ public_base_url }}/zakon/" target="_blank" rel="noopener" hx-boost="false">Нормативная база</a></p>
+  {% endif %}
+</section>
+{% include "cabinet/_layout_end.html" %}
+{% endblock %}

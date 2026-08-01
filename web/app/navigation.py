@@ -76,6 +76,13 @@ def _item(
 
 NAV_REGISTRY: tuple[NavItem, ...] = (
     _item(
+        "home",
+        "Главная",
+        "/cabinet/",
+        synonyms=("дашборд", "обзор", "требуют внимания", "старт"),
+        group="Работа",
+    ),
+    _item(
         "documents",
         "Документы",
         "/cabinet/documents/",
@@ -126,6 +133,13 @@ NAV_REGISTRY: tuple[NavItem, ...] = (
         "/cabinet/calendar/",
         synonyms=("события", "планы", "напоминания", "сроки"),
         group="Работа",
+    ),
+    _item(
+        "zakon_nav",
+        "Законодательство",
+        "/zakon/",
+        synonyms=("нпа", "законы", "нормативка", "кодекс"),
+        group="Справка",
     ),
     _item(
         "billing",

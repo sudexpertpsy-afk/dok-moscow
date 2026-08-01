@@ -1,6 +1,8 @@
-"""API глобального поиска и палитры Cmd+K (W-23), порядок меню."""
+"""API глобального поиска и палитры Cmd+K (W-23/W-29), порядок меню."""
 
 from __future__ import annotations
+
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -9,8 +11,8 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import CurrentUser, get_current_user
 from app.security import check_csrf
-from app.services.global_search import global_search
 from app.services.nav_order import NAV_AREAS, save_nav_order
+from app.services.search import result_to_api_dict, search
 
 router = APIRouter(prefix="/api", tags=["search"])
 
@@ -21,38 +23,9 @@ def api_global_search(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    result = global_search(db, user, q)
-    return JSONResponse(
-        {
-            "query": result.query,
-            "empty": result.empty,
-            "groups": [
-                {
-                    "key": g.key,
-                    "title": g.title,
-                    "items": [
-                        {
-                            "title": i.title,
-                            "url": i.url,
-                            "subtitle": i.subtitle,
-                            "badge": i.badge,
-                            "upsell": i.upsell,
-                        }
-                        for i in g.items
-                    ],
-                }
-                for g in result.groups
-            ],
-            "sitemap": [
-                {"group": name, "items": items} for name, items in result.sitemap
-            ],
-            "hint": (
-                "Не нашлось. Посмотрите каталог разделов"
-                if result.empty and len(result.query) >= 2
-                else ""
-            ),
-        }
-    )
+    result = search(db, user, q, limit=8)
+    show_all = f"/cabinet/search?q={quote(result.query)}" if len(result.query) >= 2 else None
+    return JSONResponse(result_to_api_dict(result, show_all_url=show_all))
 
 
 @router.post("/nav-order")
@@ -80,5 +53,4 @@ async def api_nav_order(
     if area == "cabinet" and user.org_id is None:
         raise HTTPException(status_code=403, detail="Нет организации")
     saved = save_nav_order(db, user.id, area, order)
-    # обновить снимок в сессии не требуется — CurrentUser читается из БД
     return JSONResponse({"ok": True, "area": area, "order": saved.get(area, [])})

@@ -12,7 +12,7 @@ from app.deps import CurrentUser, require_org_user
 from app.org_scope import get_org_for_user, list_counterparty_options, require_org_id
 from app.nav_context import cabinet_nav
 from app.security import get_csrf_token
-from app.services.journal import distinct_templates, list_journal, parse_date, search_all
+from app.services.journal import distinct_templates, list_journal, parse_date
 from app.templating import templates
 
 router = APIRouter(prefix="/cabinet", tags=["journal"])
@@ -92,11 +92,26 @@ def search_page(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    from app.services.search import search_page as run_search_page
+
     org = get_org_for_user(db, user)
     q = (request.query_params.get("q") or "").strip()
-    result = search_all(db, require_org_id(user), q)
+    try:
+        page = int(request.query_params.get("page") or "1")
+    except ValueError:
+        page = 1
+    page_result = run_search_page(db, user, q, page=page, per_group=20)
     return templates.TemplateResponse(
         request=request,
         name="cabinet/search.html",
-        context=_page(request, user, org, db, "journal", result=result, q=q),
+        context=_page(
+            request,
+            user,
+            org,
+            db,
+            "cabinet_search",
+            result=page_result.core,
+            q=q,
+            page=page_result.page,
+        ),
     )

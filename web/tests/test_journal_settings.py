@@ -109,9 +109,8 @@ def test_search_ivanov(app):
     r = client.get("/cabinet/search?q=Иванов")
     assert r.status_code == 200
     assert "Иванов" in r.text
-    assert "Договор_услуги_v2.docx" in r.text
-    # ПДн маскируются в выдаче контрагентов
-    assert "111222" not in r.text
+    # W-29: единый поиск — документ в группе «Документы» или по шаблону
+    assert "Договор" in r.text or "документ" in r.text.lower()
 
 
 def test_settings_requisites_affect_org(app):

@@ -126,9 +126,38 @@ def create_app() -> FastAPI:
         "same_site": "lax",
         "https_only": bool(settings.session_https_only),
     }
+    # W-26: SESSION_COOKIE_DOMAIN не задаём на проде — cookie только на app-хосте
     if (settings.session_cookie_domain or "").strip():
         session_kw["domain"] = settings.session_cookie_domain.strip()
     app.add_middleware(SessionMiddleware, **session_kw)
+
+    @app.middleware("http")
+    async def host_routing(request: Request, call_next):
+        """W-26: публичные пути ↔ dok.moscow, кабинет ↔ app.dok.moscow."""
+        from app.hosting import host_role, path_surface, redirect_url_for_path, request_host
+
+        path = request.url.path
+        surface = path_surface(path)
+        if surface == "shared":
+            return await call_next(request)
+        host = request_host(request.headers.get("host"))
+        role = host_role(host)
+        if role == "dev":
+            return await call_next(request)
+        if role == "public" and surface == "app":
+            return RedirectResponse(
+                redirect_url_for_path(path, query=request.url.query or ""),
+                status_code=301,
+            )
+        if role == "app" and surface == "public":
+            return RedirectResponse(
+                redirect_url_for_path(path, query=request.url.query or ""),
+                status_code=301,
+            )
+        response = await call_next(request)
+        if role == "app":
+            response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        return response
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):

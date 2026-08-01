@@ -99,6 +99,25 @@
         items.push(el);
       }
     }
+    if (data.show_all_url) {
+      const more = document.createElement("a");
+      more.className = "gs-item gs-show-all";
+      more.href = data.show_all_url;
+      more.setAttribute("role", "option");
+      more.innerHTML = `<span class="gs-item-title">${escapeHtml(
+        data.show_all_label || "Показать все результаты"
+      )} →</span>`;
+      more.addEventListener("mouseenter", () => {
+        const idx = items.indexOf(more);
+        setActive(idx);
+      });
+      more.addEventListener("click", (e) => {
+        e.preventDefault();
+        go(data.show_all_url);
+      });
+      results.appendChild(more);
+      items.push(more);
+    }
     if (items.length) setActive(0);
   }
 

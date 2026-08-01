@@ -205,8 +205,14 @@ def contacts_page(request: Request):
 
 
 @router.get("/robots.txt", response_class=PlainTextResponse)
-def robots_txt():
-    base = get_settings().public_base_url.rstrip("/")
+def robots_txt(request: Request):
+    from app.hosting import host_role, request_host
+
+    settings = get_settings()
+    base = settings.public_base_url.rstrip("/")
+    role = host_role(request_host(request.headers.get("host")))
+    if role == "app":
+        return PlainTextResponse("User-agent: *\nDisallow: /\n")
     return PlainTextResponse(
         "User-agent: *\n"
         "Allow: /\n"
@@ -221,9 +227,14 @@ def robots_txt():
 
 
 @router.get("/sitemap.xml")
-def sitemap_xml(db: Session = Depends(get_db)):
+def sitemap_xml(request: Request, db: Session = Depends(get_db)):
+    from app.hosting import host_role, redirect_url_for_path, request_host
     from app.models import LegalAct, LegalActStatus
     from sqlalchemy import select
+
+    role = host_role(request_host(request.headers.get("host")))
+    if role == "app":
+        return RedirectResponse(redirect_url_for_path("/sitemap.xml"), status_code=301)
 
     base = get_settings().public_base_url.rstrip("/")
     paths = ["/", "/privacy", "/offer", "/requisites", "/tariffs", "/contacts", "/zakon/"]
