@@ -317,6 +317,10 @@ async def package_step3_post(
     data["additional_values"] = additional_values
     _save(request, data)
 
+    from app.services.limits import assert_can_generate
+
+    assert_can_generate(db, org.id)
+
     try:
         result = generate_package(
             db=db,

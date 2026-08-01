@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">{{ app_name }}</div>
+    <div class="org">{{ org.name }}</div>
+    <nav class="nav">
+      {% for key, label, href in nav %}
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <main id="main" class="content" tabindex="-1">
+    <div class="topbar">
+      <span>{{ user.email }}</span>
+      <form method="post" action="/logout" hx-boost="false">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+    <section class="panel">
+      <h1>{{ title }}</h1>
+      {% if ok %}
+        <div class="alert alert-ok">Платёж обрабатывается или уже подтверждён.</div>
+      {% else %}
+        <div class="alert alert-error">Оплата не завершена.</div>
+      {% endif %}
+      <p class="muted">{{ hint }}</p>
+      {% if pay %}
+      <p>Статус: <strong>{{ pay.status.value }}</strong>
+        · сумма {{ '%.2f'|format(pay.amount_kop / 100) }} ₽</p>
+      {% endif %}
+      <div class="actions">
+        <a class="btn" href="/cabinet/billing/">К тарифу и оплате</a>
+        <a class="btn secondary" href="/cabinet/documents/">В документы</a>
+      </div>
+    </section>
+  </main>
+</div>
+{% endblock %}

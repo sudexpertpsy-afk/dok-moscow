@@ -209,7 +209,7 @@ def upgrade() -> None:
                 true
             FROM organizations o
             CROSS JOIN tariffs t
-            WHERE t.code = 'specialist'
+            WHERE t.code = 'organization'
               AND NOT EXISTS (
                   SELECT 1 FROM subscriptions s WHERE s.org_id = o.id
               )

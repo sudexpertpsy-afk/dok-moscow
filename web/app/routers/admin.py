@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, Form, Request, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -150,6 +150,10 @@ def create_organization(
         )
     org = Organization(name=name, requisites=empty_requisites())
     db.add(org)
+    db.flush()
+    from app.services.billing import ensure_beta_subscriptions
+
+    ensure_beta_subscriptions(db)
     db.commit()
     return RedirectResponse(f"/admin/organizations/{org.id}", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -386,6 +390,13 @@ def create_invite(
         return err("Некорректный e-mail.")
     if db.scalar(select(User).where(User.email == email_norm)):
         return err("Пользователь с таким e-mail уже есть.", 409)
+
+    from app.services.limits import assert_can_add_user
+
+    try:
+        assert_can_add_user(db, org.id)
+    except HTTPException as exc:
+        return err(str(exc.detail), int(exc.status_code))
 
     token = new_invite_token()
     invite = Invite(

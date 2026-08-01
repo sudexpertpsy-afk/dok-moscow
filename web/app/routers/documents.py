@@ -14,12 +14,14 @@ from app.org_scope import get_document_for_org, get_org_for_user, require_org_id
 from app.security import check_csrf, get_csrf_token
 from app.services.counters import allocate_number
 from app.services.gotenberg import GotenbergError, convert_docx_to_pdf
+from app.services.limits import assert_can_generate, needs_watermark
 from app.services.templates import (
     absolute_file,
     generate_docx,
     list_templates,
     template_variables,
 )
+from app.services.watermark import apply_guest_watermark
 from app.templating import templates
 from app.routers.cabinet import NAV
 
@@ -107,6 +109,8 @@ async def document_generate(
     form = await request.form()
     if not check_csrf(request, form.get("csrf_token")):
         raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+
+    assert_can_generate(db, org_id)
 
     context: dict = {}
     for var in variables:
@@ -205,6 +209,8 @@ async def document_to_pdf(
     pdf_path = docx_path.with_suffix(".pdf")
     try:
         convert_docx_to_pdf(docx_path, pdf_path)
+        if needs_watermark(db, org_id):
+            apply_guest_watermark(pdf_path)
     except GotenbergError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 

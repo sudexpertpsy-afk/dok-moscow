@@ -102,10 +102,13 @@ def beta_trial_ends_at() -> datetime:
 
 
 def ensure_beta_subscriptions(db: Session) -> int:
-    """У организаций без подписки — trial «Специалист» до BETA_TRIAL_UNTIL."""
+    """У организаций без подписки — trial «Организация» до BETA_TRIAL_UNTIL.
+
+    На бете нужен запас по пользователям (до 5); после оплаты выбирают тариф сами.
+    """
     ensure_tariffs(db)
-    specialist = db.scalar(select(Tariff).where(Tariff.code == TariffCode.specialist))
-    assert specialist is not None
+    org_tariff = db.scalar(select(Tariff).where(Tariff.code == TariffCode.organization))
+    assert org_tariff is not None
     ends = beta_trial_ends_at()
     starts = utcnow()
     created = 0
@@ -122,7 +125,7 @@ def ensure_beta_subscriptions(db: Session) -> int:
         db.add(
             Subscription(
                 org_id=org.id,
-                tariff_id=specialist.id,
+                tariff_id=org_tariff.id,
                 period=SubscriptionPeriod.month,
                 starts_at=starts,
                 ends_at=ends,
@@ -181,15 +184,16 @@ def get_tariff_limits(db: Session, org_id: int) -> TariffLimits:
         ensure_tariffs(db)
         guest = get_tariff(db, TariffCode.guest)
     assert guest is not None
+    # Нет строки подписки — работаем как бесплатный «Гость» (лимиты активны)
     return TariffLimits(
         tariff_code=guest.code,
         tariff_name=guest.name,
         limit_documents_month=guest.limit_documents_month,
         limit_users=guest.limit_users,
         watermark=guest.watermark,
-        subscription_status=None,
+        subscription_status=SubscriptionStatus.trial,
         ends_at=None,
-        is_current=False,
+        is_current=True,
     )
 
 

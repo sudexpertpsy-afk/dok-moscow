@@ -95,12 +95,12 @@ def test_beta_subscription_for_new_org_on_bootstrap(app):
         assert sub is not None
         assert sub.status == SubscriptionStatus.trial
         assert sub.is_beta is True
-        assert sub.tariff.code == TariffCode.specialist
+        assert sub.tariff.code == TariffCode.organization
         assert sub.is_current()
         limits = get_tariff_limits(db, org_id)
-        assert limits.tariff_code == TariffCode.specialist
+        assert limits.tariff_code == TariffCode.organization
         assert limits.watermark is False
-        assert limits.limit_users == 1
+        assert limits.limit_users == 5
     finally:
         db.close()
 
