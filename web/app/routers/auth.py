@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
-from app.deps import client_ip, get_optional_user, require_csrf
+from app.deps import CurrentUser, client_ip, get_optional_user, home_for_user, require_csrf
 from app.models import Invite, PasswordResetToken, User, UserRole, utcnow
 from app.passwords import password_policy_hint, validate_password
 from app.rate_limit import LoginRateLimiter
@@ -59,7 +59,7 @@ def _hash_token(raw: str) -> str:
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, user=Depends(get_optional_user)):
     if user:
-        return RedirectResponse("/cabinet/", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(home_for_user(user), status_code=status.HTTP_303_SEE_OTHER)
     return _render(request, "auth/login.html")
 
 
@@ -110,8 +110,16 @@ def login_submit(
     )
     db.commit()
     login_user_session(request, user.id, user.org_id, user.role.value)
-    target = "/admin/" if user.role == UserRole.service_admin and user.org_id is None else "/cabinet/"
-    return RedirectResponse(target, status_code=status.HTTP_303_SEE_OTHER)
+    home = home_for_user(
+        CurrentUser(
+            id=user.id,
+            email=user.email,
+            org_id=user.org_id,
+            role=user.role,
+            is_active=user.is_active,
+        )
+    )
+    return RedirectResponse(home, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/logout")
@@ -136,7 +144,7 @@ def logout(
 @router.get("/forgot-password", response_class=HTMLResponse)
 def forgot_password_page(request: Request, user=Depends(get_optional_user)):
     if user:
-        return RedirectResponse("/cabinet/", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(home_for_user(user), status_code=status.HTTP_303_SEE_OTHER)
     return _render(request, "auth/forgot_password.html")
 
 

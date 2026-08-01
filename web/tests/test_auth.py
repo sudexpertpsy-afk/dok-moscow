@@ -170,3 +170,55 @@ def test_expired_invite(app):
 
     r = client.get(f"/invite/{token}")
     assert r.status_code == 404
+
+
+def test_admin_login_page_redirects_to_admin(app):
+    """Залогиненный service_admin на /login → /admin/, не в кабинет."""
+    client, _ = app
+    assert login(client, "admin@dok.moscow", "AdminPass123!").headers["location"] == "/admin/"
+    r = client.get("/login", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/admin/"
+
+
+def test_admin_cabinet_documents_redirects_to_admin(app):
+    """Кабинет недоступен админу без org — редирект, не JSON «Нет организации»."""
+    client, _ = app
+    assert login(client, "admin@dok.moscow", "AdminPass123!").status_code == 303
+    r = client.get("/cabinet/documents/", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/admin/"
+    assert "Нет организации" not in r.text
+
+    r = client.get("/cabinet/", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/admin/"
+
+
+def test_forbidden_html_not_json_for_browser(app):
+    """Браузерный Accept: text/html не должен получать сырой JSON на 403."""
+    client, dbmod = app
+    db = dbmod.SessionLocal()
+    try:
+        db.add(
+            User(
+                org_id=None,
+                email="noorg@example.com",
+                password_hash=hash_password("Passw0rd!"),
+                role=UserRole.user,
+                is_active=True,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    assert login(client, "noorg@example.com", "Passw0rd!").status_code == 303
+    r = client.get(
+        "/cabinet/documents/",
+        headers={"Accept": "text/html"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 403
+    assert "application/json" not in r.headers.get("content-type", "")
+    assert "Нет организации" in r.text

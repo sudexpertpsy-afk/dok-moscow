@@ -25,6 +25,15 @@ class CurrentUser:
         return self.role == UserRole.service_admin
 
 
+def home_for_user(user: CurrentUser) -> str:
+    """Куда вести после входа / при повторном заходе на /login."""
+    if user.is_service_admin and user.org_id is None:
+        return "/admin/"
+    if user.org_id is None:
+        return "/login"
+    return "/cabinet/"
+
+
 def client_ip(request: Request) -> str:
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
@@ -80,8 +89,14 @@ def require_service_admin(user: CurrentUser = Depends(get_current_user)) -> Curr
 
 
 def require_org_user(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
-    """Пользователь организации (не admin без org) — кабинет."""
-    if user.org_id is None and not user.is_service_admin:
+    """Пользователь с организацией. Админ сервиса без org → редирект в /admin/."""
+    if user.org_id is None:
+        if user.is_service_admin:
+            raise HTTPException(
+                status_code=status.HTTP_303_SEE_OTHER,
+                detail="Redirect to admin",
+                headers={"Location": "/admin/", "HX-Redirect": "/admin/"},
+            )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет организации")
     return user
 

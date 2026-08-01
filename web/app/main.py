@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -107,8 +107,16 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+        headers = dict(getattr(exc, "headers", None) or {})
+        location = headers.get("Location") or headers.get("location")
+        # Зависимости (require_org_user и т.п.) могут бросить 303 с Location —
+        # отдаём настоящий RedirectResponse, а не JSON с detail.
+        if exc.status_code in (301, 302, 303, 307, 308) and location:
+            return RedirectResponse(url=location, status_code=exc.status_code, headers=headers)
+
         accept = request.headers.get("accept", "")
-        if exc.status_code == 404 and "text/html" in accept:
+        wants_html = "text/html" in accept
+        if exc.status_code == 404 and wants_html:
             s = get_settings()
             return templates_404.TemplateResponse(
                 request,
@@ -122,7 +130,21 @@ def create_app() -> FastAPI:
                 },
                 status_code=404,
             )
-        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+        # Браузерная навигация (в т.ч. hx-boost) — не показывать сырой JSON.
+        if wants_html and exc.status_code in (401, 403):
+            detail = exc.detail if isinstance(exc.detail, str) else "Ошибка доступа"
+            return HTMLResponse(
+                content=(
+                    "<!DOCTYPE html><html lang=\"ru\"><head><meta charset=\"utf-8\">"
+                    f"<title>{exc.status_code}</title></head><body>"
+                    f"<p>{detail}</p>"
+                    "<p><a href=\"/login\">Войти</a></p>"
+                    "</body></html>"
+                ),
+                status_code=exc.status_code,
+                headers=headers,
+            )
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=headers)
 
     return app
 
