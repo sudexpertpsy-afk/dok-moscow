@@ -19,6 +19,7 @@ os.environ["DB_URL"] = "sqlite+pysqlite:////tmp/dok_moscow_test.db"
 os.environ["BOOTSTRAP_ADMIN_EMAIL"] = "admin@dok.moscow"
 os.environ["BOOTSTRAP_ADMIN_PASSWORD"] = "AdminPass123!"
 os.environ["FILES_ROOT"] = "/tmp/dok_files_test"
+os.environ["BILLING_WORKER"] = "0"
 
 from app.config import get_settings  # noqa: E402
 from app.db import Base, SessionLocal, engine  # noqa: E402

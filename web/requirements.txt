@@ -18,3 +18,4 @@ lxml>=6.1.0
 num2words>=0.5.14
 petrovich>=2.0.1
 openpyxl>=3.1.5
+cryptography>=42.0.0

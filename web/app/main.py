@@ -17,7 +17,7 @@ from app import db as dbmod
 from app.config import get_settings
 from app.db import Base
 from app.models import User, UserRole
-from app.routers import admin, auth, cabinet, counterparties, documents, journal, landing, package
+from app.routers import admin, auth, billing, cabinet, counterparties, documents, journal, landing, package
 from app.routers import settings as settings_routes
 from app.security import hash_password
 
@@ -59,10 +59,28 @@ def _bootstrap_billing() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    import asyncio
+    import os
+
+    from app.billing.jobs import billing_background_loop
+
     Base.metadata.create_all(bind=dbmod.engine)
     _bootstrap_admin()
     _bootstrap_billing()
-    yield
+    stop = asyncio.Event()
+    worker = None
+    if os.environ.get("BILLING_WORKER", "1") != "0":
+        worker = asyncio.create_task(billing_background_loop(stop), name="billing-worker")
+    try:
+        yield
+    finally:
+        stop.set()
+        if worker is not None:
+            worker.cancel()
+            try:
+                await worker
+            except asyncio.CancelledError:
+                pass
 
 
 def create_app() -> FastAPI:
@@ -106,6 +124,7 @@ def create_app() -> FastAPI:
 
     app.include_router(landing.router)
     app.include_router(auth.router)
+    app.include_router(billing.router)
     app.include_router(cabinet.router)
     app.include_router(documents.router)
     app.include_router(package.router)
