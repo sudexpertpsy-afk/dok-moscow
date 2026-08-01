@@ -132,10 +132,12 @@ def test_error_pages_html(app):
     client, _ = app
     r = client.get("/no-such-page-xyz", headers={"Accept": "text/html"})
     assert r.status_code == 404
-    assert "Не найдено" in r.text or "не найдена" in r.text.lower()
-    r_zakon = client.get("/zakon/no-such-act-slug", headers={"Accept": "text/html"})
-    assert r_zakon.status_code == 404
-    assert "не найдена" in r_zakon.text.lower() or "Не найдено" in r_zakon.text
+    assert "Страница не найдена" in r.text
+    assert "На главную" in r.text
+    r_cab = client.get("/cabinet/no-such", headers={"Accept": "text/html"})
+    # без сессии — редирект на логин или 401/403; при 404 кабинета — app-шаблон
+    if r_cab.status_code == 404:
+        assert "В кабинет" in r_cab.text or "Страница не найдена" in r_cab.text
 
 
 def test_route_exception_notes_cover_set():

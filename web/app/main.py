@@ -243,12 +243,24 @@ def create_app() -> FastAPI:
 
         s = get_settings()
         role = host_role(request_host(request.headers.get("host")))
+        path = request.url.path
         if role == "public":
             surface = "public"
         elif role == "app":
             surface = "app"
         else:
-            surface = "public" if path_surface(request.url.path) == "public" else "app"
+            # dev/testserver: стиль по зоне пути; неизвестный URL → публичная 404
+            ps = path_surface(path)
+            if ps == "public":
+                surface = "public"
+            elif path.startswith(
+                ("/cabinet", "/admin", "/login", "/api/", "/billing/", "/auth/", "/invite")
+            ):
+                surface = "app"
+            elif status_code == 404:
+                surface = "public"
+            else:
+                surface = "app"
         csrf = ""
         try:
             from app.security import get_csrf_token
