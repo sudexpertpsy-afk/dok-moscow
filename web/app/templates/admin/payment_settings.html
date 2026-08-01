@@ -37,6 +37,10 @@
     <input id="default_receipt_email" name="default_receipt_email" type="email"
       value="{{ settings_row.default_receipt_email or '' }}">
 
+    <label for="party_check_daily_limit">Суточный лимит проверок контрагента (на организацию)</label>
+    <input id="party_check_daily_limit" name="party_check_daily_limit" type="number" min="1" max="10000"
+      value="{{ settings_row.party_check_daily_limit if settings_row else 100 }}">
+
     <div class="actions">
       <button type="submit">Сохранить</button>
     </div>

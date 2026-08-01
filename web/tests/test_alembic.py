@@ -77,6 +77,7 @@ def test_alembic_upgrade_head_clean_db():
         "act_versions",
         "act_fragments",
         "act_watch_log",
+        "party_checks",
         "alembic_version",
     }
     assert expected.issubset(tables)

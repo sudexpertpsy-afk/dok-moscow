@@ -166,6 +166,7 @@ class Organization(Base):
     subscriptions: Mapped[list["Subscription"]] = relationship(back_populates="organization")
     payments: Mapped[list["Payment"]] = relationship(back_populates="organization")
     calendar_events: Mapped[list["CalendarEvent"]] = relationship(back_populates="organization")
+    party_checks: Mapped[list["PartyCheck"]] = relationship(back_populates="organization")
 
 
 class User(Base):
@@ -269,6 +270,10 @@ class Counterparty(Base):
         nullable=False,
         default=CounterpartySource.manual,
     )
+    egrul_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    egrul_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -282,6 +287,7 @@ class Counterparty(Base):
     organization: Mapped[Organization] = relationship(back_populates="counterparties")
     contracts: Mapped[list[Contract]] = relationship(back_populates="counterparty")
     documents: Mapped[list[Document]] = relationship(back_populates="counterparty")
+    party_checks: Mapped[list["PartyCheck"]] = relationship(back_populates="counterparty")
 
 
 class Contract(Base):
@@ -585,6 +591,9 @@ class PaymentSettings(Base):
     taxation: Mapped[str] = mapped_column(String(32), nullable=False, default="usn_income")
     vat_rate: Mapped[str] = mapped_column(String(16), nullable=False, default="none")
     default_receipt_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    party_check_daily_limit: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=100, server_default="100"
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -594,6 +603,39 @@ class PaymentSettings(Base):
     updated_by_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+
+
+class PartyCheck(Base):
+    """Журнал проверок контрагента через DaData findById/party (W-21)."""
+
+    __tablename__ = "party_checks"
+    __table_args__ = (
+        Index("ix_party_checks_org_checked", "org_id", "checked_at"),
+        Index("ix_party_checks_org_inn", "org_id", "inn"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    counterparty_id: Mapped[int | None] = mapped_column(
+        ForeignKey("counterparties.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    inn: Mapped[str] = mapped_column(String(12), nullable=False)
+    query: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    status_label: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    checked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    snapshot: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)
+
+    organization: Mapped[Organization] = relationship(back_populates="party_checks")
+    user: Mapped[User | None] = relationship()
+    counterparty: Mapped[Counterparty | None] = relationship(back_populates="party_checks")
 
 
 class CalendarEvent(Base):

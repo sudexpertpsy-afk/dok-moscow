@@ -27,6 +27,7 @@
         {% for s in selected %}{{ display_name(s) }}{% if not loop.last %}, {% endif %}{% endfor %}
       </p>
       {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+      {% if egrul_warning %}<div class="alert alert-warn">{{ egrul_warning }}</div>{% endif %}
       <form method="post" action="/cabinet/package/step3">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1rem 0 0.35rem">Контрагент</h2>

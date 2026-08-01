@@ -78,6 +78,7 @@ def payment_settings_save(
     taxation: str = Form("usn_income"),
     vat_rate: str = Form("none"),
     default_receipt_email: str = Form(""),
+    party_check_daily_limit: str = Form("100"),
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf),
@@ -97,6 +98,11 @@ def payment_settings_save(
     row.taxation = taxation.strip() or "usn_income"
     row.vat_rate = vat_rate.strip() or "none"
     row.default_receipt_email = default_receipt_email.strip() or None
+    try:
+        limit = int(str(party_check_daily_limit).strip() or "100")
+    except ValueError:
+        limit = 100
+    row.party_check_daily_limit = max(1, min(limit, 10_000))
     row.updated_by_user_id = user.id
     record_event(
         db,
@@ -108,6 +114,7 @@ def payment_settings_save(
             "terminal_set": bool(row.terminal_key),
             "password_updated": bool(password.strip()),
             "recurrents": row.recurrents_enabled,
+            "party_check_daily_limit": row.party_check_daily_limit,
         },
         commit=False,
     )
