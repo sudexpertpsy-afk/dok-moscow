@@ -12,11 +12,13 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.defaults import empty_requisites
-from app.deps import CurrentUser, require_csrf, require_service_admin
+from app.deps import CurrentUser, client_ip, require_csrf, require_service_admin
 from app.models import Invite, Lead, Organization, User, UserRole, utcnow
 from app.nav_context import admin_nav
 from app.security import get_csrf_token, new_invite_token
+from app.services.audit import record_event
 from app.templating import templates
+from app.totp_2fa import clear_totp, notify_totp_change
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -216,6 +218,34 @@ def admin_users(
     )
 
 
+@router.get("/users/{user_id}", response_class=HTMLResponse)
+def admin_user_detail(
+    user_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+):
+    target = db.get(User, user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    org_name = None
+    if target.org_id:
+        org = db.get(Organization, target.org_id)
+        org_name = org.name if org else str(target.org_id)
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/user_detail.html",
+        context=_ctx(
+            request,
+            user,
+            "users",
+            target=target,
+            org_name=org_name,
+            flash_ok=request.query_params.get("ok"),
+        ),
+    )
+
+
 @router.post("/users/{user_id}/toggle", response_class=HTMLResponse)
 def toggle_user(
     user_id: int,
@@ -245,7 +275,45 @@ def toggle_user(
         )
     target.is_active = not target.is_active
     db.commit()
-    return RedirectResponse("/admin/users", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(f"/admin/users/{user_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/users/{user_id}/reset-2fa", response_class=HTMLResponse)
+def admin_reset_2fa(
+    user_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    target = db.get(User, user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    if not target.totp_enabled and not target.totp_secret_encrypted:
+        return RedirectResponse(
+            f"/admin/users/{user_id}?ok=2fa-already-off",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    clear_totp(target)
+    record_event(
+        db,
+        type="totp_admin_reset",
+        org_id=target.org_id,
+        user_id=target.id,
+        details={"ip": client_ip(request), "by_admin_id": user.id},
+        commit=False,
+    )
+    db.commit()
+    notify_totp_change(
+        settings=get_settings(),
+        email=target.email,
+        enabled=False,
+        by_admin=True,
+    )
+    return RedirectResponse(
+        f"/admin/users/{user_id}?ok=2fa-reset",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
 @router.get("/leads", response_class=HTMLResponse)

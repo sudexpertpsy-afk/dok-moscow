@@ -79,6 +79,7 @@ def payment_settings_save(
     vat_rate: str = Form("none"),
     default_receipt_email: str = Form(""),
     party_check_daily_limit: str = Form("100"),
+    require_2fa_for_org_admins: str | None = Form(None),
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf),
@@ -103,6 +104,7 @@ def payment_settings_save(
     except ValueError:
         limit = 100
     row.party_check_daily_limit = max(1, min(limit, 10_000))
+    row.require_2fa_for_org_admins = bool(require_2fa_for_org_admins)
     row.updated_by_user_id = user.id
     record_event(
         db,
@@ -115,6 +117,7 @@ def payment_settings_save(
             "password_updated": bool(password.strip()),
             "recurrents": row.recurrents_enabled,
             "party_check_daily_limit": row.party_check_daily_limit,
+            "require_2fa_for_org_admins": row.require_2fa_for_org_admins,
         },
         commit=False,
     )

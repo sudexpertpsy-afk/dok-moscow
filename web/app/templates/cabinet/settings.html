@@ -95,7 +95,59 @@
       </form>
 
       {% elif section == 'безопасность' %}
-      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:0 0 0.4rem">Хранение файлов</h2>
+      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:0 0 0.4rem">Двухфакторная аутентификация</h2>
+      {% if force_2fa_setup and not totp_enabled %}
+      <div class="alert alert-error">Политика организации требует включить 2FA для продолжения работы.</div>
+      {% endif %}
+      <p class="muted">Дополнительная защита входа кодом из приложения. По умолчанию выключена.</p>
+
+      {% if totp_backup_codes %}
+      <div class="alert alert-ok">
+        <p><strong>Резервные коды показываются один раз.</strong> Сохраните их в надёжном месте.</p>
+        <ul class="mono" style="margin:0.6rem 0;padding-left:1.2rem">
+          {% for c in totp_backup_codes %}<li>{{ c }}</li>{% endfor %}
+        </ul>
+        <div class="actions">
+          <a class="btn" href="/cabinet/settings/security/2fa/backup.txt">Скачать .txt</a>
+          <form method="post" action="/cabinet/settings/security/2fa/dismiss-backup" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="secondary">Готово</button>
+          </form>
+        </div>
+      </div>
+      {% elif totp_setup_secret %}
+      <p>Отсканируйте в приложении Яндекс Ключ, Google Authenticator или любом совместимом.</p>
+      {% if totp_setup_qr %}
+      <p><img src="{{ totp_setup_qr }}" alt="QR-код 2FA" width="200" height="200" style="background:#fff;padding:0.5rem"></p>
+      {% endif %}
+      <p class="muted">Секрет для ручного ввода:</p>
+      <p class="mono" style="word-break:break-all">{{ totp_setup_secret }}</p>
+      <form method="post" action="/cabinet/settings/security/2fa/confirm" style="max-width:22rem;margin-top:1rem">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="totp_confirm">Код из приложения</label>
+        <input id="totp_confirm" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
+        <div class="actions"><button type="submit">Подтвердить и включить</button></div>
+      </form>
+      {% elif totp_enabled %}
+      <p><span class="badge ok">2FA включена</span></p>
+      <form method="post" action="/cabinet/settings/security/2fa/disable" style="max-width:22rem;margin-top:0.8rem">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="totp_off_password">Текущий пароль</label>
+        <input id="totp_off_password" name="password" type="password" required autocomplete="current-password">
+        <label for="totp_off_code">Код из приложения или резервный</label>
+        <input id="totp_off_code" name="code" type="text" required autocomplete="one-time-code">
+        <div class="actions"><button type="submit" class="danger">Отключить 2FA</button></div>
+      </form>
+      {% else %}
+      <form method="post" action="/cabinet/settings/security/2fa/start" style="max-width:22rem">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="totp_on_password">Текущий пароль</label>
+        <input id="totp_on_password" name="password" type="password" required autocomplete="current-password">
+        <div class="actions"><button type="submit">Включить 2FA</button></div>
+      </form>
+      {% endif %}
+
+      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.6rem 0 0.4rem">Хранение файлов</h2>
       <p class="muted">Документы старше указанного срока удаляются ночным заданием. 0 — не удалять. По умолчанию 1095 дней (≈3 года).</p>
       <form method="post" action="/cabinet/settings/security">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Код из приложения — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="shell" id="main" tabindex="-1">
+  <div class="card">
+    <h1 class="brand">{{ app_name }}</h1>
+    <p class="lead">Код из приложения</p>
+    {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+    {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+    <p class="muted">Введите код из Яндекс Ключ / Google Authenticator или одноразовый резервный код.</p>
+    <form method="post" action="/login/2fa">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label for="code">Код</label>
+      <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required autofocus>
+      <label style="display:flex;gap:0.5rem;align-items:center;margin-top:0.9rem">
+        <input type="checkbox" name="remember_device" value="1" style="width:auto">
+        Запомнить это устройство на 30 дней
+      </label>
+      <div class="actions">
+        <button type="submit">Продолжить</button>
+        <a class="btn secondary" href="/login">Отмена</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

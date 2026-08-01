@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Пользователь {{ target.email }} — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+
+<section class="panel">
+  <p class="muted"><a href="/admin/users">← Пользователи</a></p>
+  <h1>Карточка пользователя</h1>
+  {% if flash_ok == '2fa-reset' %}<div class="alert alert-ok">2FA сброшена, пользователю отправлено уведомление.</div>{% endif %}
+  {% if flash_ok == '2fa-already-off' %}<div class="alert alert-ok">2FA у пользователя уже выключена.</div>{% endif %}
+
+  <dl style="display:grid;grid-template-columns:10rem 1fr;gap:0.4rem 1rem;max-width:36rem">
+    <dt class="muted">ID</dt><dd>{{ target.id }}</dd>
+    <dt class="muted">E-mail</dt><dd>{{ target.email }}</dd>
+    <dt class="muted">Организация</dt>
+    <dd>{% if target.org_id %}<a href="/admin/organizations/{{ target.org_id }}">{{ org_name or target.org_id }}</a>{% else %}<span class="muted">—</span>{% endif %}</dd>
+    <dt class="muted">Роль</dt><dd class="mono">{{ target.role.value }}</dd>
+    <dt class="muted">Статус</dt>
+    <dd>{% if target.is_active %}<span class="badge ok">активен</span>{% else %}<span class="badge danger">выкл</span>{% endif %}</dd>
+    <dt class="muted">2FA</dt>
+    <dd>{% if target.totp_enabled %}<span class="badge ok">включена</span>{% else %}<span class="muted">выключена</span>{% endif %}</dd>
+  </dl>
+
+  <div class="actions" style="margin-top:1.2rem">
+    {% if target.id != user.id %}
+    <form class="inline-form" method="post" action="/admin/users/{{ target.id }}/toggle">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="{% if target.is_active %}danger{% endif %}">{% if target.is_active %}Отключить{% else %}Включить{% endif %}</button>
+    </form>
+    {% endif %}
+    {% if target.totp_enabled %}
+    <form class="inline-form" method="post" action="/admin/users/{{ target.id }}/reset-2fa"
+          onsubmit="return confirm('Сбросить двухфакторную аутентификацию для этого пользователя?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="danger">Сбросить 2FA</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+
+{% include "admin/_layout_end.html" %}
+{% endblock %}

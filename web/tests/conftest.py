@@ -54,6 +54,7 @@ def app(tmp_path):
     # create_all again via startup; TestClient triggers lifespan/startup
     auth_router.login_limiter.clear()
     auth_router.reset_limiter.clear()
+    auth_router.totp_limiter.clear()
     landing_router.lead_limiter.clear()
     with TestClient(application) as client:
         # гарантируем bootstrap
@@ -76,6 +77,7 @@ def app(tmp_path):
         yield client, dbmod
     auth_router.login_limiter.clear()
     auth_router.reset_limiter.clear()
+    auth_router.totp_limiter.clear()
     landing_router.lead_limiter.clear()
 
 

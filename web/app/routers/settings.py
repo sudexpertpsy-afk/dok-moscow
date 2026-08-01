@@ -1,17 +1,19 @@
-"""Настройки организации и счётчики (W-06)."""
+"""Настройки организации и счётчики (W-06, W-24)."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
-from app.deps import CurrentUser, require_org_user
+from app.deps import CurrentUser, client_ip, require_org_user
+from app.models import User
 from app.org_scope import get_org_for_user, list_events, require_org_id
 from app.nav_context import cabinet_nav
-from app.security import check_csrf, get_csrf_token
+from app.security import check_csrf, get_csrf_token, verify_password
+from app.services.audit import record_event
 from app.services.retention import get_retention_days, set_retention_days
 from app.services.settings_svc import (
     BANK_FIELDS,
@@ -24,6 +26,18 @@ from app.services.settings_svc import (
     update_section,
 )
 from app.templating import templates
+from app.totp_2fa import (
+    backup_codes_txt,
+    clear_totp,
+    enable_totp,
+    generate_backup_codes,
+    generate_totp_secret,
+    notify_totp_change,
+    provisioning_uri,
+    qr_data_url,
+    verify_totp_code,
+    verify_user_totp_or_backup,
+)
 
 _AUTH_EVENT_TYPES = {
     "login_success",
@@ -32,6 +46,11 @@ _AUTH_EVENT_TYPES = {
     "password_reset_request",
     "password_reset",
     "retention_purge",
+    "totp_enabled",
+    "totp_disabled",
+    "totp_verify_failure",
+    "totp_admin_reset",
+    "totp_backup_login",
 }
 
 router = APIRouter(prefix="/cabinet/settings", tags=["settings"])
@@ -304,6 +323,37 @@ async def settings_counters_save(
     )
 
 
+def _security_ctx(request: Request, user: CurrentUser, org, db: Session, **extra):
+    events = [
+        e
+        for e in list_events(db, require_org_id(user), limit=80)
+        if e.type in _AUTH_EVENT_TYPES
+    ]
+    db_user = db.get(User, user.id)
+    setup_secret = request.session.get("totp_setup_secret")
+    setup_uri = None
+    setup_qr = None
+    if setup_secret:
+        setup_uri = provisioning_uri(email=user.email, secret=setup_secret)
+        setup_qr = qr_data_url(setup_uri)
+    return _page(
+        request,
+        user,
+        org,
+        db,
+        "безопасность",
+        retention_days=get_retention_days(org),
+        security_events=events,
+        totp_enabled=bool(db_user and db_user.totp_enabled),
+        force_2fa_setup=bool(request.session.get("force_2fa_setup")),
+        totp_setup_secret=setup_secret,
+        totp_setup_uri=setup_uri,
+        totp_setup_qr=setup_qr,
+        totp_backup_codes=request.session.get("totp_backup_codes"),
+        **extra,
+    )
+
+
 @router.get("/security", response_class=HTMLResponse)
 def settings_security(
     request: Request,
@@ -311,18 +361,10 @@ def settings_security(
     db: Session = Depends(get_db),
 ):
     org = get_org_for_user(db, user)
-    events = [
-        e
-        for e in list_events(db, require_org_id(user), limit=80)
-        if e.type in _AUTH_EVENT_TYPES
-    ]
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(request, user, org, db, "безопасность",
-            retention_days=get_retention_days(org),
-            security_events=events,
-        ),
+        context=_security_ctx(request, user, org, db),
     )
 
 
@@ -342,17 +384,14 @@ async def settings_security_save(
     except ValueError:
         days = -1
     if days < 0 or days > 36500:
-        events = [
-            e
-            for e in list_events(db, require_org_id(user), limit=80)
-            if e.type in _AUTH_EVENT_TYPES
-        ]
         return templates.TemplateResponse(
             request=request,
             name="cabinet/settings.html",
-            context=_page(request, user, org, db, "безопасность",
-                retention_days=get_retention_days(org),
-                security_events=events,
+            context=_security_ctx(
+                request,
+                user,
+                org,
+                db,
                 flash_error="Укажите срок в днях от 0 (не удалять) до 36500.",
             ),
             status_code=400,
@@ -361,17 +400,232 @@ async def settings_security_save(
     db.add(org)
     db.commit()
     db.refresh(org)
-    events = [
-        e
-        for e in list_events(db, require_org_id(user), limit=80)
-        if e.type in _AUTH_EVENT_TYPES
-    ]
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(request, user, org, db, "безопасность",
-            retention_days=get_retention_days(org),
-            security_events=events,
-            flash_ok="Срок хранения файлов сохранён.",
+        context=_security_ctx(
+            request, user, org, db, flash_ok="Срок хранения файлов сохранён."
+        ),
+    )
+
+
+@router.post("/security/2fa/start", response_class=HTMLResponse)
+async def totp_start(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    org = get_org_for_user(db, user)
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+    password = str(form.get("password") or "")
+    db_user = db.get(User, user.id)
+    assert db_user is not None
+    if db_user.totp_enabled:
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/settings.html",
+            context=_security_ctx(
+                request, user, org, db, flash_error="2FA уже включена."
+            ),
+            status_code=400,
+        )
+    if not verify_password(password, db_user.password_hash):
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/settings.html",
+            context=_security_ctx(
+                request, user, org, db, flash_error="Неверный пароль."
+            ),
+            status_code=401,
+        )
+    secret = generate_totp_secret()
+    request.session["totp_setup_secret"] = secret
+    request.session.pop("totp_backup_codes", None)
+    return templates.TemplateResponse(
+        request=request,
+        name="cabinet/settings.html",
+        context=_security_ctx(
+            request,
+            user,
+            org,
+            db,
+            flash_ok="Отсканируйте QR-код и подтвердите код из приложения.",
+        ),
+    )
+
+
+@router.post("/security/2fa/confirm", response_class=HTMLResponse)
+async def totp_confirm(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    org = get_org_for_user(db, user)
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+    code = str(form.get("code") or "")
+    secret = request.session.get("totp_setup_secret")
+    db_user = db.get(User, user.id)
+    assert db_user is not None
+    if not secret:
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/settings.html",
+            context=_security_ctx(
+                request,
+                user,
+                org,
+                db,
+                flash_error="Сессия настройки 2FA истекла. Начните заново.",
+            ),
+            status_code=400,
+        )
+    if not verify_totp_code(secret, code):
+        record_event(
+            db,
+            type="totp_verify_failure",
+            org_id=user.org_id,
+            user_id=user.id,
+            details={"ip": client_ip(request), "phase": "enable"},
+        )
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/settings.html",
+            context=_security_ctx(
+                request, user, org, db, flash_error="Неверный код подтверждения."
+            ),
+            status_code=401,
+        )
+    codes = generate_backup_codes()
+    enable_totp(db_user, secret=secret, backup_codes=codes)
+    request.session.pop("totp_setup_secret", None)
+    request.session.pop("force_2fa_setup", None)
+    request.session["totp_backup_codes"] = codes
+    record_event(
+        db,
+        type="totp_enabled",
+        org_id=user.org_id,
+        user_id=user.id,
+        details={"ip": client_ip(request)},
+        commit=False,
+    )
+    db.commit()
+    notify_totp_change(settings=get_settings(), email=user.email, enabled=True)
+    return templates.TemplateResponse(
+        request=request,
+        name="cabinet/settings.html",
+        context=_security_ctx(
+            request,
+            user,
+            org,
+            db,
+            flash_ok="Двухфакторная аутентификация включена. Сохраните резервные коды — они показываются один раз.",
+        ),
+    )
+
+
+@router.get("/security/2fa/backup.txt")
+def totp_backup_download(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+):
+    codes = request.session.get("totp_backup_codes")
+    if not codes:
+        raise HTTPException(status_code=404, detail="Резервные коды недоступны")
+    body = backup_codes_txt(list(codes), email=user.email)
+    return PlainTextResponse(
+        body,
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="dok-moscow-2fa-backup.txt"'
+        },
+    )
+
+
+@router.post("/security/2fa/dismiss-backup", response_class=HTMLResponse)
+async def totp_dismiss_backup(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+    request.session.pop("totp_backup_codes", None)
+    return RedirectResponse(
+        "/cabinet/settings/security", status_code=303
+    )
+
+
+@router.post("/security/2fa/disable", response_class=HTMLResponse)
+async def totp_disable(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    org = get_org_for_user(db, user)
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+    password = str(form.get("password") or "")
+    code = str(form.get("code") or "")
+    db_user = db.get(User, user.id)
+    assert db_user is not None
+    if not db_user.totp_enabled:
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/settings.html",
+            context=_security_ctx(
+                request, user, org, db, flash_error="2FA уже отключена."
+            ),
+            status_code=400,
+        )
+    if not verify_password(password, db_user.password_hash):
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/settings.html",
+            context=_security_ctx(
+                request, user, org, db, flash_error="Неверный пароль."
+            ),
+            status_code=401,
+        )
+    method = verify_user_totp_or_backup(db_user, code)
+    if method is None:
+        record_event(
+            db,
+            type="totp_verify_failure",
+            org_id=user.org_id,
+            user_id=user.id,
+            details={"ip": client_ip(request), "phase": "disable"},
+        )
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/settings.html",
+            context=_security_ctx(
+                request, user, org, db, flash_error="Неверный код."
+            ),
+            status_code=401,
+        )
+    clear_totp(db_user)
+    request.session.pop("totp_backup_codes", None)
+    request.session.pop("totp_setup_secret", None)
+    record_event(
+        db,
+        type="totp_disabled",
+        org_id=user.org_id,
+        user_id=user.id,
+        details={"ip": client_ip(request), "via": method},
+        commit=False,
+    )
+    db.commit()
+    notify_totp_change(settings=get_settings(), email=user.email, enabled=False)
+    return templates.TemplateResponse(
+        request=request,
+        name="cabinet/settings.html",
+        context=_security_ctx(
+            request, user, org, db, flash_ok="Двухфакторная аутентификация отключена."
         ),
     )

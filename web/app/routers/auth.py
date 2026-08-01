@@ -1,4 +1,4 @@
-"""Маршруты входа / выхода / инвайта / восстановления пароля (W-01, W-09)."""
+"""Маршруты входа / выхода / инвайта / восстановления пароля (W-01, W-09, W-24)."""
 
 from __future__ import annotations
 
@@ -27,12 +27,22 @@ from app.security import (
 from app.services.audit import record_event
 from app.services.mail import send_email
 from app.templating import templates
+from app.totp_2fa import (
+    DEVICE_COOKIE,
+    clear_device_cookie,
+    set_device_cookie,
+    should_force_2fa_setup,
+    validate_device_token,
+    verify_user_totp_or_backup,
+)
 
 router = APIRouter(tags=["auth"])
 
 _settings = get_settings()
 login_limiter = LoginRateLimiter(_settings.login_rate_limit, _settings.login_rate_window_sec)
 reset_limiter = LoginRateLimiter(5, 60 * 60)
+# W-24: 5 попыток / 15 минут на аккаунт (та же механика, что на входе)
+totp_limiter = LoginRateLimiter(_settings.login_rate_limit, _settings.login_rate_window_sec)
 
 
 def _render(request: Request, name: str, ctx: dict | None = None, status_code: int = 200):
@@ -99,13 +109,38 @@ def login_submit(
         )
 
     login_limiter.reset(ip)
+
+    if user.totp_enabled:
+        device_ok = validate_device_token(request.cookies.get(DEVICE_COOKIE), user)
+        if not device_ok:
+            request.session["pending_2fa_user_id"] = user.id
+            request.session.pop("force_2fa_setup", None)
+            return RedirectResponse("/login/2fa", status_code=status.HTTP_303_SEE_OTHER)
+
+    return _finish_login(request, db, user, ip=ip, via="remembered" if user.totp_enabled else "password")
+
+
+def _finish_login(
+    request: Request,
+    db: Session,
+    user: User,
+    *,
+    ip: str,
+    via: str,
+    remember: bool = False,
+):
+    request.session.pop("pending_2fa_user_id", None)
     user.last_login_at = utcnow()
+    if should_force_2fa_setup(db, user):
+        request.session["force_2fa_setup"] = True
+    else:
+        request.session.pop("force_2fa_setup", None)
     record_event(
         db,
         type="login_success",
         org_id=user.org_id,
         user_id=user.id,
-        details={"ip": ip},
+        details={"ip": ip, "via": via},
         commit=False,
     )
     db.commit()
@@ -119,7 +154,86 @@ def login_submit(
             is_active=user.is_active,
         )
     )
-    return RedirectResponse(home, status_code=status.HTTP_303_SEE_OTHER)
+    if request.session.get("force_2fa_setup"):
+        home = "/cabinet/settings/security"
+    response = RedirectResponse(home, status_code=status.HTTP_303_SEE_OTHER)
+    if remember:
+        set_device_cookie(response, user)
+    return response
+
+
+@router.get("/login/2fa", response_class=HTMLResponse)
+def login_2fa_page(request: Request, user=Depends(get_optional_user)):
+    if user:
+        return RedirectResponse(home_for_user(user), status_code=status.HTTP_303_SEE_OTHER)
+    if not request.session.get("pending_2fa_user_id"):
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+    return _render(request, "auth/login_2fa.html")
+
+
+@router.post("/login/2fa", response_class=HTMLResponse)
+def login_2fa_submit(
+    request: Request,
+    code: str = Form(...),
+    remember_device: str | None = Form(None),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    pending_id = request.session.get("pending_2fa_user_id")
+    if not pending_id:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    user = db.get(User, int(pending_id))
+    if user is None or not user.is_active or not user.totp_enabled:
+        request.session.pop("pending_2fa_user_id", None)
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    ip = client_ip(request)
+    limit_key = f"totp:{user.id}"
+    if totp_limiter.is_blocked(limit_key):
+        return _render(
+            request,
+            "auth/login_2fa.html",
+            {"flash_error": "Слишком много попыток. Попробуйте позже."},
+            status_code=429,
+        )
+
+    method = verify_user_totp_or_backup(user, code)
+    if method is None:
+        totp_limiter.register_failure(limit_key)
+        record_event(
+            db,
+            type="totp_verify_failure",
+            org_id=user.org_id,
+            user_id=user.id,
+            details={"ip": ip},
+        )
+        return _render(
+            request,
+            "auth/login_2fa.html",
+            {"flash_error": "Неверный код. Попробуйте ещё раз."},
+            status_code=401,
+        )
+
+    totp_limiter.reset(limit_key)
+    via = "backup" if method == "backup" else "totp"
+    if method == "backup":
+        record_event(
+            db,
+            type="totp_backup_login",
+            org_id=user.org_id,
+            user_id=user.id,
+            details={"ip": ip},
+            commit=False,
+        )
+    return _finish_login(
+        request,
+        db,
+        user,
+        ip=ip,
+        via=via,
+        remember=bool(remember_device),
+    )
 
 
 @router.post("/logout")
@@ -137,6 +251,8 @@ def logout(
             user_id=user.id,
             details={"ip": client_ip(request)},
         )
+    request.session.pop("pending_2fa_user_id", None)
+    request.session.pop("force_2fa_setup", None)
     logout_user_session(request)
     return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -280,11 +396,14 @@ def reset_password_submit(
         commit=False,
     )
     db.commit()
-    return _render(
+    # Смена пароля инвалидирует «запомнить устройство» (отпечаток в cookie).
+    response = _render(
         request,
         "auth/login.html",
         {"flash_ok": "Пароль обновлён. Войдите с новым паролем."},
     )
+    clear_device_cookie(response)
+    return response
 
 
 @router.get("/invite/{token}", response_class=HTMLResponse)

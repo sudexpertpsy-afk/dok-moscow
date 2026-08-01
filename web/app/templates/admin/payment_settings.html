@@ -41,6 +41,13 @@
     <input id="party_check_daily_limit" name="party_check_daily_limit" type="number" min="1" max="10000"
       value="{{ settings_row.party_check_daily_limit if settings_row else 100 }}">
 
+    <label style="display:flex;gap:0.5rem;align-items:center;margin-top:0.9rem">
+      <input type="checkbox" name="require_2fa_for_org_admins" value="1" style="width:auto"
+        {% if settings_row and settings_row.require_2fa_for_org_admins %}checked{% endif %}>
+      Требовать 2FA для администраторов организаций
+    </label>
+    <p class="muted">По умолчанию выключено. При включении пользователи организаций без 2FA проходят мастер включения после входа.</p>
+
     <div class="actions">
       <button type="submit">Сохранить</button>
     </div>

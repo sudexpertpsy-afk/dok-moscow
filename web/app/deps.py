@@ -88,7 +88,10 @@ def require_service_admin(user: CurrentUser = Depends(get_current_user)) -> Curr
     return user
 
 
-def require_org_user(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+def require_org_user(
+    request: Request,
+    user: CurrentUser = Depends(get_current_user),
+) -> CurrentUser:
     """Пользователь с организацией. Админ сервиса без org → редирект в /admin/."""
     if user.org_id is None:
         if user.is_service_admin:
@@ -98,6 +101,18 @@ def require_org_user(user: CurrentUser = Depends(get_current_user)) -> CurrentUs
                 headers={"Location": "/admin/", "HX-Redirect": "/admin/"},
             )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет организации")
+    # W-24: принудительный мастер 2FA (политика сервиса)
+    if request.session.get("force_2fa_setup"):
+        path = request.url.path
+        if not path.startswith("/cabinet/settings/security"):
+            raise HTTPException(
+                status_code=status.HTTP_303_SEE_OTHER,
+                detail="Требуется включить 2FA",
+                headers={
+                    "Location": "/cabinet/settings/security",
+                    "HX-Redirect": "/cabinet/settings/security",
+                },
+            )
     return user
 
 

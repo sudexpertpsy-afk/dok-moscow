@@ -7,16 +7,18 @@
   <h1>Пользователи</h1>
   <p class="muted">До 200 последних учёток. Отключение блокирует вход.</p>
   <table class="table">
-    <thead><tr><th>ID</th><th>E-mail</th><th>Организация</th><th>Роль</th><th>Статус</th><th></th></tr></thead>
+    <thead><tr><th>ID</th><th>E-mail</th><th>Организация</th><th>Роль</th><th>Статус</th><th>2FA</th><th></th></tr></thead>
     <tbody>
       {% for u in users %}
       <tr>
         <td>{{ u.id }}</td>
-        <td>{{ u.email }}</td>
+        <td><a href="/admin/users/{{ u.id }}">{{ u.email }}</a></td>
         <td>{% if u.org_id %}<a href="/admin/organizations/{{ u.org_id }}">{{ org_names.get(u.org_id, u.org_id) }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
         <td class="mono">{{ u.role.value }}</td>
         <td>{% if u.is_active %}<span class="badge ok">активен</span>{% else %}<span class="badge danger">выкл</span>{% endif %}</td>
+        <td>{% if u.totp_enabled %}<span class="badge ok">да</span>{% else %}<span class="muted">нет</span>{% endif %}</td>
         <td>
+          <a href="/admin/users/{{ u.id }}">Карточка</a>
           {% if u.id != user.id %}
           <form class="inline-form" method="post" action="/admin/users/{{ u.id }}/toggle">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -28,7 +30,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="muted">Пока пусто</td></tr>
+      <tr><td colspan="7" class="muted">Пока пусто</td></tr>
       {% endfor %}
     </tbody>
   </table>
