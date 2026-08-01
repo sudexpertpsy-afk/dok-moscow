@@ -60,7 +60,10 @@ services:
     networks: [dok]
 
   gotenberg:
-    image: gotenberg/gotenberg:8
+    build:
+      context: .
+      dockerfile: Dockerfile.gotenberg
+    image: dok-gotenberg:8-liberation
     command:
       - "gotenberg"
       - "--chromium-disable-javascript"

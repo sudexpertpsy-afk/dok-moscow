@@ -82,9 +82,24 @@ def test_wcag_skip_and_focus_styles(app):
 
 def test_sample_pdf_served(app):
     client, _ = app
-    r = client.get("/static/samples/dogovor-fl.pdf")
-    assert r.status_code == 200
-    assert r.content[:4] == b"%PDF"
+    from io import BytesIO
+
+    from pypdf import PdfReader
+
+    for path, min_pages in (
+        ("/static/samples/dogovor-fl.pdf", 3),
+        ("/static/samples/schet.pdf", 1),
+        ("/static/samples/akt.pdf", 1),
+    ):
+        r = client.get(path)
+        assert r.status_code == 200, path
+        assert r.content[:4] == b"%PDF", path
+        # Образцы — из реальных шаблонов (не одностраничные заглушки ReportLab).
+        pages = len(PdfReader(BytesIO(r.content)).pages)
+        assert pages >= min_pages, f"{path}: ожидалось ≥{min_pages} стр., получено {pages}"
+        # Договор-витрина должен быть многостраничным.
+        if "dogovor" in path:
+            assert pages >= 5
 
 
 def test_apply_requires_csrf(app):

@@ -1,0 +1,9 @@
+# Gotenberg с шрифтами Liberation (метрики Arial/Times/Courier) для кириллицы в PDF.
+FROM gotenberg/gotenberg:8
+
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fonts-liberation fonts-dejavu-core \
+    && fc-cache -f \
+    && rm -rf /var/lib/apt/lists/*
+USER gotenberg
