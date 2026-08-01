@@ -72,6 +72,16 @@ def _bootstrap_billing() -> None:
         db.close()
 
 
+def _bootstrap_legal() -> None:
+    from app.services.legal_registry import bootstrap_legal
+
+    db = dbmod.SessionLocal()
+    try:
+        bootstrap_legal(db)
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     import asyncio
@@ -82,6 +92,7 @@ async def lifespan(_app: FastAPI):
     Base.metadata.create_all(bind=dbmod.engine)
     _bootstrap_admin()
     _bootstrap_billing()
+    _bootstrap_legal()
     stop = asyncio.Event()
     worker = None
     if os.environ.get("BILLING_WORKER", "1") != "0":

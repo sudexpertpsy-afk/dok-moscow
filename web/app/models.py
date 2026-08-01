@@ -1,4 +1,4 @@
-"""Модели данных Док.Москва (Приложение А ТЗ, пакеты W-01/W-02, W-10)."""
+"""Модели данных Док.Москва (Приложение А ТЗ, пакеты W-01/W-02, W-10, W-16)."""
 
 from __future__ import annotations
 
@@ -104,6 +104,37 @@ class CalendarEventStatus(str, enum.Enum):
     planned = "planned"
     done = "done"
     cancelled = "cancelled"
+
+
+class LegalActCategory(str, enum.Enum):
+    law = "law"  # профильный закон
+    code = "code"  # процессуальный / отраслевой кодекс
+    plenum = "plenum"  # разъяснения высших судов
+    order = "order"  # ведомственный приказ
+    standard = "standard"  # ГОСТ (карточка)
+
+
+class LegalActStatus(str, enum.Enum):
+    active = "active"
+    repealed = "repealed"
+
+
+class LegalActMode(str, enum.Enum):
+    full_text = "full_text"
+    fragments = "fragments"
+    card = "card"
+
+
+class ActVersionStatus(str, enum.Enum):
+    draft = "draft"
+    published = "published"
+    archived = "archived"
+
+
+class ActWatchResult(str, enum.Enum):
+    unchanged = "unchanged"
+    change_found = "change_found"
+    source_error = "source_error"
 
 
 JsonType = JSON().with_variant(JSONB(), "postgresql")
@@ -619,3 +650,151 @@ class CalendarEvent(Base):
     counterparty: Mapped[Counterparty | None] = relationship()
     document: Mapped[Document | None] = relationship()
     contract: Mapped[Contract | None] = relationship()
+
+
+class LegalAct(Base):
+    """Нормативный акт раздела «Законодательство» (W-16)."""
+
+    __tablename__ = "legal_acts"
+    __table_args__ = (Index("ix_legal_acts_category_sort", "category", "sort_order"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    category: Mapped[LegalActCategory] = mapped_column(
+        Enum(LegalActCategory, name="legal_act_category", **_STR_ENUM),
+        nullable=False,
+    )
+    act_kind: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    number: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    adopted_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    authority: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    status: Mapped[LegalActStatus] = mapped_column(
+        Enum(LegalActStatus, name="legal_act_status", **_STR_ENUM),
+        nullable=False,
+        default=LegalActStatus.active,
+    )
+    mode: Mapped[LegalActMode] = mapped_column(
+        Enum(LegalActMode, name="legal_act_mode", **_STR_ENUM),
+        nullable=False,
+        default=LegalActMode.full_text,
+    )
+    source_url: Mapped[str] = mapped_column(String(1024), nullable=False, default="")
+    eo_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    slug: Mapped[str] = mapped_column(String(160), nullable=False, unique=True)
+    # Для режима fragments: список отслеживаемых статей/глав, напр. ["ст. 79", "ст. 80"]
+    tracked_articles: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    versions: Mapped[list[ActVersion]] = relationship(
+        back_populates="act", cascade="all, delete-orphan"
+    )
+    fragments: Mapped[list[ActFragment]] = relationship(
+        back_populates="act", cascade="all, delete-orphan"
+    )
+    watch_logs: Mapped[list[ActWatchLog]] = relationship(
+        back_populates="act", cascade="all, delete-orphan"
+    )
+
+
+class ActVersion(Base):
+    """Редакция текста акта (черновик / опубликована / архив)."""
+
+    __tablename__ = "act_versions"
+    __table_args__ = (
+        Index("ix_act_versions_act_status", "act_id", "status"),
+        # Одна опубликованная редакция на акт (PostgreSQL и SQLite).
+        Index(
+            "uq_act_versions_one_published",
+            "act_id",
+            unique=True,
+            postgresql_where=text("status = 'published'"),
+            sqlite_where=text("status = 'published'"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    act_id: Mapped[int] = mapped_column(
+        ForeignKey("legal_acts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    revision_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    change_basis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    body_html: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    pdf_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    status: Mapped[ActVersionStatus] = mapped_column(
+        Enum(ActVersionStatus, name="act_version_status", **_STR_ENUM),
+        nullable=False,
+        default=ActVersionStatus.draft,
+    )
+    loaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    loaded_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    act: Mapped[LegalAct] = relationship(back_populates="versions")
+
+
+class ActFragment(Base):
+    """Фрагмент кодекса (экспертные статьи) для режима fragments."""
+
+    __tablename__ = "act_fragments"
+    __table_args__ = (
+        Index("ix_act_fragments_act_sort", "act_id", "sort_order"),
+        Index("uq_act_fragments_act_ref", "act_id", "article_ref", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    act_id: Mapped[int] = mapped_column(
+        ForeignKey("legal_acts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    article_ref: Mapped[str] = mapped_column(String(128), nullable=False)
+    title: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    body_html: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    act: Mapped[LegalAct] = relationship(back_populates="fragments")
+
+
+class ActWatchLog(Base):
+    """Журнал ежедневного мониторинга официального опубликования."""
+
+    __tablename__ = "act_watch_log"
+    __table_args__ = (Index("ix_act_watch_log_act_checked", "act_id", "checked_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    act_id: Mapped[int] = mapped_column(
+        ForeignKey("legal_acts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    checked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    result: Mapped[ActWatchResult] = mapped_column(
+        Enum(ActWatchResult, name="act_watch_result", **_STR_ENUM),
+        nullable=False,
+    )
+    details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    draft_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("act_versions.id", ondelete="SET NULL"), nullable=True
+    )
+
+    act: Mapped[LegalAct] = relationship(back_populates="watch_logs")

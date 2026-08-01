@@ -72,6 +72,11 @@ def test_alembic_upgrade_head_clean_db():
         "subscriptions",
         "payments",
         "payment_settings",
+        "calendar_events",
+        "legal_acts",
+        "act_versions",
+        "act_fragments",
+        "act_watch_log",
         "alembic_version",
     }
     assert expected.issubset(tables)
