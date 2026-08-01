@@ -70,6 +70,26 @@
     </section>
 
     <section class="panel" style="margin-top:1rem">
+      <h1>Заявки с лендинга</h1>
+      <table class="table">
+        <thead><tr><th>ID</th><th>E-mail</th><th>Профиль</th><th>Комментарий</th><th>Когда</th></tr></thead>
+        <tbody>
+          {% for L in leads %}
+          <tr>
+            <td>{{ L.id }}</td>
+            <td>{{ L.email }}</td>
+            <td>{{ L.profile or "—" }}</td>
+            <td class="muted">{{ L.comment or "—" }}</td>
+            <td class="muted">{{ L.ts }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="muted">Пока пусто</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel" style="margin-top:1rem">
       <h1>Недавние приглашения</h1>
       <table class="table">
         <thead><tr><th>Org</th><th>E-mail</th><th>Токен</th><th>Истекает</th><th>Использован</th></tr></thead>

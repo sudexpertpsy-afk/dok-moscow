@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_name }} — кабинет экспертной организации{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}Док.Москва — онлайн-кабинет экспертной организации: договоры, счета, акты и комплекты документов по шаблонам Шаблонера. Закрытая бета по приглашениям.{% endblock %}">
+  <link rel="canonical" href="{% block canonical %}{{ public_base_url }}/{% endblock %}">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:site_name" content="{{ app_name }}">
+  <meta property="og:title" content="{% block og_title %}{{ app_name }}{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}Онлайн-кабинет экспертной организации на базе Шаблонера.{% endblock %}">
+  <meta property="og:url" content="{% block og_url %}{{ public_base_url }}/{% endblock %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/landing.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "{{ app_name }}",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "url": "{{ public_base_url }}/",
+    "description": "Онлайн-кабинет экспертной организации: генерация договоров, счетов и актов.",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "RUB",
+      "description": "Закрытая бета — доступ по приглашениям"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "{{ app_name }}",
+      "url": "{{ public_base_url }}/",
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "email": "hello@dok.moscow",
+        "contactType": "customer support",
+        "availableLanguage": "Russian"
+      }
+    }
+  }
+  </script>
+  {% if yandex_metrika_id %}
+  <script type="text/javascript">
+    (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+    m[i].l=1*new Date();
+    for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+    k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+    (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+    ym({{ yandex_metrika_id }}, "init", { clickmap:true, trackLinks:true, accurateTrackBounce:true });
+  </script>
+  <noscript><div><img src="https://mc.yandex.ru/watch/{{ yandex_metrika_id }}" style="position:absolute; left:-9999px;" alt=""></div></noscript>
+  {% endif %}
+</head>
+<body class="lp">
+  <a class="skip" href="#main">К содержанию</a>
+  <header class="lp-nav">
+    <a class="lp-nav-brand" href="/">{{ app_name }}</a>
+    <nav class="lp-nav-links" aria-label="Разделы">
+      <a href="/#samples">Примеры</a>
+      <a href="/#pricing">Тарифы</a>
+      <a href="/#apply">Доступ</a>
+      <a class="lp-nav-login" href="{{ app_base_url }}/login">Войти</a>
+    </nav>
+  </header>
+  <main id="main">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="lp-footer">
+    <div class="lp-footer-inner">
+      <p class="lp-footer-brand">{{ app_name }}</p>
+      <p class="lp-footer-meta">
+        <a href="/privacy">Политика обработки ПДн</a>
+        <a href="/contacts">Контакты</a>
+        <a href="{{ app_base_url }}/login">Кабинет</a>
+      </p>
+      <p class="lp-footer-copy">© {{ app_name }}. Документы и данные — в РФ.</p>
+    </div>
+  </footer>
+</body>
+</html>

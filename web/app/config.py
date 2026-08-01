@@ -28,6 +28,19 @@ class Settings(BaseSettings):
     dadata_key: str = ""
     dadata_daily_limit: int = 200
     core_path: str = str(_REPO_ROOT / "core")
+    # Лендинг / заявки (W-08)
+    public_base_url: str = "https://dok.moscow"
+    app_base_url: str = "https://app.dok.moscow"
+    yandex_metrika_id: str = ""
+    admin_notify_email: str = ""
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_use_tls: bool = True
+    lead_rate_limit: int = 5
+    lead_rate_window_sec: int = 60 * 60
 
 
 @lru_cache

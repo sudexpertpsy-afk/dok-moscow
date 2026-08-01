@@ -25,6 +25,7 @@ from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.main import create_app  # noqa: E402
 from app.models import Invite, Organization, User, UserRole  # noqa: E402
 from app.routers import auth as auth_router  # noqa: E402
+from app.routers import landing as landing_router  # noqa: E402
 from app.security import hash_password  # noqa: E402
 
 
@@ -51,6 +52,7 @@ def app(tmp_path):
     application = create_app()
     # create_all again via startup; TestClient triggers lifespan/startup
     auth_router.login_limiter.clear()
+    landing_router.lead_limiter.clear()
     with TestClient(application) as client:
         # гарантируем bootstrap
         db = dbmod.SessionLocal()
@@ -71,6 +73,7 @@ def app(tmp_path):
             db.close()
         yield client, dbmod
     auth_router.login_limiter.clear()
+    landing_router.lead_limiter.clear()
 
 
 def csrf_from(client: TestClient, path: str = "/login") -> str:
