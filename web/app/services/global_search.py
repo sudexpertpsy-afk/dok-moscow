@@ -52,7 +52,11 @@ def _tariff_for(db: Session, user: CurrentUser) -> TariffCode | None:
 
 
 def _roles(user: CurrentUser):
-    return roles_for_user(is_service_admin=user.is_service_admin, has_org=user.org_id is not None)
+    return roles_for_user(
+        is_service_admin=user.is_service_admin,
+        has_org=user.org_id is not None,
+        is_org_admin=user.is_org_admin,
+    )
 
 
 def global_search(db: Session, user: CurrentUser, query: str, *, limit: int = 8) -> GlobalSearchResult:

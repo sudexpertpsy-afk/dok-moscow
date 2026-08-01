@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Сотрудники — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "cabinet/_layout_start.html" %}
+<section class="panel">
+  <h1>Сотрудники</h1>
+  {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+  {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+
+  {% if not allowed %}
+    <p>{{ deny_reason }}</p>
+    <p><a href="/cabinet/billing/">Перейти к тарифу и оплате</a></p>
+  {% else %}
+    {% if usage %}
+    <p class="muted">Активных пользователей: {{ usage.users_active }}{% if usage.limits.limit_users %} из {{ usage.limits.limit_users }}{% endif %}</p>
+    {% endif %}
+
+    <h2 style="font-family:var(--font-display);font-size:1.2rem;margin:1.2rem 0 0.5rem">Пригласить</h2>
+    <form method="post" action="/cabinet/staff/invite" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div style="flex:1;min-width:14rem">
+        <label for="email">E-mail</label>
+        <input id="email" name="email" type="email" required placeholder="name@example.com">
+      </div>
+      <button type="submit">Отправить приглашение</button>
+    </form>
+
+    <h2 style="font-family:var(--font-display);font-size:1.2rem;margin:1.5rem 0 0.5rem">Список</h2>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>E-mail</th>
+          <th>Роль</th>
+          <th>Статус</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in staff %}
+        <tr>
+          <td>{{ u.email }}{% if u.id == user.id %} <span class="muted">(вы)</span>{% endif %}</td>
+          <td>{% if is_org_admin_fn(u) %}Администратор{% else %}Сотрудник{% endif %}</td>
+          <td>{% if u.is_active %}Активен{% else %}Выключен{% endif %}</td>
+          <td style="display:flex;gap:0.35rem;flex-wrap:wrap">
+            {% if u.is_active and u.id != user.id %}
+            <form method="post" action="/cabinet/staff/{{ u.id }}/deactivate" onsubmit="return confirm('Деактивировать сотрудника?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn-secondary">Деактивировать</button>
+            </form>
+            {% if not is_org_admin_fn(u) %}
+            <form method="post" action="/cabinet/staff/{{ u.id }}/transfer-admin"
+                  onsubmit="return confirm('Передать роль администратора этому сотруднику? Вы станете обычным сотрудником.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="confirm" value="1">
+              <button type="submit" class="btn-secondary">Сделать админом</button>
+            </form>
+            {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted">Пока нет сотрудников</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</section>
+{% include "cabinet/_layout_end.html" %}
+{% endblock %}

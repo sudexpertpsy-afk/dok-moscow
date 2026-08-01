@@ -11,7 +11,11 @@ from app.services.nav_order import apply_nav_order, order_for_area
 
 
 def cabinet_nav(db: Session, user: CurrentUser) -> list[tuple[str, str, str]]:
-    roles = roles_for_user(is_service_admin=user.is_service_admin, has_org=user.org_id is not None)
+    roles = roles_for_user(
+        is_service_admin=user.is_service_admin,
+        has_org=user.org_id is not None,
+        is_org_admin=user.is_org_admin,
+    )
     tariff = None
     if user.org_id is not None:
         tariff = get_tariff_limits(db, user.org_id).tariff_code

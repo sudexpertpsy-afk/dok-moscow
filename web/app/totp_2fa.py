@@ -184,8 +184,10 @@ def require_2fa_for_org_admins(db: Session) -> bool:
 
 
 def is_org_admin_subject(user: User) -> bool:
-    """В продукте пользователи организации выступают администраторами орг."""
-    return user.org_id is not None and user.role.value == "user"
+    """Администратор организации (W-27: users.org_role)."""
+    from app.org_roles import is_org_admin
+
+    return bool(user.org_id is not None and user.role.value == "user" and is_org_admin(user))
 
 
 def should_force_2fa_setup(db: Session, user: User) -> bool:

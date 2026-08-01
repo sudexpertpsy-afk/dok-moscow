@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
-from app.deps import CurrentUser, require_csrf, require_org_user
+from app.deps import CurrentUser, forbidden_org_admin_page, require_csrf, require_org_user
 from app.org_scope import get_org_for_user
 from app.nav_context import cabinet_nav
 from app.security import get_csrf_token
@@ -67,6 +67,8 @@ def templates_home(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    if not user.is_org_admin:
+        return forbidden_org_admin_page(request, user, db)
     org = get_org_for_user(db, user)
     ok = request.query_params.get("ok")
     flash_ok = {
@@ -91,6 +93,8 @@ async def templates_upload(
     contract_type: str = Form(""),
     _: None = Depends(require_csrf),
 ):
+    if not user.is_org_admin:
+        return forbidden_org_admin_page(request, user, db)
     org = get_org_for_user(db, user)
     assert_can_manage_org_templates(db, org.id)
     raw = await file.read()
@@ -127,6 +131,8 @@ def templates_rename(
     new_title: str = Form(...),
     _: None = Depends(require_csrf),
 ):
+    if not user.is_org_admin:
+        return forbidden_org_admin_page(request, user, db)
     org = get_org_for_user(db, user)
     assert_can_manage_org_templates(db, org.id)
     try:
@@ -168,6 +174,8 @@ def templates_delete(
     name: str = Form(...),
     _: None = Depends(require_csrf),
 ):
+    if not user.is_org_admin:
+        return forbidden_org_admin_page(request, user, db)
     org = get_org_for_user(db, user)
     assert_can_manage_org_templates(db, org.id)
     try:
@@ -206,6 +214,8 @@ def templates_role(
     contract_type: str = Form(""),
     _: None = Depends(require_csrf),
 ):
+    if not user.is_org_admin:
+        return forbidden_org_admin_page(request, user, db)
     org = get_org_for_user(db, user)
     assert_can_manage_org_templates(db, org.id)
     try:

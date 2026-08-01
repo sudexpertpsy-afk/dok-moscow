@@ -5,11 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fastapi import Depends, Form, HTTPException, Request, status
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db import get_db
-from app.models import User, UserRole
+from app.models import OrgRole, User, UserRole
+from app.org_roles import effective_org_role
 from app.security import check_csrf, session_user_snapshot
+from app.templating import templates
 
 
 @dataclass
@@ -20,10 +24,20 @@ class CurrentUser:
     role: UserRole
     is_active: bool
     nav_order: dict | None = None
+    org_role: OrgRole | None = None
 
     @property
     def is_service_admin(self) -> bool:
         return self.role == UserRole.service_admin
+
+    @property
+    def is_org_admin(self) -> bool:
+        if self.org_id is None:
+            return False
+        if self.org_role is not None:
+            return self.org_role == OrgRole.org_admin
+        # unset → как admin (совместимость тестов/старых сессий)
+        return True
 
 
 def home_for_user(user: CurrentUser) -> str:
@@ -72,6 +86,7 @@ def get_optional_user(
         role=user.role,
         is_active=user.is_active,
         nav_order=order,
+        org_role=effective_org_role(user),
     )
 
 
@@ -117,6 +132,50 @@ def require_org_user(
                 },
             )
     return user
+
+
+def require_org_admin(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+) -> CurrentUser:
+    """Администратор организации (W-27)."""
+    if user.is_org_admin:
+        return user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Только администратор организации",
+    )
+
+
+def forbidden_org_admin_page(request: Request, user: CurrentUser, db: Session) -> HTMLResponse:
+    """Понятная страница 403 для org_member."""
+    from app.nav_context import cabinet_nav
+    from app.org_scope import get_org_for_user
+
+    org = get_org_for_user(db, user)
+    return templates.TemplateResponse(
+        request=request,
+        name="cabinet/forbidden.html",
+        context={
+            "request": request,
+            "app_name": get_settings().app_name,
+            "user": user,
+            "org": org,
+            "nav": cabinet_nav(db, user),
+            "active": "",
+            "title": "Недостаточно прав",
+            "message": (
+                "Этот раздел доступен только администратору организации. "
+                "Обратитесь к администратору или откройте «Безопасность» для своих настроек входа."
+            ),
+            "links": [
+                ("Безопасность", "/cabinet/settings/security"),
+                ("Документы", "/cabinet/documents/"),
+            ],
+        },
+        status_code=403,
+    )
 
 
 def assert_same_org(user: CurrentUser, org_id: int) -> None:

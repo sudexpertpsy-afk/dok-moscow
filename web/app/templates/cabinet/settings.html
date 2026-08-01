@@ -16,6 +16,13 @@
       {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
 
       {% if section == 'реквизиты' %}
+      {% if read_only %}
+      <p class="muted" style="margin:0 0 1rem">Просмотр реквизитов организации. Изменение доступно администратору.</p>
+      {% for f in ORG_FIELDS %}
+        <label for="o_{{ loop.index }}">{{ f }}</label>
+        <input id="o_{{ loop.index }}" value="{{ requisites.организация.get(f, '') }}" readonly disabled>
+      {% endfor %}
+      {% else %}
       <form method="post" action="/cabinet/settings/">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         {% for f in ORG_FIELDS %}
@@ -24,6 +31,7 @@
         {% endfor %}
         <div class="actions"><button type="submit">Сохранить</button></div>
       </form>
+      {% endif %}
 
       {% elif section == 'банк' %}
       <form method="post" action="/cabinet/settings/bank">

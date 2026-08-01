@@ -38,6 +38,13 @@ class UserRole(str, enum.Enum):
     user = "user"
 
 
+class OrgRole(str, enum.Enum):
+    """Роль внутри организации (W-27). Не путать с UserRole.service_admin."""
+
+    org_admin = "org_admin"
+    org_member = "org_member"
+
+
 class CounterpartyType(str, enum.Enum):
     fl = "fl"  # физлицо
     ul = "ul"  # юрлицо
@@ -183,6 +190,12 @@ class User(Base):
         Enum(UserRole, name="user_role", **_STR_ENUM),
         nullable=False,
         default=UserRole.user,
+    )
+    # W-27: роль в организации; NULL у service_admin без org
+    org_role: Mapped[OrgRole | None] = mapped_column(
+        Enum(OrgRole, name="org_role", **_STR_ENUM),
+        nullable=True,
+        default=None,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(

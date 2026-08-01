@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
-from app.deps import CurrentUser, client_ip, require_org_user
+from app.deps import CurrentUser, client_ip, forbidden_org_admin_page, require_org_user
 from app.models import User
 from app.org_scope import get_org_for_user, list_events, require_org_id
 from app.nav_context import cabinet_nav
@@ -71,8 +71,25 @@ _AUTH_EVENT_TYPES = {
 router = APIRouter(prefix="/cabinet/settings", tags=["settings"])
 
 
+def _sections_for(user: CurrentUser) -> list[tuple[str, str, str]]:
+    if user.is_org_admin:
+        return [
+            ("реквизиты", "Реквизиты", "/cabinet/settings/"),
+            ("банк", "Банк", "/cabinet/settings/bank"),
+            ("подписанты", "Подписанты", "/cabinet/settings/signatories"),
+            ("прайс", "Прайс", "/cabinet/settings/price"),
+            ("счётчики", "Счётчики", "/cabinet/settings/counters"),
+            ("безопасность", "Безопасность", "/cabinet/settings/security"),
+        ]
+    return [
+        ("реквизиты", "Реквизиты", "/cabinet/settings/"),
+        ("безопасность", "Безопасность", "/cabinet/settings/security"),
+    ]
+
+
 def _page(request: Request, user: CurrentUser, org, db, section: str, **extra):
     req = ensure_requisites(org)
+    read_only = not user.is_org_admin and section == "реквизиты"
     ctx = {
         "request": request,
         "csrf_token": get_csrf_token(request),
@@ -82,15 +99,9 @@ def _page(request: Request, user: CurrentUser, org, db, section: str, **extra):
         "nav": cabinet_nav(db, user),
         "active": "settings",
         "section": section,
-        "sections": [
-            ("реквизиты", "Реквизиты", "/cabinet/settings/"),
-            ("банк", "Банк", "/cabinet/settings/bank"),
-            ("подписанты", "Подписанты", "/cabinet/settings/signatories"),
-            ("прайс", "Прайс", "/cabinet/settings/price"),
-            ("счётчики", "Счётчики", "/cabinet/settings/counters"),
-            ("безопасность", "Безопасность", "/cabinet/settings/security"),
-        ],
+        "sections": _sections_for(user),
         "requisites": req,
+        "read_only": read_only,
         "flash_error": None,
         "flash_ok": None,
         "ORG_FIELDS": ORG_FIELDS,
@@ -100,6 +111,12 @@ def _page(request: Request, user: CurrentUser, org, db, section: str, **extra):
     }
     ctx.update(extra)
     return ctx
+
+
+def _require_org_settings_admin(request: Request, user: CurrentUser, db: Session):
+    if user.is_org_admin:
+        return None
+    return forbidden_org_admin_page(request, user, db)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -122,6 +139,9 @@ async def settings_org_save(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
     org = get_org_for_user(db, user)
     form = await request.form()
     if not check_csrf(request, form.get("csrf_token")):
@@ -151,6 +171,9 @@ def settings_bank(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
     org = get_org_for_user(db, user)
     return templates.TemplateResponse(
         request=request,
@@ -165,6 +188,9 @@ async def settings_bank_save(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
     org = get_org_for_user(db, user)
     form = await request.form()
     if not check_csrf(request, form.get("csrf_token")):
@@ -194,6 +220,9 @@ def settings_signatories(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
     org = get_org_for_user(db, user)
     return templates.TemplateResponse(
         request=request,
@@ -208,6 +237,9 @@ async def settings_signatories_save(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
     org = get_org_for_user(db, user)
     form = await request.form()
     if not check_csrf(request, form.get("csrf_token")):
@@ -237,6 +269,9 @@ def settings_price(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
     org = get_org_for_user(db, user)
     return templates.TemplateResponse(
         request=request,
@@ -251,6 +286,9 @@ async def settings_price_save(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
     org = get_org_for_user(db, user)
     form = await request.form()
     if not check_csrf(request, form.get("csrf_token")):
@@ -280,6 +318,9 @@ def settings_counters(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
     org = get_org_for_user(db, user)
     counters = list_counters(db, require_org_id(user))
     return templates.TemplateResponse(
@@ -295,6 +336,9 @@ async def settings_counters_save(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
     org = get_org_for_user(db, user)
     form = await request.form()
     if not check_csrf(request, form.get("csrf_token")):

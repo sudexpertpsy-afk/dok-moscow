@@ -105,7 +105,7 @@ def test_synonyms_kassa_and_pko():
     assert hits and hits[0].item.key == "admin_paysettings"
     assert "Платёжная система" in hits[0].title
 
-    roles_org = roles_for_user(is_service_admin=False, has_org=True)
+    roles_org = roles_for_user(is_service_admin=False, has_org=True, is_org_admin=True)
     resolved_org = resolve_nav(
         roles=roles_org,
         tariff=TariffCode.organization,

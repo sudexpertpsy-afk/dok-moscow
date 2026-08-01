@@ -15,8 +15,8 @@ from app.models import TariffCode
 class NavRole(str, Enum):
     """Роли доступа к пунктам навигации.
 
-    В модели пользователей пока нет отдельного org_admin —
-    всем пользователям организации доступны и org_user, и org_admin.
+    org_user — любой сотрудник организации (member + admin);
+    org_admin — только администратор организации (users.org_role).
     """
 
     org_user = "org_user"
@@ -94,6 +94,7 @@ NAV_REGISTRY: tuple[NavItem, ...] = (
         "Мои шаблоны",
         "/cabinet/templates/",
         synonyms=("свои шаблоны", "docx организации", "загрузить шаблон"),
+        roles=frozenset({NavRole.org_admin}),
         tariffs=ORG_TARIFF,
         group="Работа",
     ),
@@ -134,11 +135,21 @@ NAV_REGISTRY: tuple[NavItem, ...] = (
         group="Организация",
     ),
     _item(
+        "staff",
+        "Сотрудники",
+        "/cabinet/staff/",
+        synonyms=("коллеги", "пригласить", "пользователи организации", "инвайт"),
+        roles=frozenset({NavRole.org_admin}),
+        tariffs=ORG_TARIFF,
+        group="Организация",
+    ),
+    _item(
         "settings",
         "Настройки",
         "/cabinet/settings/",
         synonyms=("реквизиты", "организация", "профиль"),
-        roles=frozenset({NavRole.org_admin}),
+        # Видно всем: у member — только реквизиты (RO) и безопасность
+        roles=ORG_ROLES,
         group="Организация",
     ),
     _item(
@@ -411,6 +422,11 @@ ROUTE_EXCEPTIONS: frozenset[str] = frozenset(
         "/cabinet/settings/security/password",
         "/cabinet/settings/security/yandex/link",
         "/cabinet/settings/security/yandex/unlink",
+        "/cabinet/staff",
+        "/cabinet/staff/",
+        "/cabinet/staff/invite",
+        "/cabinet/staff/{user_id}/deactivate",
+        "/cabinet/staff/{user_id}/transfer-admin",
         "/cabinet/party-check/search",
         "/cabinet/party-check/card",
         "/cabinet/party-check/select",
@@ -442,14 +458,23 @@ ROUTE_EXCEPTIONS: frozenset[str] = frozenset(
 )
 
 
-def roles_for_user(*, is_service_admin: bool, has_org: bool) -> frozenset[NavRole]:
+def roles_for_user(
+    *,
+    is_service_admin: bool,
+    has_org: bool,
+    is_org_admin: bool = False,
+) -> frozenset[NavRole]:
+    """Собрать роли навигации. is_org_admin — users.org_role == org_admin."""
     if is_service_admin and not has_org:
         return frozenset({NavRole.service_admin})
-    if is_service_admin and has_org:
-        return frozenset({NavRole.service_admin, NavRole.org_user, NavRole.org_admin})
+    roles: set[NavRole] = set()
+    if is_service_admin:
+        roles.add(NavRole.service_admin)
     if has_org:
-        return frozenset({NavRole.org_user, NavRole.org_admin})
-    return frozenset()
+        roles.add(NavRole.org_user)
+        if is_org_admin:
+            roles.add(NavRole.org_admin)
+    return frozenset(roles)
 
 
 def tariff_allowed(item: NavItem, tariff: TariffCode | None) -> bool:

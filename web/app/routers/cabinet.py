@@ -20,7 +20,7 @@ router = APIRouter(prefix="/cabinet", tags=["cabinet"])
 
 # Обратная совместимость импортов: статический снимок меню (полный доступ).
 NAV = cabinet_menu_tuples(
-    roles=roles_for_user(is_service_admin=False, has_org=True),
+    roles=roles_for_user(is_service_admin=False, has_org=True, is_org_admin=True),
     tariff=TariffCode.organization,
 )
 

@@ -34,6 +34,7 @@ from app.routers import (
     landing,
     package,
     party_check,
+    staff,
     yandex_auth,
     zakon,
 )
@@ -163,6 +164,7 @@ def create_app() -> FastAPI:
     app.include_router(cabinet.router)
     app.include_router(cabinet_billing.router)
     app.include_router(cabinet_templates.router)
+    app.include_router(staff.router)
     app.include_router(documents.router)
     app.include_router(package.router)
     app.include_router(counterparties.router)

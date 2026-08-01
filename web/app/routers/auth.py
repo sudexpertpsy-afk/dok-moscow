@@ -8,7 +8,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -508,11 +508,19 @@ def invite_accept(
             status_code=409,
         )
 
+    from app.models import OrgRole
+
+    others = db.scalar(
+        select(func.count())
+        .select_from(User)
+        .where(User.org_id == invite.org_id, User.role == UserRole.user)
+    ) or 0
     user = User(
         org_id=invite.org_id,
         email=invite.email.lower(),
         password_hash=hash_password(password),
         role=UserRole.user,
+        org_role=OrgRole.org_admin if int(others) == 0 else OrgRole.org_member,
         is_active=True,
         last_login_at=utcnow(),
     )

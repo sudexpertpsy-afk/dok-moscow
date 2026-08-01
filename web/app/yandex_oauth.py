@@ -30,6 +30,7 @@ from app.models import (
     SubscriptionStatus,
     Tariff,
     TariffCode,
+    OrgRole,
     User,
     UserRole,
     utcnow,
@@ -286,6 +287,7 @@ def register_guest_user(db: Session, profile: YandexProfile) -> User:
         email=profile.email,
         password_hash=None,
         role=UserRole.user,
+        org_role=OrgRole.org_admin,
         is_active=True,
         last_login_at=utcnow(),
     )
