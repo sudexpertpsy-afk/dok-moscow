@@ -285,13 +285,16 @@ def test_legal_pages(app):
     client, _ = app
     for path, needle in (
         ("/offer", "Публичная оферта"),
-        ("/requisites", "Реквизиты"),
+        ("/requisites", "7707817216"),
         ("/tariffs", "Специалист"),
         ("/privacy", "ТБанк"),
     ):
         r = client.get(path)
         assert r.status_code == 200, path
         assert needle in r.text
+    req = client.get("/requisites")
+    assert "40702810610000259195" in req.text
+    assert "post@use.moscow" in req.text
     sm = client.get("/sitemap.xml")
     assert "/offer" in sm.text
     assert "/tariffs" in sm.text

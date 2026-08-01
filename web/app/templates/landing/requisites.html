@@ -1,6 +1,6 @@
 {% extends "landing/base.html" %}
 {% block title %}Реквизиты — {{ app_name }}{% endblock %}
-{% block meta_description %}Реквизиты оператора сервиса Док.Москва (ООО «УСЭ»).{% endblock %}
+{% block meta_description %}Реквизиты оператора сервиса Док.Москва — ООО «УСЭ», ИНН 7707817216.{% endblock %}
 {% block canonical %}{{ public_base_url }}/requisites{% endblock %}
 {% block og_title %}Реквизиты — {{ app_name }}{% endblock %}
 {% block og_url %}{{ public_base_url }}/requisites{% endblock %}
@@ -9,28 +9,60 @@
 <article class="lp-legal">
   <div class="lp-wrap">
     <h1>Реквизиты</h1>
-    <p class="lp-section-lead">Черновик для публикации. Проверьте ИНН, ОГРН, расчётный счёт и юридический адрес перед боевыми оплатами.</p>
+    <p class="lp-section-lead">Оператор сервиса «{{ app_name }}» — ООО «УСЭ». Платежи картой принимаются через интернет-эквайринг Т‑Банка; чеки 54‑ФЗ формирует облачная касса банка.</p>
 
-    <h2>Исполнитель / оператор сервиса</h2>
+    <h2>Организация</h2>
     <ul class="lp-contacts">
-      <li><span>Полное наименование</span> ООО «Учреждение судебной экспертизы»</li>
+      <li><span>Полное наименование</span> Общество с ограниченной ответственностью «УЧРЕЖДЕНИЕ СУДЕБНОЙ ЭКСПЕРТИЗЫ»</li>
       <li><span>Краткое наименование</span> ООО «УСЭ»</li>
-      <li><span>ИНН / КПП</span> указать перед публикацией</li>
-      <li><span>ОГРН</span> указать перед публикацией</li>
-      <li><span>Юридический адрес</span> указать перед публикацией</li>
-      <li><span>Расчётный счёт</span> указать перед публикацией</li>
-      <li><span>Банк / БИК / к/с</span> указать перед публикацией</li>
+      <li><span>ИНН</span> <span class="mono">7707817216</span></li>
+      <li><span>КПП</span> <span class="mono">771401001</span></li>
+      <li><span>ОГРН</span> <span class="mono">5137746012619</span></li>
+      <li><span>ОКПО</span> <span class="mono">18920830</span></li>
+      <li><span>ОКАТО</span> <span class="mono">45277556000</span></li>
+      <li><span>ОКТМО</span> <span class="mono">45334000000</span></li>
+      <li><span>ОКОПФ</span> <span class="mono">12300</span></li>
+      <li><span>ОКОГУ</span> <span class="mono">4210014</span></li>
+      <li><span>ОКФС</span> <span class="mono">16</span></li>
+      <li><span>Юридический адрес</span> 125124, г.&nbsp;Москва, 3-я улица Ямского Поля, д.&nbsp;2, стр.&nbsp;13, оф.&nbsp;221 (эт./пом./ком.&nbsp;2/IX/37)</li>
+      <li><span>Генеральный директор</span> Лосев Андрей Васильевич</li>
     </ul>
 
-    <h2>Контакты</h2>
+    <h2>Контакты организации</h2>
     <ul class="lp-contacts">
-      <li><span>Общие вопросы</span> <a href="mailto:hello@dok.moscow">hello@dok.moscow</a></li>
+      <li><span>E-mail</span> <a href="mailto:post@use.moscow">post@use.moscow</a></li>
+      <li><span>Телефон</span> <a href="tel:+74954142063">8&nbsp;(495)&nbsp;414-20-63</a></li>
+      <li><span>Сервис {{ app_name }}</span> <a href="mailto:hello@dok.moscow">hello@dok.moscow</a></li>
       <li><span>Персональные данные</span> <a href="mailto:privacy@dok.moscow">privacy@dok.moscow</a></li>
       <li><span>Сайт</span> <a href="{{ public_base_url }}/">{{ public_base_url }}</a></li>
       <li><span>Кабинет</span> <a href="{{ app_base_url }}/login">{{ app_base_url }}</a></li>
     </ul>
 
-    <p>Платежи принимаются через интернет-эквайринг Т‑Банка (АО «ТБанк»). Чеки 54‑ФЗ формирует облачная касса банка.</p>
+    <h2>Банковские реквизиты</h2>
+
+    <h3>ПАО «Сбербанк России»</h3>
+    <ul class="lp-contacts">
+      <li><span>Расчётный счёт</span> <span class="mono">40702810338000013478</span></li>
+      <li><span>Корр. счёт</span> <span class="mono">30101810400000000225</span></li>
+      <li><span>БИК</span> <span class="mono">044525225</span></li>
+      <li><span>Адрес банка</span> г.&nbsp;Москва, ул.&nbsp;Вавилова, д.&nbsp;19</li>
+    </ul>
+
+    <h3>АО «Альфа-Банк»</h3>
+    <ul class="lp-contacts">
+      <li><span>Расчётный счёт</span> <span class="mono">40702810002860008685</span></li>
+      <li><span>Корр. счёт</span> <span class="mono">30101810200000000593</span></li>
+      <li><span>БИК</span> <span class="mono">044525593</span></li>
+    </ul>
+
+    <h3>АО «ТБанк» (Тинькофф)</h3>
+    <ul class="lp-contacts">
+      <li><span>Расчётный счёт</span> <span class="mono">40702810610000259195</span></li>
+      <li><span>Корр. счёт</span> <span class="mono">30101810145250000974</span></li>
+      <li><span>БИК</span> <span class="mono">044525974</span></li>
+      <li><span>Адрес банка</span> 123060, г.&nbsp;Москва, 1-й Волоколамский проезд, д.&nbsp;10, стр.&nbsp;1</li>
+    </ul>
+
     <p>См. также: <a href="/offer">Оферта</a>, <a href="/privacy">Политика ПДн</a>, <a href="/tariffs">Тарифы</a>.</p>
   </div>
 </article>

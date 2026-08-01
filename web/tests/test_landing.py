@@ -27,9 +27,16 @@ def test_privacy_and_contacts(app):
     r = client.get("/privacy")
     assert r.status_code == 200
     assert "Политика обработки" in r.text
+    assert "7707817216" in r.text
     r = client.get("/contacts")
     assert r.status_code == 200
     assert "hello@dok.moscow" in r.text
+    assert "post@use.moscow" in r.text
+    assert "414-20-63" in r.text
+    r = client.get("/requisites")
+    assert r.status_code == 200
+    assert "ООО «УСЭ»" in r.text
+    assert "5137746012619" in r.text
 
 
 def test_robots_and_sitemap(app):
