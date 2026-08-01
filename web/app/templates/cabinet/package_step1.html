@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "cabinet/_steps.html" import steps_bar %}
+{% block title %}Комплект — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">{{ app_name }}</div>
+    <div class="org">{{ org.name }}</div>
+    <nav class="nav">
+      {% for key, label, href in nav %}
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <main class="content">
+    <div class="topbar">
+      <span>{{ user.email }}</span>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+    <section class="panel">
+      <h1>Новый комплект</h1>
+      {{ steps_bar(step, steps) }}
+      {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+      <form method="post" action="/cabinet/package/step1">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="тип">Тип контрагента</label>
+        <select id="тип" name="тип" onchange="location.href='/cabinet/package/?тип='+encodeURIComponent(this.value)">
+          {% for t in types %}
+            <option value="{{ t }}" {% if (wizard.тип or 'Физлицо') == t %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+
+        <label for="counterparty_id">Из картотеки</label>
+        <select id="counterparty_id" name="counterparty_id">
+          <option value="new">— Новый контрагент —</option>
+          {% for c in counterparties %}
+            <option value="{{ c.id }}" {% if wizard.counterparty_id == c.id %}selected{% endif %}>
+              {{ c.name or c.fio or ('#' ~ c.id) }}
+            </option>
+          {% endfor %}
+        </select>
+
+        <h2 style="font-family:var(--font-display);font-size:1.2rem;margin:1.2rem 0 0.4rem">Данные</h2>
+        {% set prefill = prefill or wizard.core_values or {} %}
+        {% for f in core_fields %}
+          <label for="cf_{{ loop.index }}">{{ f }}</label>
+          <input id="cf_{{ loop.index }}" name="{{ f }}" value="{{ prefill.get(f, '') }}">
+        {% endfor %}
+        <div class="actions">
+          <button type="submit">Далее</button>
+        </div>
+      </form>
+    </section>
+  </main>
+</div>
+{% endblock %}
