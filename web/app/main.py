@@ -32,6 +32,7 @@ from app.routers import (
     journal,
     landing,
     package,
+    party_check,
     zakon,
 )
 from app.routers import settings as settings_routes
@@ -159,6 +160,7 @@ def create_app() -> FastAPI:
     app.include_router(documents.router)
     app.include_router(package.router)
     app.include_router(counterparties.router)
+    app.include_router(party_check.router)
     app.include_router(journal.router)
     app.include_router(calendar.router)
     app.include_router(settings_routes.router)

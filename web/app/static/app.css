@@ -111,6 +111,35 @@ button:hover, .btn:hover { filter: brightness(1.05); }
 }
 .alert-error { background: #fde8e8; color: var(--danger); }
 .alert-ok { background: #e7f6ee; color: var(--ok); }
+.alert-warn { background: #fff3e0; color: #9a5b12; }
+
+.party-status {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: rgba(20, 34, 31, 0.04);
+}
+.party-status-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+.party-status-ok .party-status-dot { background: var(--ok); }
+.party-status-warn .party-status-dot { background: #d19a3e; }
+.party-status-danger .party-status-dot { background: var(--danger); }
+.party-dl {
+  display: grid;
+  gap: 0.65rem 1.25rem;
+  margin: 1rem 0 0;
+}
+.party-dl > div { display: grid; gap: 0.15rem; }
+.party-dl dt { font-size: 0.8rem; color: var(--muted); margin: 0; }
+.party-dl dd { margin: 0; }
 
 /* Cabinet */
 .layout {

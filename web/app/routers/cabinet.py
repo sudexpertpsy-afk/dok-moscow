@@ -20,6 +20,7 @@ NAV = [
     ("package", "Комплект", "/cabinet/package/"),
     ("templates", "Мои шаблоны", "/cabinet/templates/"),
     ("counterparties", "Контрагенты", "/cabinet/counterparties/"),
+    ("party_check", "Проверка контрагента", "/cabinet/party-check/"),
     ("journal", "Журнал", "/cabinet/journal"),
     ("calendar", "Календарь", "/cabinet/calendar/"),
     ("billing", "Тариф и оплата", "/cabinet/billing/"),

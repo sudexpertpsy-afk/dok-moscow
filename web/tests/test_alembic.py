@@ -77,7 +77,11 @@ def test_alembic_upgrade_head_clean_db():
         "act_versions",
         "act_fragments",
         "act_watch_log",
+<<<<<<< HEAD
         "legal_search_docs",
+=======
+        "party_checks",
+>>>>>>> origin/cursor/w21-counterparty-check-0030
         "alembic_version",
     }
     assert expected.issubset(tables)

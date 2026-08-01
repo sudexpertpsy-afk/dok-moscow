@@ -21,6 +21,7 @@ from app.services.package_generate import (
     package_export_dir,
 )
 from app.services.package_master import (
+    CP_TO_TYPE,
     SESSION_KEY,
     TYPE_LABELS,
     TYPE_TO_CP,
@@ -33,6 +34,7 @@ from app.services.package_master import (
     infer_type,
     selected_templates,
 )
+from app.services.party_check import refresh_stale_egrul
 from app.services.gotenberg import GotenbergError
 from app.templating import templates
 
@@ -91,6 +93,23 @@ def package_start(
     if q_type in TYPE_LABELS:
         data["тип"] = q_type
         _save(request, data)
+
+    cp_id_raw = str(request.query_params.get("counterparty_id") or "").strip()
+    egrul_warning = None
+    if cp_id_raw.isdigit():
+        cp = db.get(Counterparty, int(cp_id_raw))
+        if cp is not None and cp.org_id == org.id:
+            data["counterparty_id"] = cp.id
+            data["тип"] = CP_TO_TYPE.get(cp.type, data.get("тип") or "Юрлицо")
+            data["core_values"] = {
+                **(data.get("core_values") or {}),
+                **core_from_counterparty(data["тип"], cp),
+            }
+            _save(request, data)
+            _, egrul_warning = refresh_stale_egrul(
+                db, org_id=org.id, user_id=user.id, cp=cp
+            )
+
     тип = data.get("тип") or "Физлицо"
     cps = list_counterparties(db, org.id)
     cps = [c for c in cps if c.type == TYPE_TO_CP.get(тип, c.type)]
@@ -105,6 +124,7 @@ def package_start(
             wizard=data,
             counterparties=cps,
             core_fields=_core_field_names(тип),
+            egrul_warning=egrul_warning,
         ),
     )
 
@@ -172,6 +192,14 @@ async def package_step1(
         )
 
     data["core_values"] = core
+    egrul_warning = None
+    if data.get("counterparty_id"):
+        cp = db.get(Counterparty, int(data["counterparty_id"]))
+        if cp is not None and cp.org_id == org.id:
+            _, egrul_warning = refresh_stale_egrul(
+                db, org_id=org.id, user_id=user.id, cp=cp
+            )
+    data["egrul_warning"] = egrul_warning
     _save(request, data)
     return RedirectResponse("/cabinet/package/step2", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -277,6 +305,16 @@ def package_step3_get(
     values.update(defaults)
     values.update(data.get("core_values") or {})
     values.update(data.get("additional_values") or {})
+    egrul_warning = data.get("egrul_warning")
+    if data.get("counterparty_id"):
+        cp = db.get(Counterparty, int(data["counterparty_id"]))
+        if cp is not None and cp.org_id == org.id:
+            _, egrul_warning = refresh_stale_egrul(
+                db, org_id=org.id, user_id=user.id, cp=cp
+            )
+            data["egrul_warning"] = egrul_warning
+            _save(request, data)
+
     return templates.TemplateResponse(
         request=request,
         name="cabinet/package_step3.html",
@@ -291,6 +329,7 @@ def package_step3_get(
             values=values,
             selected=selected,
             display_name=display_name,
+            egrul_warning=egrul_warning,
         ),
     )
 
