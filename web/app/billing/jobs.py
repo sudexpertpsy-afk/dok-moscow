@@ -252,8 +252,35 @@ def _notify_renewal_failed(db: Session, sub: Subscription) -> None:
     )
 
 
+def _run_daily_jobs() -> None:
+    """Синхронные суточные задачи (вызывать через asyncio.to_thread)."""
+    db = dbmod.SessionLocal()
+    try:
+        n = process_autorenewals(db)
+        if n:
+            log.info("Autorenew started %s", n)
+        n_mail = notify_expiring_subscriptions(db)
+        if n_mail:
+            log.info("Expiry notices sent %s", n_mail)
+        from app.services.calendar_reminders import process_calendar_reminders
+
+        n_cal = process_calendar_reminders(db)
+        if n_cal:
+            log.info("Calendar reminders sent %s", n_cal)
+        if os.environ.get("LEGAL_WATCH_WORKER", "1") != "0":
+            from app.services.legal_monitor import run_daily_watch
+
+            watch_stats = run_daily_watch(db)
+            log.info("Legal watch: %s", watch_stats)
+    finally:
+        db.close()
+
+
 async def billing_background_loop(stop: asyncio.Event) -> None:
     """Каждые 60 с: раз в 30 мин сверка, раз в сутки автопродление и напоминания."""
+    # Сразу отдать управление lifespan — иначе create_task блокирует старт
+    # синхронным HTTP мониторинга НПА до первого await.
+    await asyncio.sleep(2)
     last_reconcile = 0.0
     last_renew_day = ""
     while not stop.is_set():
@@ -272,26 +299,7 @@ async def billing_background_loop(stop: asyncio.Event) -> None:
 
             day = utcnow().strftime("%Y-%m-%d")
             if day != last_renew_day:
-                db = dbmod.SessionLocal()
-                try:
-                    n = process_autorenewals(db)
-                    if n:
-                        log.info("Autorenew started %s", n)
-                    n_mail = notify_expiring_subscriptions(db)
-                    if n_mail:
-                        log.info("Expiry notices sent %s", n_mail)
-                    from app.services.calendar_reminders import process_calendar_reminders
-
-                    n_cal = process_calendar_reminders(db)
-                    if n_cal:
-                        log.info("Calendar reminders sent %s", n_cal)
-                    if os.environ.get("LEGAL_WATCH_WORKER", "1") != "0":
-                        from app.services.legal_monitor import run_daily_watch
-
-                        watch_stats = run_daily_watch(db)
-                        log.info("Legal watch: %s", watch_stats)
-                finally:
-                    db.close()
+                await asyncio.to_thread(_run_daily_jobs)
                 last_renew_day = day
         except Exception:
             log.exception("billing background loop error")
