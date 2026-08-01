@@ -91,6 +91,21 @@ class PaymentMode(str, enum.Enum):
     live = "live"
 
 
+class CalendarEventKind(str, enum.Enum):
+    plan = "plan"
+    meeting = "meeting"
+    contract_end = "contract_end"
+    contract_start = "contract_start"
+    payment_due = "payment_due"
+    other = "other"
+
+
+class CalendarEventStatus(str, enum.Enum):
+    planned = "planned"
+    done = "done"
+    cancelled = "cancelled"
+
+
 JsonType = JSON().with_variant(JSONB(), "postgresql")
 
 _STR_ENUM = dict(
@@ -119,6 +134,7 @@ class Organization(Base):
     events: Mapped[list[Event]] = relationship(back_populates="organization")
     subscriptions: Mapped[list["Subscription"]] = relationship(back_populates="organization")
     payments: Mapped[list["Payment"]] = relationship(back_populates="organization")
+    calendar_events: Mapped[list["CalendarEvent"]] = relationship(back_populates="organization")
 
 
 class User(Base):
@@ -547,3 +563,59 @@ class PaymentSettings(Base):
     updated_by_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+
+
+class CalendarEvent(Base):
+    """Событие календаря / план / напоминание (кабинет организации)."""
+
+    __tablename__ = "calendar_events"
+    __table_args__ = (
+        Index("ix_calendar_events_org_due", "org_id", "due_on"),
+        Index("ix_calendar_events_org_status", "org_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    due_on: Mapped[date] = mapped_column(Date, nullable=False)
+    kind: Mapped[CalendarEventKind] = mapped_column(
+        Enum(CalendarEventKind, name="calendar_event_kind", **_STR_ENUM),
+        nullable=False,
+        default=CalendarEventKind.plan,
+    )
+    status: Mapped[CalendarEventStatus] = mapped_column(
+        Enum(CalendarEventStatus, name="calendar_event_status", **_STR_ENUM),
+        nullable=False,
+        default=CalendarEventStatus.planned,
+    )
+    remind_days_before: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    counterparty_id: Mapped[int | None] = mapped_column(
+        ForeignKey("counterparties.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    document_id: Mapped[int | None] = mapped_column(
+        ForeignKey("documents.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    contract_id: Mapped[int | None] = mapped_column(
+        ForeignKey("contracts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    organization: Mapped[Organization] = relationship(back_populates="calendar_events")
+    counterparty: Mapped[Counterparty | None] = relationship()
+    document: Mapped[Document | None] = relationship()
+    contract: Mapped[Contract | None] = relationship()

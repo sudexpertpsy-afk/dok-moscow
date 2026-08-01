@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}{% if event %}Событие{% else %}Новое событие{% endif %} — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">{{ app_name }}</div>
+    <div class="org">{{ org.name }}</div>
+    <nav class="nav">
+      {% for key, label, href in nav %}
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <main id="main" class="content" tabindex="-1">
+    <div class="topbar">
+      <span>{{ user.email }}</span>
+      <form method="post" action="/logout" hx-boost="false">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+
+    <section class="panel" style="max-width:40rem">
+      <h1>{% if event %}Редактирование{% else %}Запланировать{% endif %}</h1>
+      <p class="muted">Свяжите событие с контрагентом и включите напоминание на e-mail организации.</p>
+      {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+
+      <form method="post" action="{% if event %}/cabinet/calendar/{{ event.id }}{% else %}/cabinet/calendar/new{% endif %}" style="margin-top:1rem">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="title">Название</label>
+        <input id="title" name="title" required maxlength="255"
+          value="{{ form_title if form_title is defined else (event.title if event else '') }}">
+
+        <label for="due_on">Дата</label>
+        <input id="due_on" name="due_on" type="date" required value="{{ due_on }}">
+
+        <label for="kind">Тип</label>
+        <select id="kind" name="kind">
+          {% set cur_kind = form_kind if form_kind is defined else (event.kind.value if event else 'plan') %}
+          {% for k in kind_choices %}
+          <option value="{{ k.value }}" {% if k.value == cur_kind %}selected{% endif %}>{{ kind_labels.get(k, k.value) }}</option>
+          {% endfor %}
+        </select>
+
+        {% if event %}
+        <label for="status_v">Статус</label>
+        <select id="status_v" name="status_v">
+          {% for s in status_choices %}
+          <option value="{{ s.value }}" {% if event.status.value == s.value %}selected{% endif %}>{{ status_labels.get(s, s.value) }}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+
+        <label for="counterparty_id">Контрагент</label>
+        <select id="counterparty_id" name="counterparty_id">
+          <option value="">— не выбран —</option>
+          {% set cur_cp = form_cp if form_cp is defined else (event.counterparty_id if event else '') %}
+          {% for c in counterparties %}
+          <option value="{{ c.id }}" {% if cur_cp and cur_cp|string == c.id|string %}selected{% endif %}>
+            {{ c.name or c.fio or ('#' ~ c.id) }}
+          </option>
+          {% endfor %}
+        </select>
+
+        <label for="remind_days_before">Напоминание по e-mail</label>
+        <select id="remind_days_before" name="remind_days_before">
+          {% set cur_r = form_remind if form_remind is defined else (event.remind_days_before if event and event.remind_days_before is not none else '1') %}
+          <option value="none" {% if cur_r == 'none' or cur_r is none %}selected{% endif %}>Не напоминать</option>
+          <option value="0" {% if cur_r|string == '0' %}selected{% endif %}>В день события</option>
+          <option value="1" {% if cur_r|string == '1' %}selected{% endif %}>За 1 день</option>
+          <option value="3" {% if cur_r|string == '3' %}selected{% endif %}>За 3 дня</option>
+          <option value="7" {% if cur_r|string == '7' %}selected{% endif %}>За 7 дней</option>
+          <option value="14" {% if cur_r|string == '14' %}selected{% endif %}>За 14 дней</option>
+        </select>
+
+        <label for="notes">Заметки</label>
+        <textarea id="notes" name="notes" rows="4">{{ form_notes if form_notes is defined else (event.notes or '') }}</textarea>
+
+        <div class="actions" style="margin-top:1rem; display:flex; gap:0.5rem; flex-wrap:wrap">
+          <button type="submit">Сохранить</button>
+          <a class="btn secondary" href="/cabinet/calendar/">Назад</a>
+        </div>
+      </form>
+
+      {% if event %}
+      <form method="post" action="/cabinet/calendar/{{ event.id }}/delete" style="margin-top:1.5rem"
+            onsubmit="return confirm('Отменить это событие?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="danger">Отменить событие</button>
+      </form>
+      {% if event.document_id %}
+      <p style="margin-top:1rem"><a href="/cabinet/documents/{{ event.document_id }}">Открыть связанный документ</a></p>
+      {% endif %}
+      {% endif %}
+    </section>
+  </main>
+</div>
+{% endblock %}

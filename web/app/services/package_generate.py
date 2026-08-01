@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import Counterparty, CounterpartySource, Document, DocumentFormat, Organization
+from app.services.calendar_svc import upsert_contract_from_package
 from app.services.counters import allocate_number
 from app.services.gotenberg import GotenbergError, convert_docx_to_pdf, merge_pdfs
 from app.services.package_master import (
@@ -127,12 +128,24 @@ def generate_package(
         doc.counterparty_id = cp.id
         db.add(doc)
         docs.append(doc)
+    db.flush()
+
+    contract = upsert_contract_from_package(
+        db,
+        org=org,
+        counterparty=cp,
+        contract_template=contract_template,
+        context=merged,
+        document_ids=[d.id for d in docs],
+        user_id=user_id,
+    )
     db.commit()
     for d in docs:
         db.refresh(d)
 
     return {
         "counterparty_id": cp.id,
+        "contract_id": contract.id if contract else None,
         "document_ids": [d.id for d in docs],
         "documents": docs,
         "core_values": core_values,

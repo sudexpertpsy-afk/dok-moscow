@@ -279,6 +279,11 @@ async def billing_background_loop(stop: asyncio.Event) -> None:
                     n_mail = notify_expiring_subscriptions(db)
                     if n_mail:
                         log.info("Expiry notices sent %s", n_mail)
+                    from app.services.calendar_reminders import process_calendar_reminders
+
+                    n_cal = process_calendar_reminders(db)
+                    if n_cal:
+                        log.info("Calendar reminders sent %s", n_cal)
                 finally:
                     db.close()
                 last_renew_day = day

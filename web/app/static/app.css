@@ -251,10 +251,101 @@ button:hover, .btn:hover { filter: brightness(1.05); }
 }
 button.danger, .btn.danger { background: var(--danger); }
 
+/* Календарь кабинета */
+.cal-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+.cal-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+.cal-month-title {
+  min-width: 9rem;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+.cal-wd {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding: 0.25rem 0;
+}
+.cal-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-height: 4.2rem;
+  padding: 0.4rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.45);
+  color: inherit;
+  text-decoration: none;
+}
+.cal-cell:hover { background: rgba(15, 122, 102, 0.08); text-decoration: none; }
+.cal-out { opacity: 0.45; }
+.cal-today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.cal-selected { background: rgba(15, 122, 102, 0.14); }
+.cal-has { border-color: rgba(15, 122, 102, 0.35); }
+.cal-num { font-weight: 600; font-size: 0.95rem; }
+.cal-dots { list-style: none; margin: 0; padding: 0; display: flex; gap: 0.2rem; flex-wrap: wrap; }
+.cal-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.cal-dot.kind-contract_end { background: var(--accent-2); }
+.cal-dot.kind-contract_start { background: var(--ok); }
+.cal-dot.kind-meeting { background: #2b5f8c; }
+.cal-dot.kind-payment_due { background: var(--danger); }
+.cal-list { list-style: none; margin: 0; padding: 0; }
+.cal-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.cal-item-actions { display: flex; gap: 0.35rem; align-items: flex-start; flex-wrap: wrap; }
+.cal-overdue strong { color: var(--danger); }
+a.btn, .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1rem;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  font-weight: 600;
+  text-decoration: none;
+}
+a.btn:hover { filter: brightness(1.05); text-decoration: none; }
+a.btn.secondary, .btn.secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
 @media (max-width: 860px) {
   .layout { grid-template-columns: 1fr; }
   .sidebar { border-right: 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
   .grid-2 { grid-template-columns: 1fr; }
+  .cal-cell { min-height: 3.2rem; padding: 0.3rem; }
 }
 
 /* WCAG 2.4.7 — focus-visible для клавиатурной навигации */

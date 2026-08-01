@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Календарь — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">{{ app_name }}</div>
+    <div class="org">{{ org.name }}</div>
+    <nav class="nav">
+      {% for key, label, href in nav %}
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <main id="main" class="content" tabindex="-1">
+    <div class="topbar">
+      <span>{{ user.email }}</span>
+      <form method="post" action="/logout" hx-boost="false">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+
+    {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+    {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+
+    <section class="panel">
+      <div class="cal-head">
+        <div>
+          <h1>Календарь</h1>
+          <p class="muted">Планирование, сроки договоров и напоминания по e-mail.</p>
+        </div>
+        <div class="cal-head-actions">
+          <a class="btn secondary" href="/cabinet/calendar/?year={{ prev_year }}&month={{ prev_month }}">←</a>
+          <strong class="cal-month-title">{{ month_title }}</strong>
+          <a class="btn secondary" href="/cabinet/calendar/?year={{ next_year }}&month={{ next_month }}">→</a>
+          <a class="btn" href="/cabinet/calendar/new{% if selected %}?day={{ selected.isoformat() }}{% endif %}">Запланировать</a>
+        </div>
+      </div>
+
+      <div class="cal-grid" role="grid" aria-label="{{ month_title }}">
+        {% for wd in weekdays %}
+          <div class="cal-wd">{{ wd }}</div>
+        {% endfor %}
+        {% for week in weeks %}
+          {% for cell in week %}
+            {% set d = cell.day %}
+            <a class="cal-cell {% if not cell.in_month %}cal-out{% endif %} {% if d == today %}cal-today{% endif %} {% if selected and d == selected %}cal-selected{% endif %} {% if cell.events %}cal-has{% endif %}"
+               href="/cabinet/calendar/?year={{ year }}&month={{ month }}&day={{ d.isoformat() }}"
+               {% if d == today %}aria-current="date"{% endif %}>
+              <span class="cal-num">{{ d.day }}</span>
+              {% if cell.events %}
+              <ul class="cal-dots">
+                {% for ev in cell.events[:3] %}
+                <li class="cal-dot kind-{{ ev.kind.value }}" title="{{ ev.title }}"></li>
+                {% endfor %}
+              </ul>
+              {% endif %}
+            </a>
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </section>
+
+    <div class="grid-2" style="margin-top:1rem">
+      <section class="panel">
+        <h2>{% if selected %}События {{ selected.strftime('%d.%m.%Y') }}{% else %}Выберите день{% endif %}</h2>
+        {% if selected %}
+          <p style="margin:0.5rem 0 1rem"><a href="/cabinet/calendar/new?day={{ selected.isoformat() }}">+ Добавить на этот день</a></p>
+          {% if day_events %}
+          <ul class="cal-list">
+            {% for ev in day_events %}
+            <li class="cal-item kind-{{ ev.kind.value }}">
+              <div>
+                <a href="/cabinet/calendar/{{ ev.id }}"><strong>{{ ev.title }}</strong></a>
+                <div class="muted">{{ kind_labels.get(ev.kind, ev.kind.value) }} · {{ status_labels.get(ev.status, ev.status.value) }}
+                  {% if ev.counterparty %} · {{ ev.counterparty.name or ev.counterparty.fio }}{% endif %}
+                  {% if ev.remind_days_before is not none %} · напоминание за {{ ev.remind_days_before }} дн.{% endif %}
+                </div>
+              </div>
+              <div class="cal-item-actions">
+                {% if ev.status.value == 'planned' %}
+                <form method="post" action="/cabinet/calendar/{{ ev.id }}/done">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="secondary">Готово</button>
+                </form>
+                {% endif %}
+                <a class="btn secondary" href="/cabinet/calendar/{{ ev.id }}">Изменить</a>
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="muted">На этот день пока ничего нет.</p>
+          {% endif %}
+        {% else %}
+          <p class="muted">Кликните по дню в сетке, чтобы увидеть и добавить события.</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>Требуют внимания</h2>
+        <p class="muted" style="margin-bottom:0.75rem">Просроченные и ближайшие 14 дней (запланированные).</p>
+        {% if attention %}
+        <ul class="cal-list">
+          {% for ev in attention %}
+          <li class="cal-item kind-{{ ev.kind.value }} {% if ev.due_on < today %}cal-overdue{% endif %}">
+            <div>
+              <a href="/cabinet/calendar/{{ ev.id }}"><strong>{{ ev.title }}</strong></a>
+              <div class="muted">{{ ev.due_on.strftime('%d.%m.%Y') }}
+                {% if ev.due_on < today %} · просрочено{% elif ev.due_on == today %} · сегодня{% endif %}
+                {% if ev.document_id %} · <a href="/cabinet/documents/{{ ev.document_id }}">документ</a>{% endif %}
+              </div>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">Ближайших сроков нет. При генерации комплекта с датой окончания договора событие появится здесь автоматически.</p>
+        {% endif %}
+      </section>
+    </div>
+  </main>
+</div>
+{% endblock %}
