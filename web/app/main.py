@@ -32,6 +32,7 @@ from app.routers import (
     journal,
     landing,
     package,
+    zakon,
 )
 from app.routers import settings as settings_routes
 from app.security import hash_password
@@ -149,6 +150,7 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     app.include_router(landing.router)
+    app.include_router(zakon.router)
     app.include_router(auth.router)
     app.include_router(billing.router)
     app.include_router(cabinet.router)

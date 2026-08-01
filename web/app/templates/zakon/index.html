@@ -1,0 +1,75 @@
+{% extends "landing/base.html" %}
+{% block title %}{% if query %}Поиск: {{ query }} — {% endif %}Законодательство о судебной экспертизе — {{ app_name }}{% endblock %}
+{% block meta_description %}Справочник нормативных актов о судебной экспертизе: 73-ФЗ, процессуальные кодексы, постановления пленумов и ведомственные приказы. Тексты по официальным источникам РФ.{% endblock %}
+{% block canonical %}{{ public_base_url }}/zakon/{% if query %}?q={{ query|urlencode }}{% endif %}{% endblock %}
+{% block og_title %}Законодательство о судебной экспертизе — {{ app_name }}{% endblock %}
+{% block og_url %}{{ public_base_url }}/zakon/{% endblock %}
+
+{% block content %}
+<section class="lp-legal zk-hero">
+  <div class="lp-wrap">
+    <p class="zk-eyebrow">Справочник</p>
+    <h1>Законодательство о судебной экспертизе</h1>
+    <p class="lp-section-lead">Профильный закон, «экспертные» нормы процессуальных кодексов, разъяснения высших судов и ведомственные приказы — с указанием редакции и ссылкой на первоисточник.</p>
+    <form class="zk-search" method="get" action="/zakon/" role="search">
+      <label class="sr-only" for="zk-q">Поиск по разделу</label>
+      <input id="zk-q" name="q" type="search" value="{{ query }}" placeholder="Например: внушаемость, дополнительная экспертиза, ст. 79" maxlength="200">
+      <button type="submit">Найти</button>
+    </form>
+  </div>
+</section>
+
+{% if query %}
+<section class="lp-section">
+  <div class="lp-wrap">
+    <h2>Результаты по запросу «{{ query }}»</h2>
+    {% if hits %}
+    <ul class="zk-list">
+      {% for hit in hits %}
+      <li>
+        <a href="/zakon/{{ hit.act.slug }}">{{ hit.act.title }}</a>
+        <div class="zk-meta">{{ hit.act.number }} · {{ category_label.get(hit.act.category, hit.act.category.value) }}</div>
+        {% if hit.snippet %}
+        <p class="zk-snippet">{{ highlight(hit.snippet, query)|safe }}</p>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="lp-section-lead">Ничего не найдено. Попробуйте другой запрос или откройте <a href="/zakon/">каталог</a>.</p>
+    {% endif %}
+  </div>
+</section>
+{% else %}
+{% for label, acts in groups %}
+<section class="lp-section {% if loop.index is even %}lp-section-alt{% endif %}">
+  <div class="lp-wrap">
+    <h2>{{ label }}</h2>
+    <ul class="zk-list">
+      {% for act in acts %}
+      <li>
+        <a href="/zakon/{{ act.slug }}">{{ act.title }}</a>
+        <div class="zk-meta">
+          {% if act.act_kind %}{{ act.act_kind }}{% endif %}
+          {% if act.adopted_on %} · {{ act.adopted_on.strftime('%d.%m.%Y') }}{% endif %}
+          {% if act.number %} · № {{ act.number }}{% endif %}
+          {% if act.authority %} · {{ act.authority }}{% endif %}
+        </div>
+        <div class="zk-meta">
+          {% if act.last_verified_at %}сверено {{ act.last_verified_at.strftime('%d.%m.%Y') }}{% else %}сверка при публикации редакции{% endif %}
+          {% if act.mode.value == 'card' %} · карточка со ссылкой{% elif act.mode.value == 'fragments' %} · экспертные статьи{% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+{% endfor %}
+{% endif %}
+
+<section class="lp-section">
+  <div class="lp-wrap">
+    <p class="zk-disclaimer">{{ disclaimer }}</p>
+  </div>
+</section>
+{% endblock %}

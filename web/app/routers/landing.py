@@ -221,14 +221,24 @@ def robots_txt():
 
 
 @router.get("/sitemap.xml")
-def sitemap_xml():
+def sitemap_xml(db: Session = Depends(get_db)):
+    from app.models import LegalAct, LegalActStatus
+    from sqlalchemy import select
+
     base = get_settings().public_base_url.rstrip("/")
-    paths = ["/", "/privacy", "/offer", "/requisites", "/tariffs", "/contacts"]
+    paths = ["/", "/privacy", "/offer", "/requisites", "/tariffs", "/contacts", "/zakon/"]
     body = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ]
     for path in paths:
         body.append(f"  <url><loc>{base}{path}</loc><changefreq>weekly</changefreq></url>")
+    slugs = db.scalars(
+        select(LegalAct.slug).where(LegalAct.status == LegalActStatus.active)
+    ).all()
+    for slug in slugs:
+        body.append(
+            f"  <url><loc>{base}/zakon/{slug}</loc><changefreq>weekly</changefreq></url>"
+        )
     body.append("</urlset>")
     return Response("\n".join(body) + "\n", media_type="application/xml")

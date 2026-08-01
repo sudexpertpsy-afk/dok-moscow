@@ -83,6 +83,16 @@ def document_form(
         variables = template_variables(template_name, org.requisites, org_id=org.id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Шаблон не найден") from exc
+    from app.models import LegalAct
+    from app.services.legal_public import normative_for_template
+    from sqlalchemy import select
+
+    slugs = normative_for_template(template_name)
+    normative_links = []
+    for slug in slugs:
+        act = db.scalar(select(LegalAct).where(LegalAct.slug == slug))
+        if act:
+            normative_links.append({"slug": act.slug, "title": act.title})
     return templates.TemplateResponse(
         request=request,
         name="cabinet/document_form.html",
@@ -93,6 +103,7 @@ def document_form(
             template_name=template_name,
             variables=variables,
             values={},
+            normative_links=normative_links,
         ),
     )
 

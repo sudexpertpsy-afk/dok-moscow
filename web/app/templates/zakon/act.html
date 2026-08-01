@@ -1,0 +1,108 @@
+{% extends "landing/base.html" %}
+{% block title %}{{ act.title }} — Законодательство — {{ app_name }}{% endblock %}
+{% block meta_description %}{{ act.title }}. {{ meta_line }}. Справочный текст по официальным источникам РФ на {{ app_name }}.{% endblock %}
+{% block canonical %}{{ public_base_url }}/zakon/{{ act.slug }}{% endblock %}
+{% block og_title %}{{ act.title }} — {{ app_name }}{% endblock %}
+{% block og_url %}{{ public_base_url }}/zakon/{{ act.slug }}{% endblock %}
+
+{% block content %}
+<article class="lp-legal zk-act">
+  <div class="lp-wrap">
+    <p class="zk-eyebrow"><a href="/zakon/">Законодательство</a> · {{ category_label.get(act.category, act.category.value) }}</p>
+    <h1>{{ act.title }}</h1>
+    <p class="zk-meta">{{ meta_line }}{% if act.authority %} · {{ act.authority }}{% endif %}</p>
+
+    <div class="zk-plaque" role="note">
+      {% if published and published.revision_date %}
+      Редакция от {{ published.revision_date.strftime('%d.%m.%Y') }}
+      {% elif published %}
+      Опубликованная редакция
+      {% else %}
+      Текст редакции готовится к публикации
+      {% endif %}
+      {% if act.last_verified_at %}
+      · сверено {{ act.last_verified_at.strftime('%d.%m.%Y') }}
+      {% endif %}
+      · первоисточник:
+      <a href="{{ act.source_url }}" rel="noopener noreferrer" target="_blank">официальный интернет-портал правовой информации</a>
+    </div>
+
+    <div class="zk-actions">
+      {% if pdf_url %}
+      <a class="lp-btn" href="{{ pdf_url }}" rel="noopener noreferrer" target="_blank">PDF официальной публикации</a>
+      {% endif %}
+      {% if act.ips_nd %}
+      <a class="lp-btn lp-btn-ghost" href="http://pravo.gov.ru/proxy/ips/?docbody=&amp;nd={{ act.ips_nd }}" rel="noopener noreferrer" target="_blank">Полный текст в ИПС</a>
+      {% endif %}
+    </div>
+
+    {% if act.mode == mode_card %}
+    <div class="zk-body">
+      <p>{{ act.notes or 'Национальный стандарт. Полный текст в свободной републикации не размещается.' }}</p>
+      <p><a href="{{ act.source_url }}" rel="noopener noreferrer" target="_blank">Официальный фонд стандартов / первоисточник</a></p>
+    </div>
+    {% elif act.mode == mode_fragments %}
+    <div class="zk-toc">
+      <h2>Оглавление (экспертные нормы)</h2>
+      <ol>
+        {% for f in fragments %}
+        <li><a href="#frag-{{ loop.index }}">{{ f.article_ref }}{% if f.title and f.title != f.article_ref %} — {{ f.title }}{% endif %}</a></li>
+        {% endfor %}
+      </ol>
+      <p class="zk-meta">Полный текст кодекса — в <a href="http://pravo.gov.ru/ips/" rel="noopener noreferrer" target="_blank">ИПС «Законодательство России»</a>.</p>
+    </div>
+    <div class="zk-body">
+      {% for f in fragments %}
+      <section id="frag-{{ loop.index }}" class="zk-frag">
+        <h3>{{ f.article_ref }}{% if f.title and f.title != f.article_ref %} — {{ f.title }}{% endif %}</h3>
+        {% if f.body_html %}
+        {{ f.body_html|safe }}
+        {% else %}
+        <p class="zk-meta">Текст статьи будет загружен после сверки с официальной редакцией.</p>
+        {% endif %}
+      </section>
+      {% else %}
+      <p class="zk-meta">Список статей уточняется.</p>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="zk-body">
+      {% if published and published.body_html %}
+      {{ published.body_html|safe }}
+      {% else %}
+      <p class="zk-meta">Опубликованная редакция ещё не загружена. Следите за обновлением или откройте первоисточник.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if archives %}
+    <section class="zk-archive">
+      <h2>Архив редакций</h2>
+      <ul>
+        {% for v in archives %}
+        <li>
+          {% if v.revision_date %}{{ v.revision_date.strftime('%d.%m.%Y') }}{% else %}без даты{% endif %}
+          {% if v.change_basis %} — {{ v.change_basis[:160] }}{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <p class="zk-disclaimer">{{ disclaimer }}</p>
+  </div>
+</article>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": {{ act.title|tojson }},
+  "dateModified": {% if act.last_verified_at %}{{ act.last_verified_at.date().isoformat()|tojson }}{% else %}null{% endif %},
+  "author": {"@type": "Organization", "name": {{ act.authority|tojson }}},
+  "publisher": {"@type": "Organization", "name": {{ app_name|tojson }}, "url": {{ public_base_url|tojson }}},
+  "mainEntityOfPage": {{ (public_base_url ~ '/zakon/' ~ act.slug)|tojson }},
+  "description": {{ disclaimer|tojson }}
+}
+</script>
+{% endblock %}

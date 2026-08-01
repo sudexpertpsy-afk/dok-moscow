@@ -429,3 +429,129 @@ main[tabindex="-1"]:focus,
 main[tabindex="-1"]:focus-visible {
   outline: none;
 }
+
+/* W-18: раздел «Законодательство» */
+.zk-hero h1 {
+  font-family: var(--lp-display);
+  font-size: clamp(1.75rem, 4vw, 2.4rem);
+  line-height: 1.15;
+  margin: 0.35rem 0 0.75rem;
+  color: var(--lp-ink);
+  max-width: 18ch;
+}
+.zk-eyebrow {
+  margin: 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lp-accent, #0d6e5c);
+  font-weight: 600;
+}
+.zk-eyebrow a { color: inherit; text-decoration: none; }
+.zk-eyebrow a:hover { text-decoration: underline; }
+.zk-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.5rem;
+  max-width: 40rem;
+}
+.zk-search input[type="search"] {
+  flex: 1 1 16rem;
+  min-height: 44px;
+  border: 1px solid rgba(20, 40, 35, 0.18);
+  border-radius: 10px;
+  padding: 0.65rem 0.9rem;
+  font: inherit;
+  background: #fff;
+}
+.zk-search button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0.65rem 1.2rem;
+  background: var(--lp-accent, #0d6e5c);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+.zk-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
+.zk-list li {
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba(20, 40, 35, 0.08);
+}
+.zk-list a {
+  color: var(--lp-ink);
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 1.05rem;
+}
+.zk-list a:hover { color: var(--lp-accent, #0d6e5c); text-decoration: underline; }
+.zk-meta {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  color: var(--lp-muted);
+  line-height: 1.45;
+}
+.zk-snippet {
+  margin: 0.45rem 0 0;
+  color: var(--lp-muted);
+  line-height: 1.5;
+}
+.zk-snippet mark {
+  background: rgba(13, 110, 92, 0.18);
+  color: inherit;
+  padding: 0 0.15em;
+}
+.zk-plaque {
+  margin: 1.25rem 0;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: rgba(13, 110, 92, 0.08);
+  color: var(--lp-ink);
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+.zk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0 0 1.5rem;
+}
+.zk-body {
+  color: var(--lp-ink);
+  line-height: 1.65;
+  font-size: 1rem;
+}
+.zk-body p, .zk-body li { color: var(--lp-ink); }
+.zk-toc {
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.1rem;
+  border-radius: 12px;
+  background: rgba(20, 40, 35, 0.04);
+}
+.zk-toc ol { margin: 0.5rem 0 0; padding-left: 1.2rem; }
+.zk-frag { margin: 1.75rem 0; scroll-margin-top: 5rem; }
+.zk-archive { margin-top: 2.5rem; }
+.zk-disclaimer {
+  margin-top: 2rem;
+  font-size: 0.85rem;
+  color: var(--lp-muted);
+  border-top: 1px solid rgba(20, 40, 35, 0.1);
+  padding-top: 1rem;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

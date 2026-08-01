@@ -35,6 +35,17 @@
         </div>
       </form>
     </section>
+    {% if normative_links %}
+    <section class="panel" style="margin-top:1rem">
+      <h2>Нормативная база</h2>
+      <p class="muted">Справочные материалы раздела «Законодательство» (открытый доступ).</p>
+      <ul class="list">
+        {% for item in normative_links %}
+        <li><a href="/zakon/{{ item.slug }}" target="_blank" rel="noopener">{{ item.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
   </main>
 </div>
 {% endblock %}
