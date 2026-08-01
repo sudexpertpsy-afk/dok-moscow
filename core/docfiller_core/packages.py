@@ -30,7 +30,7 @@ from . import counters
 from . import filters
 from .config import load_settings
 from . import paths as app_paths
-from .registry import package_name, self_contained_set
+from .contracts_registry import package_name, self_contained_set
 
 
 # Шаблоны пакета (значения по умолчанию; переопределяются реестром)

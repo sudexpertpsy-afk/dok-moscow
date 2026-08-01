@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .filler import list_template_variables
 from . import packages
-from .registry import load_registry
+from .contracts_registry import load_registry
 from .utils import resolve_template_path, normalize_name
 
 ТИПЫ = ('Физлицо', 'Юрлицо', 'Эксперт (ГПД)')

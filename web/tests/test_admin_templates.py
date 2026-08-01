@@ -86,7 +86,7 @@ def test_upload_rename_delete(app, tmp_path, monkeypatch):
     assert r.status_code == 303
     assert (root / "Договор_тест_юрлицо.docx").is_file()
 
-    from docfiller_core.registry import load_registry
+    from docfiller_core.contracts_registry import load_registry
 
     reg = load_registry(root)
     assert "Договор_тест_юрлицо.docx" in reg["contracts"]["Юрлицо"]

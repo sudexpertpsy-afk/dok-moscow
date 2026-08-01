@@ -1,150 +1,221 @@
-"""Реестр шаблонов комплекта (contracts_registry.json в каталоге Шаблоны)."""
+"""
+Чтение/запись Excel-реестра документов.
 
-from __future__ import annotations
+Структура файла `Реестр.xlsx`:
 
-import json
+    Лист "Реестр" — таблица документов
+        Столбец A: Шаблон          (имя файла шаблона из папки «Шаблоны»)
+        Столбец B: Файл_результат  (имя выходного файла; если пусто — будет сгенерировано)
+        Столбец C: Статус          (заполняется после генерации: дата или ✗ ошибка)
+        Столбцы D+: переменные шаблона (имя столбца = имя переменной)
+"""
+
 from pathlib import Path
-
-REGISTRY_FILENAME = "contracts_registry.json"
-
-# Значения по умолчанию — как раньше в master._CONTRACTS / packages.
-DEFAULT_CONTRACTS = {
-    "Физлицо": [
-        "Договор_услуги_v2.docx",
-        "Договор_услуги_с_печатью.docx",
-        "Договор_освидетельствование.docx",
-        "Договор_рецензия.docx",
-        "Договор_обучение_СПЭ.docx",
-        "Договор_обучение_полиграф.docx",
-    ],
-    "Юрлицо": [
-        "Договор_услуги_юрлицо.docx",
-        "Договор_рецензия_юрлицо.docx",
-        "Договор_обучение_СПЭ_юрлицо.docx",
-    ],
-    "Эксперт (ГПД)": [
-        "Договор_ГПД_эксперт.docx",
-    ],
-}
-
-DEFAULT_PACKAGE_TEMPLATES = {
-    "bill_fiz": "Счёт_на_оплату.docx",
-    "bill_jur": "Счёт_на_оплату_юрлицо.docx",
-    "act_fiz": "Акт_оказанных_услуг.docx",
-    "act_jur": "Акт_оказанных_услуг_юрлицо.docx",
-    "pko": "ПКО_КО-1.docx",
-    "gpd_contract": "Договор_ГПД_эксперт.docx",
-    "act_gpd": "Акт_ГПД_эксперт.docx",
-    "consent": "Согласие_ПДн.docx",
-}
-
-DEFAULT_SELF_CONTAINED = ["Договор_освидетельствование.docx"]
-
-CONTRACT_TYPES = ("Физлицо", "Юрлицо", "Эксперт (ГПД)")
+from datetime import datetime
+import shutil
+import os
+import openpyxl
 
 
-def registry_path(templates_dir) -> Path:
-    return Path(templates_dir) / REGISTRY_FILENAME
+HEADER_ROW = 1
+DATA_START_ROW = 2
+
+COL_TEMPLATE = 'Шаблон'
+COL_OUTPUT   = 'Файл_результат'
+COL_STATUS   = 'Статус'
+
+SYSTEM_COLUMNS = {COL_TEMPLATE, COL_OUTPUT, COL_STATUS}
 
 
-def default_registry() -> dict:
-    return {
-        "contracts": {k: list(v) for k, v in DEFAULT_CONTRACTS.items()},
-        "self_contained": list(DEFAULT_SELF_CONTAINED),
-        "package_templates": dict(DEFAULT_PACKAGE_TEMPLATES),
-    }
+def is_locked_by_excel(registry_path):
+    """Открыт ли файл реестра прямо сейчас в Excel?
 
-
-def load_registry(templates_dir) -> dict:
-    path = registry_path(templates_dir)
-    data = default_registry()
-    if not path.is_file():
-        return data
+    Excel создаёт рядом скрытый файл «~$Имя.xlsx». Также пробуем открыть
+    файл на запись — это быстрая дополнительная проверка.
+    """
+    p = Path(registry_path)
+    # Excel'овский lock-файл
+    lock = p.parent / f'~${p.name}'
+    if lock.exists():
+        return True
+    # Файл может быть открыт другим приложением — пробуем дописать в него
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return data
-    if not isinstance(raw, dict):
-        return data
-    contracts = raw.get("contracts")
-    if isinstance(contracts, dict):
-        merged = {}
-        for key in CONTRACT_TYPES:
-            vals = contracts.get(key)
-            if isinstance(vals, list):
-                merged[key] = [str(x) for x in vals if str(x).endswith(".docx")]
+        with open(p, 'r+b'):
+            pass
+    except (PermissionError, OSError):
+        return True
+    return False
+
+
+def backup_registry(registry_path):
+    """Сохранить копию реестра в каталог бэкапов данных пользователя.
+
+    Хранятся 10 последних резервных копий, более старые удаляются.
+    """
+    from . import paths
+
+    p = Path(registry_path)
+    if not p.exists():
+        return None
+    backup_dir = paths.backups_dir()
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    dst = backup_dir / f'{p.stem}_{ts}.xlsx'
+    shutil.copy2(p, dst)
+
+    # Чистка: оставляем 10 последних копий для этого реестра
+    copies = sorted(
+        backup_dir.glob(f'{p.stem}_*.xlsx'),
+        key=lambda f: f.stat().st_mtime,
+        reverse=True,
+    )
+    for old in copies[10:]:
+        try:
+            old.unlink()
+        except OSError:
+            pass
+    return dst
+
+
+def read_rows(registry_path):
+    """
+    Прочитать все строки реестра. Возвращает список словарей с ключами:
+        '_row'      — номер строки в Excel,
+        '_template' — имя шаблона,
+        '_output'   — имя выходного файла (может быть пустым),
+        '_status'   — текущий статус,
+        остальные ключи — пользовательские поля (= имена столбцов).
+    """
+    # read_only=True — не блокирует файл, можно читать даже когда Excel открыт
+    wb = openpyxl.load_workbook(registry_path, data_only=True, read_only=True)
+    if 'Реестр' not in wb.sheetnames:
+        wb.close()
+        raise ValueError("В файле реестра не найден лист «Реестр»")
+    ws = wb['Реестр']
+
+    headers = {}
+    rows_raw = list(ws.iter_rows(values_only=False))
+    wb.close()
+    if not rows_raw:
+        return []
+
+    # Заголовки из первой строки
+    for col_idx, cell in enumerate(rows_raw[0], start=1):
+        if cell.value:
+            headers[col_idx] = str(cell.value).strip()
+
+    rows = []
+    for row_idx, row_cells in enumerate(rows_raw[1:], start=DATA_START_ROW):
+        row_dict = {'_row': row_idx}
+        has_data = False
+        for col_idx, cell in enumerate(row_cells, start=1):
+            header = headers.get(col_idx)
+            if not header:
+                continue
+            value = cell.value
+            if value is not None and value != '':
+                has_data = True
+            if header == COL_TEMPLATE:
+                row_dict['_template'] = value
+            elif header == COL_OUTPUT:
+                row_dict['_output'] = value
+            elif header == COL_STATUS:
+                row_dict['_status'] = value
             else:
-                merged[key] = list(data["contracts"][key])
-        data["contracts"] = merged
-    sc = raw.get("self_contained")
-    if isinstance(sc, list):
-        data["self_contained"] = [str(x) for x in sc if str(x).endswith(".docx")]
-    pkg = raw.get("package_templates")
-    if isinstance(pkg, dict):
-        for key, default in DEFAULT_PACKAGE_TEMPLATES.items():
-            val = pkg.get(key)
-            data["package_templates"][key] = (
-                str(val) if isinstance(val, str) and val.endswith(".docx") else default
-            )
-    return data
+                row_dict[header] = value
+        if has_data:
+            rows.append(row_dict)
+    return rows
 
 
-def save_registry(templates_dir, data: dict) -> None:
-    path = registry_path(templates_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "contracts": {k: list(data.get("contracts", {}).get(k, [])) for k in CONTRACT_TYPES},
-        "self_contained": list(data.get("self_contained") or []),
-        "package_templates": dict(data.get("package_templates") or DEFAULT_PACKAGE_TEMPLATES),
-    }
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    tmp.replace(path)
+def list_template_columns(registry_path):
+    """Вернуть список пользовательских (не служебных) столбцов реестра."""
+    wb = openpyxl.load_workbook(registry_path, data_only=True, read_only=True)
+    if 'Реестр' not in wb.sheetnames:
+        wb.close()
+        return []
+    ws = wb['Реестр']
+    headers = []
+    for cell in next(ws.iter_rows(min_row=1, max_row=1)):
+        if cell.value and str(cell.value).strip() not in SYSTEM_COLUMNS:
+            headers.append(str(cell.value).strip())
+    wb.close()
+    return headers
 
 
-def rename_in_registry(templates_dir, old_name: str, new_name: str) -> dict:
-    data = load_registry(templates_dir)
-    for key in CONTRACT_TYPES:
-        data["contracts"][key] = [
-            new_name if x == old_name else x for x in data["contracts"][key]
-        ]
-    data["self_contained"] = [
-        new_name if x == old_name else x for x in data["self_contained"]
+def write_status(registry_path, row_idx, output_filename, status):
+    """Записать статус и имя выходного файла в строку реестра.
+
+    Если Excel держит файл открытым — поднимаем PermissionError, который
+    обрабатывает вызывающий код.
+    """
+    wb = openpyxl.load_workbook(registry_path)
+    ws = wb['Реестр']
+
+    # Найти индексы нужных столбцов по заголовкам
+    target_cols = {}
+    for col_idx, cell in enumerate(ws[HEADER_ROW], start=1):
+        if cell.value in (COL_OUTPUT, COL_STATUS):
+            target_cols[cell.value] = col_idx
+
+    if COL_OUTPUT in target_cols and output_filename:
+        ws.cell(row=row_idx, column=target_cols[COL_OUTPUT]).value = output_filename
+    if COL_STATUS in target_cols:
+        ws.cell(row=row_idx, column=target_cols[COL_STATUS]).value = status
+
+    wb.save(registry_path)
+
+
+def make_sample_registry(registry_path, sample_data, template_name='СППЭ_информация_суду.docx'):
+    """Создать пример Реестр.xlsx с заголовками и одной строкой данных."""
+    # TODO(этап 4+): vulture — не вызывается из UI; образец уже в Реестр_*.example.xlsx.
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Реестр'
+
+    headers = [COL_TEMPLATE, COL_OUTPUT, COL_STATUS] + list(sample_data.keys())
+    for col_idx, h in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell.font = openpyxl.styles.Font(bold=True)
+
+    row = [template_name, '', ''] + list(sample_data.values())
+    for col_idx, val in enumerate(row, start=1):
+        ws.cell(row=2, column=col_idx, value=val)
+
+    # Подгон ширины колонок
+    for col_idx, h in enumerate(headers, start=1):
+        letter = openpyxl.utils.get_column_letter(col_idx)
+        max_len = max(len(str(h)), len(str(row[col_idx - 1])) if col_idx - 1 < len(row) else 0)
+        ws.column_dimensions[letter].width = min(max_len + 2, 60)
+
+    # Вторая колонка («Файл_результат») чуть пошире
+    ws.column_dimensions['B'].width = 28
+
+    # Лист с инструкцией
+    info = wb.create_sheet('Инструкция')
+    info_lines = [
+        'КАК ЗАПОЛНЯТЬ РЕЕСТР',
+        '',
+        '1. Каждая строка = один документ.',
+        '2. В столбце «Шаблон» укажите имя файла из папки «Шаблоны».',
+        '3. В столбце «Файл_результат» можно указать желаемое имя файла или оставить пустым.',
+        '4. Имена остальных столбцов должны совпадать с переменными {{ ... }} в шаблоне.',
+        '5. После генерации в столбце «Статус» появится дата создания.',
+        '',
+        'УМНЫЕ ФУНКЦИИ В ШАБЛОНАХ:',
+        '   {{ "Лосев Сергей Александрович" | род }} → Лосева Сергея Александровича',
+        '   {{ "Громинская Александра Владимировна" | дат }} → Громинской Александре Владимировне',
+        '   {{ 250000 | руб }} → 250 000 (двести пятьдесят тысяч) рублей',
+        '   {{ 30 | прописью }} → тридцать',
+        '   {{ "27.05.2026" | дата_рус }} → 27 мая 2026 г.',
+        '',
+        'ПАДЕЖИ: им, род, дат, вин, тв, пр',
     ]
-    pkg = data["package_templates"]
-    for key, val in list(pkg.items()):
-        if val == old_name:
-            pkg[key] = new_name
-    save_registry(templates_dir, data)
-    return data
+    for i, line in enumerate(info_lines, start=1):
+        info.cell(row=i, column=1, value=line)
+        if i == 1:
+            info.cell(row=i, column=1).font = openpyxl.styles.Font(bold=True, size=14)
+    info.column_dimensions['A'].width = 90
 
-
-def remove_from_registry(templates_dir, name: str) -> dict:
-    data = load_registry(templates_dir)
-    for key in CONTRACT_TYPES:
-        data["contracts"][key] = [x for x in data["contracts"][key] if x != name]
-    data["self_contained"] = [x for x in data["self_contained"] if x != name]
-    # package_templates не сбрасываем в пустоту — оставляем имя (файл могут вернуть)
-    save_registry(templates_dir, data)
-    return data
-
-
-def add_contract(templates_dir, name: str, contract_type: str) -> dict:
-    if contract_type not in CONTRACT_TYPES:
-        raise ValueError("Неизвестный тип договора")
-    data = load_registry(templates_dir)
-    lst = data["contracts"].setdefault(contract_type, [])
-    if name not in lst:
-        lst.append(name)
-    save_registry(templates_dir, data)
-    return data
-
-
-def package_name(templates_dir, key: str) -> str:
-    data = load_registry(templates_dir)
-    return data["package_templates"].get(key) or DEFAULT_PACKAGE_TEMPLATES[key]
-
-
-def self_contained_set(templates_dir) -> set[str]:
-    data = load_registry(templates_dir)
-    return set(data.get("self_contained") or [])
+    Path(registry_path).parent.mkdir(parents=True, exist_ok=True)
+    wb.save(registry_path)

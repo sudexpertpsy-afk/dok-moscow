@@ -62,7 +62,7 @@ def display_title(filename: str) -> str:
 def list_admin_templates() -> list[dict]:
     ensure_core_on_path()
     from docfiller_core.filler import describe_template
-    from docfiller_core.registry import load_registry
+    from docfiller_core.contracts_registry import load_registry
 
     root = _root()
     registry = load_registry(root)
@@ -118,7 +118,7 @@ def save_upload(
     dest.write_bytes(data)
     if contract_type:
         ensure_core_on_path()
-        from docfiller_core.registry import CONTRACT_TYPES, add_contract
+        from docfiller_core.contracts_registry import CONTRACT_TYPES, add_contract
 
         if contract_type not in CONTRACT_TYPES:
             raise TemplateAdminError("Неверный тип договора для комплекта")
@@ -129,7 +129,7 @@ def save_upload(
 
 def rename_template(db: Session, *, old_name: str, new_title: str) -> str:
     ensure_core_on_path()
-    from docfiller_core.registry import rename_in_registry
+    from docfiller_core.contracts_registry import rename_in_registry
 
     old = Path(old_name).name
     if old != old_name or not old.endswith(".docx"):
@@ -152,7 +152,7 @@ def rename_template(db: Session, *, old_name: str, new_title: str) -> str:
 
 def delete_template(db: Session, *, name: str) -> None:
     ensure_core_on_path()
-    from docfiller_core.registry import remove_from_registry
+    from docfiller_core.contracts_registry import remove_from_registry
 
     safe = Path(name).name
     if safe != name or not safe.endswith(".docx"):
@@ -166,7 +166,7 @@ def delete_template(db: Session, *, name: str) -> None:
 def set_contract_membership(*, name: str, contract_type: str) -> None:
     """Привязать/отвязать шаблон как договор комплекта."""
     ensure_core_on_path()
-    from docfiller_core.registry import CONTRACT_TYPES, load_registry, save_registry
+    from docfiller_core.contracts_registry import CONTRACT_TYPES, load_registry, save_registry
 
     safe = Path(name).name
     template_path(safe)  # existence
