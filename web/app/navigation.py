@@ -479,9 +479,11 @@ ROUTE_EXCEPTION_NOTES: dict[str, str] = {
     "/admin/templates/delete": "POST",
     "/admin/templates/role": "POST",
     "/admin/legal/new": "форма нового акта НПА",
+    "/admin/legal/bootstrap": "POST пакетное наполнение из ИПС",
     "/admin/legal/{act_id}": "карточка акта",
     "/admin/legal/{act_id}/publish/{version_id}": "POST публикация редакции",
     "/admin/legal/{act_id}/reject/{version_id}": "POST отклонение черновика",
+    "/admin/legal/{act_id}/pull-ips": "POST подтянуть текст из ИПС",
     "/admin/legal/{act_id}/upload": "POST ручная загрузка",
     "/admin/legal/{act_id}/settings": "POST настройки акта",
 }

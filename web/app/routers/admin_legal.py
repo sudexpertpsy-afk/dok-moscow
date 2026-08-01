@@ -26,6 +26,11 @@ from app.services.legal_admin import (
     manual_upload,
     update_act_settings,
 )
+from app.services.legal_bootstrap import (
+    acts_needing_fill,
+    bootstrap_missing,
+    pull_ips_to_draft,
+)
 from app.templating import templates
 
 router = APIRouter(prefix="/admin/legal", tags=["admin-legal"])
@@ -57,6 +62,7 @@ def legal_list(
     rows = list_acts_admin(db)
     flash_ok = request.query_params.get("ok")
     flash_error = request.query_params.get("error")
+    need = acts_needing_fill(db)
     return templates.TemplateResponse(
         request=request,
         name="admin/legal_list.html",
@@ -65,6 +71,7 @@ def legal_list(
             user,
             "legal",
             rows=rows,
+            need_fill_count=len(need),
             health_label={k.value: v for k, v in HEALTH_LABEL.items()},
             flash_ok={
                 "published": "Редакция опубликована",
@@ -72,10 +79,45 @@ def legal_list(
                 "draft": "Черновик создан",
                 "saved": "Сохранено",
                 "created": "Акт добавлен",
+                "bootstrap": request.query_params.get("msg") or "Наполнение запущено",
+                "pulled": "Текст подтянут в черновик",
             }.get(flash_ok or "", flash_ok),
             flash_error=flash_error,
         ),
     )
+
+
+@router.post("/bootstrap")
+def legal_bootstrap_batch(
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+    replace_draft: str = Form(""),
+):
+    report = bootstrap_missing(
+        db,
+        user_id=user.id,
+        only_without_published=True,
+        replace_draft=replace_draft in ("1", "on", "true"),
+    )
+    record_event(
+        db,
+        type="legal_bootstrap_batch",
+        org_id=None,
+        user_id=user.id,
+        details={
+            "ok": report.ok_count,
+            "fail": report.fail_count,
+            "skip": report.skip_count,
+            "drafts": [r.draft_id for r in report.results if r.draft_id],
+        },
+    )
+    db.commit()
+    msg = quote(
+        f"Готово: черновиков {report.ok_count}, ошибок {report.fail_count}, пропусков {report.skip_count}",
+        safe="",
+    )
+    return RedirectResponse(f"/admin/legal/?ok=bootstrap&msg={msg}", status_code=303)
 
 
 @router.get("/new", response_class=HTMLResponse)
@@ -190,6 +232,7 @@ def legal_detail(
                 "draft": "Черновик создан — проверьте diff и опубликуйте",
                 "saved": "Настройки акта сохранены",
                 "created": "Акт добавлен в реестр",
+                "pulled": "Текст из ИПС загружен в черновик — проверьте diff и опубликуйте",
             }.get(flash_ok or "", None),
             flash_error=request.query_params.get("error"),
         ),
@@ -248,6 +291,40 @@ def legal_reject(
     except ValueError as exc:
         return _err(act_id, str(exc))
     return RedirectResponse(f"/admin/legal/{act_id}?ok=rejected", status_code=303)
+
+
+@router.post("/{act_id}/pull-ips")
+def legal_pull_ips(
+    act_id: int,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+    replace_draft: str = Form(""),
+):
+    act = get_act_admin(db, act_id)
+    if act is None:
+        return _err(None, "Акт не найден")
+    result = pull_ips_to_draft(
+        db,
+        act,
+        user_id=user.id,
+        replace_draft=replace_draft in ("1", "on", "true"),
+    )
+    if not result.ok:
+        return _err(act_id, result.error or result.skipped or "не удалось")
+    record_event(
+        db,
+        type="legal_ips_pulled",
+        org_id=None,
+        user_id=user.id,
+        details={
+            "act_id": act_id,
+            "draft_id": result.draft_id,
+            "fragments_filled": result.fragments_filled,
+        },
+    )
+    db.commit()
+    return RedirectResponse(f"/admin/legal/{act_id}?ok=pulled", status_code=303)
 
 
 @router.post("/{act_id}/upload")

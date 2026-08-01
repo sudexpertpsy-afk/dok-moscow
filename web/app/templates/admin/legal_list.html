@@ -4,12 +4,22 @@
 {% include "admin/_layout_start.html" %}
 
 <section class="panel">
-  <div class="actions" style="justify-content:space-between;align-items:center">
+  <div class="actions" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem">
     <div>
       <h1>Законодательство</h1>
       <p class="muted">Реестр НПА, черновики мониторинга и подтверждение редакций (W-19).</p>
+      {% if need_fill_count %}
+      <p class="muted">Без опубликованной редакции: <strong>{{ need_fill_count }}</strong> акт(ов). Подтягивание из ИПС создаёт черновики — публикация вручную.</p>
+      {% endif %}
     </div>
-    <a class="btn" href="/admin/legal/new">Добавить акт</a>
+    <div class="actions">
+      <form method="post" action="/admin/legal/bootstrap" hx-boost="false"
+            onsubmit="return confirm('Подтянуть тексты из ИПС для актов без публикации? Сеть и троттлинг обязательны.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="secondary">Наполнить из ИПС</button>
+      </form>
+      <a class="btn" href="/admin/legal/new">Добавить акт</a>
+    </div>
   </div>
 
   <ul class="status-list" style="margin:1rem 0">

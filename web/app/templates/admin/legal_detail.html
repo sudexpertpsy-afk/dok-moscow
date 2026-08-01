@@ -44,6 +44,26 @@
 {% endif %}
 
 <section class="panel" style="margin-top:1.25rem">
+  <h2>Подтянуть из ИПС</h2>
+  <p class="muted">
+    {% if act.ips_nd %}
+    Идентификатор ИПС: <code class="mono">{{ act.ips_nd }}</code>. Создаётся черновик; для режима fragments заполняются найденные статьи.
+    {% else %}
+    У акта не задан <code>ips_nd</code> — укажите в заметках/через правку БД или используйте ручную загрузку.
+    {% endif %}
+  </p>
+  {% if act.ips_nd and act.mode.value != 'card' %}
+  <form method="post" action="/admin/legal/{{ act.id }}/pull-ips" class="actions" hx-boost="false">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.9rem">
+      <input type="checkbox" name="replace_draft" value="1"> заменить текущий черновик
+    </label>
+    <button type="submit">Загрузить из ИПС</button>
+  </form>
+  {% endif %}
+</section>
+
+<section class="panel" style="margin-top:1.25rem">
   <h2>Ручная загрузка текста</h2>
   <p class="muted">Для приказов и актов без программного источника. Поле «Источник» обязательно.</p>
   <form method="post" action="/admin/legal/{{ act.id }}/upload" class="stack" hx-boost="false">
