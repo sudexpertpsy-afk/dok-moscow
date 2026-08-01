@@ -34,3 +34,4 @@ cd web && PYTHONPATH=. pytest tests -q
 - W-06 — журнал, сквозной поиск, настройки org и счётчики
 - W-07 — развёртывание на VDS
 - W-08 — лендинг dok.moscow, заявки (leads), политика ПДн, SEO
+- W-09 — политика паролей, сброс по e-mail, журнал входов, retention, ASVS

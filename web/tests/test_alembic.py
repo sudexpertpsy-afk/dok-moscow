@@ -67,6 +67,7 @@ def test_alembic_upgrade_head_clean_db():
         "counters",
         "events",
         "leads",
+        "password_reset_tokens",
         "alembic_version",
     }
     assert expected.issubset(tables)

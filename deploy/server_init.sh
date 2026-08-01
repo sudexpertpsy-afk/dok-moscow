@@ -69,9 +69,14 @@ echo "→ каталоги приложения"
 mkdir -p /srv/dok /var/backups/dok/daily /var/backups/dok/monthly /var/log
 chmod 750 /var/backups/dok
 
-echo "→ cron бэкапа (03:30 UTC)"
-CRON_LINE="30 3 * * * /srv/dok/deploy/backup.sh >> /var/log/dok-backup.log 2>&1"
-(crontab -l 2>/dev/null | grep -v 'dok/deploy/backup.sh' || true; echo "$CRON_LINE") | crontab -
+echo "→ cron бэкапа (03:30 UTC) и очистки файлов (04:15 UTC)"
+CRON_BACKUP="30 3 * * * /srv/dok/deploy/backup.sh >> /var/log/dok-backup.log 2>&1"
+CRON_PURGE="15 4 * * * /srv/dok/deploy/purge_retention.sh >> /var/log/dok-retention.log 2>&1"
+(
+  crontab -l 2>/dev/null | grep -v 'dok/deploy/backup.sh' | grep -v 'dok/deploy/purge_retention.sh' || true
+  echo "$CRON_BACKUP"
+  echo "$CRON_PURGE"
+) | crontab -
 
 echo
 echo "✓ Базовая настройка сервера готова."

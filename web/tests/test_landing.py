@@ -142,8 +142,8 @@ def test_notify_without_smtp_logs(app, caplog):
         db.add(lead)
         db.commit()
         db.refresh(lead)
-        with caplog.at_level("INFO", logger="dok.leads"):
+        with caplog.at_level("INFO", logger="dok.mail"):
             assert notify_admin_new_lead(get_settings(), lead) is False
-        assert "уведомление без SMTP" in caplog.text
+        assert "Письмо без SMTP" in caplog.text
     finally:
         db.close()

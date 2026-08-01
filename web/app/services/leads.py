@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-import logging
-import smtplib
-from email.message import EmailMessage
-
 from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import Lead
-
-log = logging.getLogger("dok.leads")
+from app.services.mail import send_email
 
 
 def create_lead(
@@ -33,7 +28,7 @@ def create_lead(
 
 
 def notify_admin_new_lead(settings: Settings, lead: Lead) -> bool:
-    """Отправить письмо админу. Без SMTP — запись в лог (dev/тест). Возвращает True при отправке."""
+    """Отправить письмо админу. Без SMTP — запись в лог (dev/тест)."""
     to_addr = (settings.admin_notify_email or settings.bootstrap_admin_email or "").strip()
     subject = f"[Док.Москва] Заявка на ранний доступ: {lead.email}"
     body = (
@@ -44,25 +39,4 @@ def notify_admin_new_lead(settings: Settings, lead: Lead) -> bool:
         f"ID: {lead.id}\n"
         f"Время: {lead.ts}\n"
     )
-    if not settings.smtp_host or not to_addr:
-        log.info("Заявка #%s (уведомление без SMTP): %s\n%s", lead.id, subject, body)
-        return False
-
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = settings.smtp_from or settings.smtp_user or to_addr
-    msg["To"] = to_addr
-    msg.set_content(body)
-
-    try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as smtp:
-            if settings.smtp_use_tls:
-                smtp.starttls()
-            if settings.smtp_user:
-                smtp.login(settings.smtp_user, settings.smtp_password)
-            smtp.send_message(msg)
-        log.info("Уведомление о заявке #%s отправлено на %s", lead.id, to_addr)
-        return True
-    except Exception:
-        log.exception("Не удалось отправить уведомление о заявке #%s", lead.id)
-        return False
+    return send_email(settings, to_addr=to_addr, subject=subject, body=body)
