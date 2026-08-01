@@ -19,6 +19,7 @@ class CurrentUser:
     org_id: int | None
     role: UserRole
     is_active: bool
+    nav_order: dict | None = None
 
     @property
     def is_service_admin(self) -> bool:
@@ -63,12 +64,14 @@ def get_optional_user(
     user = db.get(User, snap["user_id"])
     if user is None or not user.is_active:
         return None
+    order = user.nav_order if isinstance(user.nav_order, dict) else None
     return CurrentUser(
         id=user.id,
         email=user.email,
         org_id=user.org_id,
         role=user.role,
         is_active=user.is_active,
+        nav_order=order,
     )
 
 

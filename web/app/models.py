@@ -195,6 +195,8 @@ class User(Base):
         Boolean, nullable=False, default=False, server_default="false"
     )
     backup_codes_hashes: Mapped[list | None] = mapped_column(JsonType, nullable=True)
+    # Порядок пунктов бокового меню: {"cabinet": ["calendar", ...], "admin": [...]}
+    nav_order: Mapped[dict | None] = mapped_column(JsonType, nullable=True)
 
     organization: Mapped[Organization | None] = relationship(back_populates="users")
     documents_created: Mapped[list[Document]] = relationship(back_populates="created_by_user")

@@ -2,11 +2,15 @@
   <aside class="sidebar">
     <div class="brand">{{ app_name }}</div>
     <div class="org">{{ org.name }}</div>
-    <nav class="nav">
+    <nav class="nav" data-nav-sortable data-nav-area="cabinet" aria-label="Меню кабинета">
       {% for key, label, href in nav %}
-        <a href="{{ href }}" class="{% if active == key %}active{% endif %}">{{ label }}</a>
+      <div class="nav-item" draggable="true" data-nav-key="{{ key }}">
+        <button type="button" class="nav-handle" title="Перетащить пункт меню" aria-label="Перетащить «{{ label }}»" tabindex="-1">⋮⋮</button>
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}" hx-boost="true">{{ label }}</a>
+      </div>
       {% endfor %}
     </nav>
+    <p class="nav-hint">Перетащите ⋮⋮, чтобы изменить порядок</p>
   </aside>
   <main id="main" class="content" tabindex="-1">
     <div class="topbar">

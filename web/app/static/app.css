@@ -194,18 +194,57 @@ button:hover, .btn:hover { filter: brightness(1.05); }
   font-size: 0.85rem;
   margin-bottom: 1.4rem;
 }
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin-bottom: 0.25rem;
+  border-radius: 10px;
+}
+.nav-item.nav-dragging {
+  opacity: 0.45;
+}
+.nav-item.nav-drag-over {
+  outline: 1px dashed rgba(233, 242, 239, 0.45);
+}
+.nav-handle {
+  flex: 0 0 auto;
+  width: 1.4rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(233, 242, 239, 0.35);
+  cursor: grab;
+  font-size: 0.7rem;
+  letter-spacing: -0.08em;
+  line-height: 1;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.nav-handle:hover { color: rgba(233, 242, 239, 0.85); background: rgba(255,255,255,0.06); }
+.nav-handle:active { cursor: grabbing; }
 .nav a {
   display: block;
+  flex: 1 1 auto;
   color: rgba(233, 242, 239, 0.82);
   padding: 0.55rem 0.75rem;
   border-radius: 10px;
-  margin-bottom: 0.25rem;
   text-decoration: none;
+  min-width: 0;
 }
 .nav a:hover, .nav a.active {
   background: rgba(15, 122, 102, 0.35);
   color: #fff;
   text-decoration: none;
+}
+.nav-hint {
+  margin: 1rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: rgba(233, 242, 239, 0.4);
 }
 .content {
   padding: 1.5rem 1.5rem 2.5rem;

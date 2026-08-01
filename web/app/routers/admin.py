@@ -22,8 +22,22 @@ from app.totp_2fa import clear_totp, notify_totp_change
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-# Совместимость: меню строится из app.navigation
+# Совместимость: меню строится из app.navigation (порядок по умолчанию)
 ADMIN_NAV = admin_nav()
+
+# Короткие ключи active из роутеров → ключи реестра NAV_REGISTRY
+_ADMIN_ACTIVE_KEYS = {
+    "home": "admin_home",
+    "orgs": "admin_orgs",
+    "organizations": "admin_orgs",
+    "users": "admin_users",
+    "leads": "admin_leads",
+    "invites": "admin_invites",
+    "templates": "admin_templates",
+    "payments": "admin_payments",
+    "paysettings": "admin_paysettings",
+    "status": "admin_status",
+}
 
 
 def _ctx(request: Request, user: CurrentUser, active: str, **extra):
@@ -32,8 +46,8 @@ def _ctx(request: Request, user: CurrentUser, active: str, **extra):
         "csrf_token": get_csrf_token(request),
         "app_name": get_settings().app_name,
         "user": user,
-        "admin_nav": admin_nav(),
-        "active": active,
+        "admin_nav": admin_nav(user),
+        "active": _ADMIN_ACTIVE_KEYS.get(active, active),
         "flash_error": None,
         "flash_ok": None,
         "last_invite_link": None,
