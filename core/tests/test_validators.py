@@ -10,7 +10,11 @@ VALID_INN12 = '500100732259'
 VALID_OGRN = '1027700132195'
 VALID_SNILS = '11223344595'
 VALID_BIK = '044525225'
-VALID_ACCOUNT = '40817810000000000006'
+VALID_ACCOUNT = '40817810200000000006'  # ключевание: last3(БИК)+счёт
+# Реальный р/с Альфа-Банка (БИК 044525593) — раньше ложно отвергался из‑за «0»+prefix
+ALFA_BIK = '044525593'
+ALFA_ACCOUNT = '40702810702320001422'
+ALFA_CORR = '30101810200000000593'
 
 
 @pytest.mark.parametrize('value,ok', [
@@ -69,9 +73,13 @@ def test_bik_cases(value, ok):
 
 @pytest.mark.parametrize('acc,bik,ok', [
     (VALID_ACCOUNT, VALID_BIK, True),
+    (ALFA_ACCOUNT, ALFA_BIK, True),
+    (ALFA_CORR, ALFA_BIK, True),
     ('40817810000000000007', VALID_BIK, False),
     ('123', VALID_BIK, False),
     (VALID_ACCOUNT, '000000000', False),
+    # старый неверный алгоритм («0»+last3) принимал этот счёт — теперь нет
+    ('40817810000000000006', VALID_BIK, False),
 ])
 def test_account_cases(acc, bik, ok):
     assert (v.validate_account(acc, bik) is None) is ok

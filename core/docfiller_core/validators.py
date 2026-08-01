@@ -136,7 +136,12 @@ def validate_bik(value):
 
 
 def validate_account(value, bik, *, field='р_счёт'):
-    """Ключевание расчётного/корреспондентского счёта по БИК."""
+    """Ключевание лицевого счёта по БИК (Положение ЦБ о расчёте контрольного ключа).
+
+    - счёт в кредитной организации: 3 последних цифры БИК + 20 цифр счёта;
+    - счёт в РКЦ (БИК оканчивается на 000): «0» + 5–6 разряды БИК + счёт;
+    - корреспондентский счёт КО (301…): «0» + 3 последних цифры БИК + счёт.
+    """
     acc = _digits(value)
     b = _digits(bik)
     if not acc:
@@ -145,8 +150,21 @@ def validate_account(value, bik, *, field='р_счёт'):
         return ValidationIssue(field, 'Счёт должен содержать 20 цифр', 'error')
     if validate_bik(b) is not None:
         return ValidationIssue(field, 'Для проверки счёта нужен корректный БИК', 'error')
-    # Алгоритм: «0» + 3 последних цифры БИК + 20 цифр счёта → веса 7,1,3
-    check_str = '0' + b[-3:] + acc
+
+    # Коррсчёт кредитной организации в РКЦ / Банке России
+    if acc.startswith('301'):
+        if b.endswith('000'):
+            prefix = '0' + b[4:6]
+        else:
+            prefix = '0' + b[-3:]
+    elif b.endswith('000'):
+        # Лицевой счёт, открытый в РКЦ
+        prefix = '0' + b[4:6]
+    else:
+        # Расчётный (и иной) счёт клиента в кредитной организации
+        prefix = b[-3:]
+
+    check_str = prefix + acc
     weights = (7, 1, 3)
     total = sum(int(ch) * weights[i % 3] for i, ch in enumerate(check_str))
     if total % 10 != 0:
