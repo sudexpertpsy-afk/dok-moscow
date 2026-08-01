@@ -110,6 +110,32 @@
         </label>
         <div class="actions"><button type="submit">Сохранить счётчик</button></div>
       </form>
+
+      {% elif section == 'безопасность' %}
+      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:0 0 0.4rem">Хранение файлов</h2>
+      <p class="muted">Документы старше указанного срока удаляются ночным заданием. 0 — не удалять. По умолчанию 1095 дней (≈3 года).</p>
+      <form method="post" action="/cabinet/settings/security">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="retention">Срок хранения файлов, дней</label>
+        <input id="retention" name="срок_дней_файлов" type="number" min="0" max="36500" value="{{ retention_days }}" required>
+        <div class="actions"><button type="submit">Сохранить</button></div>
+      </form>
+      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.4rem 0 0.4rem">Журнал входов</h2>
+      <table class="table">
+        <thead><tr><th>Когда</th><th>Тип</th><th>User</th><th>Детали</th></tr></thead>
+        <tbody>
+          {% for e in security_events %}
+          <tr>
+            <td class="muted">{{ e.ts }}</td>
+            <td class="mono">{{ e.type }}</td>
+            <td>{{ e.user_id or "—" }}</td>
+            <td class="muted mono">{{ e.details }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="muted">Пока нет событий</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
       {% endif %}
     </section>
   </main>

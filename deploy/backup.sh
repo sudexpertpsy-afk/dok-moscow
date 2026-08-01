@@ -43,12 +43,34 @@ tar -C "$WORK" -cf "$ARCHIVE" db.dump files.tar.gz
 rm -f "$WORK/db.dump" "$WORK/files.tar.gz"
 
 OUT="$DAILY_DIR/dok_${DAY}.tar"
+# W-09: шифрование обязательно при BACKUP_REQUIRE_AGE=1 (рекомендуется на проде)
+if [[ "${BACKUP_REQUIRE_AGE:-0}" == "1" ]]; then
+  if [[ -z "${AGE_RECIPIENT:-}" ]]; then
+    echo "✗ BACKUP_REQUIRE_AGE=1, но AGE_RECIPIENT не задан" >&2
+    exit 1
+  fi
+  if ! command -v age >/dev/null 2>&1; then
+    echo "✗ Команда age не найдена (apt install age)" >&2
+    exit 1
+  fi
+fi
+
 if [[ -n "${AGE_RECIPIENT:-}" ]] && command -v age >/dev/null 2>&1; then
   echo "[$STAMP] → шифрование age"
   age -r "$AGE_RECIPIENT" -o "${OUT}.age" "$ARCHIVE"
   rm -f "$ARCHIVE"
   OUT="${OUT}.age"
+elif [[ -n "${GPG_RECIPIENT:-}" ]] && command -v gpg >/dev/null 2>&1; then
+  echo "[$STAMP] → шифрование gpg"
+  gpg --batch --yes --trust-model always -r "$GPG_RECIPIENT" -o "${OUT}.gpg" -e "$ARCHIVE"
+  rm -f "$ARCHIVE"
+  OUT="${OUT}.gpg"
 else
+  if [[ "${BACKUP_REQUIRE_AGE:-0}" == "1" ]]; then
+    echo "✗ Шифрование бэкапа не выполнено" >&2
+    exit 1
+  fi
+  echo "[$STAMP] ⚠ бэкап без шифрования (задайте AGE_RECIPIENT)"
   mv "$ARCHIVE" "$OUT"
 fi
 

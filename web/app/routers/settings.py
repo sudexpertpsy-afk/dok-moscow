@@ -9,9 +9,10 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, require_org_user
-from app.org_scope import get_org_for_user, require_org_id
+from app.org_scope import get_org_for_user, list_events, require_org_id
 from app.routers.cabinet import NAV
 from app.security import check_csrf, get_csrf_token
+from app.services.retention import get_retention_days, set_retention_days
 from app.services.settings_svc import (
     BANK_FIELDS,
     ORG_FIELDS,
@@ -23,6 +24,15 @@ from app.services.settings_svc import (
     update_section,
 )
 from app.templating import templates
+
+_AUTH_EVENT_TYPES = {
+    "login_success",
+    "login_failure",
+    "logout",
+    "password_reset_request",
+    "password_reset",
+    "retention_purge",
+}
 
 router = APIRouter(prefix="/cabinet/settings", tags=["settings"])
 
@@ -44,6 +54,7 @@ def _page(request: Request, user: CurrentUser, org, section: str, **extra):
             ("подписанты", "Подписанты", "/cabinet/settings/signatories"),
             ("прайс", "Прайс", "/cabinet/settings/price"),
             ("счётчики", "Счётчики", "/cabinet/settings/counters"),
+            ("безопасность", "Безопасность", "/cabinet/settings/security"),
         ],
         "requisites": req,
         "flash_error": None,
@@ -297,5 +308,90 @@ async def settings_counters_save(
             "счётчики",
             counters=counters,
             flash_ok=f"Счётчик «{key}» обновлён. Следующий номер: {prefix}{value + 1}{suffix}",
+        ),
+    )
+
+
+@router.get("/security", response_class=HTMLResponse)
+def settings_security(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    org = get_org_for_user(db, user)
+    events = [
+        e
+        for e in list_events(db, require_org_id(user), limit=80)
+        if e.type in _AUTH_EVENT_TYPES
+    ]
+    return templates.TemplateResponse(
+        request=request,
+        name="cabinet/settings.html",
+        context=_page(
+            request,
+            user,
+            org,
+            "безопасность",
+            retention_days=get_retention_days(org),
+            security_events=events,
+        ),
+    )
+
+
+@router.post("/security", response_class=HTMLResponse)
+async def settings_security_save(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    org = get_org_for_user(db, user)
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+    raw = str(form.get("срок_дней_файлов") or "").strip()
+    try:
+        days = int(raw)
+    except ValueError:
+        days = -1
+    if days < 0 or days > 36500:
+        events = [
+            e
+            for e in list_events(db, require_org_id(user), limit=80)
+            if e.type in _AUTH_EVENT_TYPES
+        ]
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/settings.html",
+            context=_page(
+                request,
+                user,
+                org,
+                "безопасность",
+                retention_days=get_retention_days(org),
+                security_events=events,
+                flash_error="Укажите срок в днях от 0 (не удалять) до 36500.",
+            ),
+            status_code=400,
+        )
+    set_retention_days(org, days)
+    db.add(org)
+    db.commit()
+    db.refresh(org)
+    events = [
+        e
+        for e in list_events(db, require_org_id(user), limit=80)
+        if e.type in _AUTH_EVENT_TYPES
+    ]
+    return templates.TemplateResponse(
+        request=request,
+        name="cabinet/settings.html",
+        context=_page(
+            request,
+            user,
+            org,
+            "безопасность",
+            retention_days=get_retention_days(org),
+            security_events=events,
+            flash_ok="Срок хранения файлов сохранён.",
         ),
     )

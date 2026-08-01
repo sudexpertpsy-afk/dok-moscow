@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = True
     lead_rate_limit: int = 5
     lead_rate_window_sec: int = 60 * 60
+    password_reset_ttl_hours: int = 2
+    # True — backup.sh завершится ошибкой без AGE_RECIPIENT (прод)
+    backup_require_age: bool = False
 
 
 @lru_cache

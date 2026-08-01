@@ -82,7 +82,7 @@ def test_admin_login_and_invite_flow(app):
     csrf = csrf_from(client, f"/invite/{invite_token}")
     r = client.post(
         f"/invite/{invite_token}",
-        data={"password": "UserPass123!", "password2": "UserPass123!", "csrf_token": csrf},
+        data={"password": "InvitePass123!", "password2": "InvitePass123!", "csrf_token": csrf},
         follow_redirects=False,
     )
     assert r.status_code == 303

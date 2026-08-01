@@ -32,6 +32,9 @@ if [[ "$ARCHIVE" == *.age ]]; then
   fi
   age -d -i "$AGE_IDENTITY" -o "$WORK/bundle.tar" "$ARCHIVE"
   tar -C "$WORK" -xf "$WORK/bundle.tar"
+elif [[ "$ARCHIVE" == *.gpg ]]; then
+  gpg --batch --yes -o "$WORK/bundle.tar" -d "$ARCHIVE"
+  tar -C "$WORK" -xf "$WORK/bundle.tar"
 else
   tar -C "$WORK" -xf "$ARCHIVE"
 fi
