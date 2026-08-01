@@ -7,6 +7,13 @@
     <p class="lead">Кабинет экспертной организации</p>
     {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
     {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+    {% if yandex_login_available %}
+    <a class="btn-yandex" href="/auth/yandex/start" hx-boost="false">
+      <span class="btn-yandex-mark" aria-hidden="true">Я</span>
+      <span>Войти с Яндекс ID</span>
+    </a>
+    <p class="muted" style="text-align:center;margin:1rem 0 0.2rem">или e-mail и пароль</p>
+    {% endif %}
     <form method="post" action="/login">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label for="email">E-mail</label>

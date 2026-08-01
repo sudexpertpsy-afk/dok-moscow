@@ -48,6 +48,13 @@
     </label>
     <p class="muted">По умолчанию выключено. При включении пользователи организаций без 2FA проходят мастер включения после входа.</p>
 
+    <label style="display:flex;gap:0.5rem;align-items:center;margin-top:0.9rem">
+      <input type="checkbox" name="yandex_login_enabled" value="1" style="width:auto"
+        {% if not settings_row or settings_row.yandex_login_enabled %}checked{% endif %}>
+      Вход через Яндекс
+    </label>
+    <p class="muted">При выключении кнопка на странице входа скрыта; уже созданные привязки сохраняются.</p>
+
     <div class="actions">
       <button type="submit">Сохранить</button>
     </div>

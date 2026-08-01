@@ -95,7 +95,49 @@
       </form>
 
       {% elif section == 'безопасность' %}
-      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:0 0 0.4rem">Двухфакторная аутентификация</h2>
+      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:0 0 0.4rem">Яндекс ID</h2>
+      <p class="muted">Вход через Яндекс без пароля на этом устройстве. Привязка — по желанию.</p>
+      {% if yandex_linked %}
+      <p><span class="badge ok">Привязан</span>{% if yandex_provider_email %} <span class="muted">{{ yandex_provider_email }}</span>{% endif %}</p>
+      <form method="post" action="/cabinet/settings/security/yandex/unlink" style="max-width:22rem;margin-top:0.6rem">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if yandex_can_unlink %}
+        <div class="actions"><button type="submit" class="danger">Отвязать Яндекс ID</button></div>
+        {% else %}
+        <p class="muted">{{ yandex_unlink_hint }}</p>
+        <button type="submit" class="danger" disabled>Отвязать Яндекс ID</button>
+        {% endif %}
+      </form>
+      {% elif yandex_available %}
+      <form method="post" action="/cabinet/settings/security/yandex/link" style="max-width:22rem">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="yandex_link_password">Текущий пароль</label>
+        <input id="yandex_link_password" name="password" type="password" required autocomplete="current-password" {% if not has_password %}disabled{% endif %}>
+        {% if not has_password %}
+        <p class="muted">Сначала задайте пароль ниже, затем привяжите Яндекс ID.</p>
+        {% endif %}
+        <div class="actions"><button type="submit" {% if not has_password %}disabled{% endif %}>Привязать Яндекс ID</button></div>
+      </form>
+      {% else %}
+      <p class="muted">Вход через Яндекс сейчас недоступен.</p>
+      {% endif %}
+
+      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.6rem 0 0.4rem">Пароль</h2>
+      <p class="muted">{% if has_password %}Смена пароля учётки.{% else %}Задайте пароль, чтобы можно было входить без Яндекс ID и отвязывать привязку.{% endif %} {{ password_hint }}</p>
+      <form method="post" action="/cabinet/settings/security/password" style="max-width:22rem">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if has_password %}
+        <label for="cur_password">Текущий пароль</label>
+        <input id="cur_password" name="current_password" type="password" required autocomplete="current-password">
+        {% endif %}
+        <label for="new_password">Новый пароль</label>
+        <input id="new_password" name="password" type="password" required autocomplete="new-password">
+        <label for="new_password2">Повтор пароля</label>
+        <input id="new_password2" name="password2" type="password" required autocomplete="new-password">
+        <div class="actions"><button type="submit">{% if has_password %}Сменить пароль{% else %}Задать пароль{% endif %}</button></div>
+      </form>
+
+      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.6rem 0 0.4rem">Двухфакторная аутентификация</h2>
       {% if force_2fa_setup and not totp_enabled %}
       <div class="alert alert-error">Политика организации требует включить 2FA для продолжения работы.</div>
       {% endif %}

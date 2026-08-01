@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     backup_require_age: bool = False
     # W-10: окончание бета-подписки «Специалист» для существующих организаций
     beta_trial_until: date = date(2026, 10, 1)
+    # W-25: Яндекс ID OAuth (секрет только из .env, не из репозитория)
+    yandex_client_id: str = "453c829f555c4e94a1f77c16313854a9"
+    yandex_client_secret: str = ""
+    yandex_redirect_uri: str = "https://dok.moscow/auth/yandex/callback"
 
 
 @lru_cache

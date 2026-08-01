@@ -67,10 +67,20 @@ def _hash_token(raw: str) -> str:
 
 
 @router.get("/login", response_class=HTMLResponse)
-def login_page(request: Request, user=Depends(get_optional_user)):
+def login_page(
+    request: Request,
+    user=Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
     if user:
         return RedirectResponse(home_for_user(user), status_code=status.HTTP_303_SEE_OTHER)
-    return _render(request, "auth/login.html")
+    from app.yandex_oauth import yandex_button_visible
+
+    return _render(
+        request,
+        "auth/login.html",
+        {"yandex_login_available": yandex_button_visible(db)},
+    )
 
 
 @router.post("/login", response_class=HTMLResponse)
@@ -82,17 +92,31 @@ def login_submit(
     _: None = Depends(require_csrf),
 ):
     ip = client_ip(request)
+    from app.yandex_oauth import yandex_button_visible
+
     if login_limiter.is_blocked(ip):
         return _render(
             request,
             "auth/login.html",
-            {"flash_error": "Слишком много попыток. Попробуйте позже.", "email": email},
+            {
+                "flash_error": "Слишком много попыток. Попробуйте позже.",
+                "email": email,
+                "yandex_login_available": yandex_button_visible(db),
+            },
             status_code=429,
         )
 
     email_norm = email.strip().lower()
     user = db.scalar(select(User).where(User.email == email_norm))
-    if user is None or not user.is_active or not verify_password(password, user.password_hash):
+    from app.yandex_oauth import yandex_button_visible
+
+    yandex_avail = yandex_button_visible(db)
+    if (
+        user is None
+        or not user.is_active
+        or not user.password_hash
+        or not verify_password(password, user.password_hash)
+    ):
         login_limiter.register_failure(ip)
         record_event(
             db,
@@ -104,7 +128,11 @@ def login_submit(
         return _render(
             request,
             "auth/login.html",
-            {"flash_error": "Неверный e-mail или пароль.", "email": email},
+            {
+                "flash_error": "Неверный e-mail или пароль.",
+                "email": email,
+                "yandex_login_available": yandex_avail,
+            },
             status_code=401,
         )
 

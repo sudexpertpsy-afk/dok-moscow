@@ -80,6 +80,7 @@ def payment_settings_save(
     default_receipt_email: str = Form(""),
     party_check_daily_limit: str = Form("100"),
     require_2fa_for_org_admins: str | None = Form(None),
+    yandex_login_enabled: str | None = Form(None),
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf),
@@ -105,6 +106,7 @@ def payment_settings_save(
         limit = 100
     row.party_check_daily_limit = max(1, min(limit, 10_000))
     row.require_2fa_for_org_admins = bool(require_2fa_for_org_admins)
+    row.yandex_login_enabled = bool(yandex_login_enabled)
     row.updated_by_user_id = user.id
     record_event(
         db,
@@ -118,6 +120,7 @@ def payment_settings_save(
             "recurrents": row.recurrents_enabled,
             "party_check_daily_limit": row.party_check_daily_limit,
             "require_2fa_for_org_admins": row.require_2fa_for_org_admins,
+            "yandex_login_enabled": row.yandex_login_enabled,
         },
         commit=False,
     )

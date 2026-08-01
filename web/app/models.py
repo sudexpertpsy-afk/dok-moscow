@@ -177,7 +177,8 @@ class User(Base):
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True, index=True
     )
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # NULL — вход только через OAuth (W-25)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_role", **_STR_ENUM),
         nullable=False,
@@ -198,6 +199,29 @@ class User(Base):
     organization: Mapped[Organization | None] = relationship(back_populates="users")
     documents_created: Mapped[list[Document]] = relationship(back_populates="created_by_user")
     events: Mapped[list[Event]] = relationship(back_populates="user")
+    oauth_identities: Mapped[list[OAuthIdentity]] = relationship(back_populates="user")
+
+
+class OAuthIdentity(Base):
+    """Внешняя OAuth-привязка (W-25: Яндекс ID)."""
+
+    __tablename__ = "oauth_identities"
+    __table_args__ = (
+        Index("uq_oauth_identities_provider_sub", "provider", "sub", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    sub: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    linked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    user: Mapped[User] = relationship(back_populates="oauth_identities")
 
 
 class Invite(Base):
@@ -602,6 +626,9 @@ class PaymentSettings(Base):
     )
     require_2fa_for_org_admins: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
+    )
+    yandex_login_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

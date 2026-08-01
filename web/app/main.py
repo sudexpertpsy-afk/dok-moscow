@@ -34,6 +34,7 @@ from app.routers import (
     landing,
     package,
     party_check,
+    yandex_auth,
     zakon,
 )
 from app.routers import settings as settings_routes
@@ -154,6 +155,7 @@ def create_app() -> FastAPI:
     app.include_router(landing.router)
     app.include_router(zakon.router)
     app.include_router(auth.router)
+    app.include_router(yandex_auth.router)
     app.include_router(billing.router)
     app.include_router(global_search.router)
     app.include_router(cabinet.router)
