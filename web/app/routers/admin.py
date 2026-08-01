@@ -13,7 +13,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, require_csrf, require_service_admin
 from app.defaults import empty_requisites
-from app.models import Invite, Organization, User, utcnow
+from app.models import Invite, Lead, Organization, User, utcnow
 from app.security import get_csrf_token, new_invite_token
 from app.templating import templates
 
@@ -37,10 +37,11 @@ def _ctx(request: Request, user: CurrentUser, **extra):
 def _home(request: Request, user: CurrentUser, db: Session, status_code: int = 200, **extra):
     orgs = db.scalars(select(Organization).order_by(Organization.id.desc())).all()
     invites = db.scalars(select(Invite).order_by(Invite.id.desc()).limit(50)).all()
+    leads = db.scalars(select(Lead).order_by(Lead.id.desc()).limit(50)).all()
     return templates.TemplateResponse(
         request=request,
         name="admin/home.html",
-        context=_ctx(request, user, orgs=orgs, invites=invites, **extra),
+        context=_ctx(request, user, orgs=orgs, invites=invites, leads=leads, **extra),
         status_code=status_code,
     )
 

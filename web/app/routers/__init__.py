@@ -1,4 +1,14 @@
-from app.routers import admin, auth, cabinet, counterparties, documents, journal, package, settings
+from app.routers import (
+    admin,
+    auth,
+    cabinet,
+    counterparties,
+    documents,
+    journal,
+    landing,
+    package,
+    settings,
+)
 
 __all__ = [
     "admin",
@@ -7,6 +17,7 @@ __all__ = [
     "counterparties",
     "documents",
     "journal",
+    "landing",
     "package",
     "settings",
 ]

@@ -1,0 +1,116 @@
+{% extends "landing/base.html" %}
+{% block title %}{{ app_name }} — кабинет экспертной организации{% endblock %}
+{% block og_title %}{{ app_name }} — кабинет экспертной организации{% endblock %}
+
+{% block content %}
+<section class="lp-hero" aria-label="Главный экран">
+  <div class="lp-hero-visual" aria-hidden="true">
+    <svg class="lp-hero-art" viewBox="0 0 960 720" role="img">
+      <defs>
+        <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#f3ebe0"/>
+          <stop offset="100%" stop-color="#e2d4c2"/>
+        </linearGradient>
+        <linearGradient id="inkfade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#1a3d36" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#1a3d36" stop-opacity="0.15"/>
+        </linearGradient>
+      </defs>
+      <rect class="sheet sheet-a" x="180" y="80" width="420" height="560" rx="8" fill="url(#paper)"/>
+      <rect class="sheet sheet-b" x="320" y="120" width="420" height="560" rx="8" fill="url(#paper)"/>
+      <rect class="sheet sheet-c" x="260" y="60" width="420" height="560" rx="8" fill="url(#paper)"/>
+      <g class="lines" fill="none" stroke="url(#inkfade)" stroke-width="3">
+        <path d="M310 150 h300"/>
+        <path d="M310 190 h260"/>
+        <path d="M310 230 h280"/>
+        <path d="M310 290 h300"/>
+        <path d="M310 330 h240"/>
+        <path d="M310 370 h270"/>
+        <path d="M310 430 h300"/>
+        <path d="M310 470 h220"/>
+        <path d="M310 510 h260"/>
+      </g>
+      <circle class="seal" cx="620" cy="520" r="48" fill="none" stroke="#0f7a66" stroke-width="4"/>
+      <circle class="seal" cx="620" cy="520" r="34" fill="none" stroke="#0f7a66" stroke-width="2" stroke-dasharray="4 6"/>
+    </svg>
+  </div>
+  <div class="lp-hero-copy">
+    <p class="lp-brand">{{ app_name }}</p>
+    <h1 class="lp-headline">Кабинет экспертной организации</h1>
+    <p class="lp-sub">Договоры, счета и акты по проверенным шаблонам Шаблонера — в браузере, с картотекой и подсказками ЕГРЮЛ.</p>
+    <div class="lp-cta">
+      <a class="lp-btn" href="#apply">Запросить ранний доступ</a>
+      <a class="lp-btn lp-btn-ghost" href="{{ app_base_url }}/login">Войти в кабинет</a>
+    </div>
+  </div>
+</section>
+
+<section class="lp-section" id="samples">
+  <div class="lp-wrap">
+    <h2>Примеры документов</h2>
+    <p class="lp-section-lead">Обезличенные PDF — как выглядит результат генерации комплекта.</p>
+    <ul class="lp-samples">
+      <li><a href="/static/samples/dogovor-fl.pdf">Договор (ФЛ)</a></li>
+      <li><a href="/static/samples/schet.pdf">Счёт</a></li>
+      <li><a href="/static/samples/akt.pdf">Акт</a></li>
+    </ul>
+  </div>
+</section>
+
+<section class="lp-section lp-section-alt" id="pricing">
+  <div class="lp-wrap">
+    <h2>Тарифы</h2>
+    <p class="lp-section-lead">Бета — по приглашениям. Биллинг и публичная регистрация появятся после закрытой беты.</p>
+    <div class="lp-tariffs">
+      <article>
+        <h3>Бета</h3>
+        <p class="lp-price">по приглашению</p>
+        <p>Полный кабинет для пилотных организаций: комплекты ФЛ/ЮЛ/ГПД, журнал, DaData.</p>
+      </article>
+      <article>
+        <h3>Организация</h3>
+        <p class="lp-price">от 4&nbsp;900 ₽/мес</p>
+        <p>После беты: своя org, пользователи по инвайтам, хранение файлов и ночные бэкапы.</p>
+      </article>
+      <article>
+        <h3>С сопровождением</h3>
+        <p class="lp-price">индивидуально</p>
+        <p>Настройка шаблонов под регламент СРО, обучение команды, приоритетная поддержка.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="lp-section" id="apply">
+  <div class="lp-wrap lp-apply">
+    <h2>Ранний доступ</h2>
+    <p class="lp-section-lead">Оставьте e-mail и профиль — откроем доступ по мере запуска беты.</p>
+
+    {% if flash_error %}<div class="lp-alert lp-alert-error" role="alert">{{ flash_error }}</div>{% endif %}
+    {% if flash_ok %}<div class="lp-alert lp-alert-ok" role="status">{{ flash_ok }}</div>{% endif %}
+
+    <form class="lp-form" method="post" action="/apply" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <p class="lp-hp" aria-hidden="true">
+        <label>Сайт <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+      </p>
+      <label for="email">E-mail</label>
+      <input id="email" name="email" type="email" required maxlength="320" value="{{ form_email }}" autocomplete="email">
+
+      <label for="profile">Профиль деятельности</label>
+      <select id="profile" name="profile" required>
+        <option value="" disabled {% if not form_profile %}selected{% endif %}>Выберите…</option>
+        {% for p in profiles %}
+          <option value="{{ p }}" {% if form_profile == p %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+
+      <label for="comment">Комментарий <span class="lp-optional">(необязательно)</span></label>
+      <textarea id="comment" name="comment" rows="3" maxlength="2000">{{ form_comment }}</textarea>
+
+      <p class="lp-consent">Нажимая «Отправить», вы соглашаетесь с <a href="/privacy">политикой обработки ПДн</a>.</p>
+      <button type="submit" class="lp-btn">Отправить заявку</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

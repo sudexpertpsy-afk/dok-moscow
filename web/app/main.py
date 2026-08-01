@@ -6,7 +6,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from starlette.middleware.sessions import SessionMiddleware
@@ -15,7 +14,7 @@ from app import db as dbmod
 from app.config import get_settings
 from app.db import Base
 from app.models import User, UserRole
-from app.routers import admin, auth, cabinet, counterparties, documents, journal, package
+from app.routers import admin, auth, cabinet, counterparties, documents, journal, landing, package
 from app.routers import settings as settings_routes
 from app.security import hash_password
 
@@ -72,12 +71,15 @@ def create_app() -> FastAPI:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        # Яндекс.Метрика (скрипт + пиксель) — только при заданном ID на лендинге
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "script-src 'self' https://unpkg.com 'unsafe-inline'; "
-            "img-src 'self' data:; "
+            "script-src 'self' https://unpkg.com https://mc.yandex.ru 'unsafe-inline'; "
+            "img-src 'self' data: https://mc.yandex.ru; "
+            "connect-src 'self' https://mc.yandex.ru; "
+            "frame-src https://mc.yandex.ru; "
             "frame-ancestors 'none'; "
             "base-uri 'self'; "
             "form-action 'self'"
@@ -88,6 +90,7 @@ def create_app() -> FastAPI:
     static_dir.mkdir(exist_ok=True)
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+    app.include_router(landing.router)
     app.include_router(auth.router)
     app.include_router(cabinet.router)
     app.include_router(documents.router)
@@ -96,10 +99,6 @@ def create_app() -> FastAPI:
     app.include_router(journal.router)
     app.include_router(settings_routes.router)
     app.include_router(admin.router)
-
-    @app.get("/")
-    def root():
-        return RedirectResponse("/login")
 
     return app
 
