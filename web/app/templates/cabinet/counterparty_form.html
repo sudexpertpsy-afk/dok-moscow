@@ -27,7 +27,10 @@
       {% endif %}
       <form method="post"
             action="{% if mode == 'new' %}/cabinet/counterparties/new{% else %}/cabinet/counterparties/{{ cp.id }}{% endif %}"
-            id="cp-form">
+            id="cp-form"
+            hx-boost="true"
+            hx-target="body"
+            hx-swap="outerHTML show:#cp-form-errors:top">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="source" id="source" value="{{ values.source or 'manual' }}">
 
@@ -103,9 +106,12 @@
         <label for="notes">Примечания</label>
         <textarea id="notes" name="notes" rows="2">{{ values.notes or '' }}</textarea>
 
-        <div class="actions">
-          <button type="submit">Сохранить</button>
-          <a class="btn secondary" href="/cabinet/counterparties/">К списку</a>
+        <div id="cp-form-errors" class="form-footer">
+          {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+          <div class="actions">
+            <button type="submit">Сохранить</button>
+            <a class="btn secondary" href="/cabinet/counterparties/">К списку</a>
+          </div>
         </div>
       </form>
     </section>

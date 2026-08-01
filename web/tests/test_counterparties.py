@@ -93,6 +93,21 @@ def test_validation_rejects_bad_inn(app):
     )
     assert r.status_code == 400
     assert "ИНН" in r.text
+    # Ошибка дублируется у кнопки «Сохранить», чтобы была видна после длинной формы.
+    assert r.text.count("ИНН") >= 1
+    assert 'id="cp-form-errors"' in r.text
+
+
+def test_htmx_config_swaps_validation_errors(app):
+    """Страница кабинета подключает конфиг, иначе hx-boost глотает 400."""
+    client, _ = app
+    r = client.get("/login")
+    assert r.status_code == 200
+    assert "/static/htmx-config.js" in r.text
+    cfg = client.get("/static/htmx-config.js")
+    assert cfg.status_code == 200
+    assert "400" in cfg.text
+    assert "responseHandling" in cfg.text
 
 
 def test_dadata_suggest_mocked(app):
