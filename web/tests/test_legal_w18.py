@@ -101,6 +101,12 @@ def test_document_form_normative_links(app):
     assert "73-fz-sudebno-ekspertnaya-deyatelnost" in normative_for_template(
         "Договор_экспертиза.docx"
     )
+    # точное имя из манифеста template_normative.json
+    hod = normative_for_template("Ходатайство_о_назначении_экспертизы.docx")
+    assert "kas-ekspertiza" in hod
+    assert "plenum-vs-28-2010" in hod
+    psycho = normative_for_template("Психология_ДРО_с_итогом.docx")
+    assert "3185-1-psihiatricheskaya-pomoshch" in psycho
     from app.defaults import empty_requisites
     from app.models import Organization, User, UserRole
     from app.security import hash_password

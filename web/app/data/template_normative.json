@@ -1,0 +1,105 @@
+{
+  "by_name": {
+    "Ходатайство_о_назначении_экспертизы.docx": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost",
+      "gpk-ekspertiza",
+      "upk-ekspertiza",
+      "apk-ekspertiza",
+      "kas-ekspertiza",
+      "plenum-vs-28-2010"
+    ],
+    "СППЭ_информация_суду.docx": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost",
+      "gpk-ekspertiza",
+      "plenum-vs-28-2010",
+      "minjust-seu-prikazy"
+    ],
+    "Психология_ДРО_с_итогом.docx": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost",
+      "3185-1-psihiatricheskaya-pomoshch",
+      "323-fz-meditsinskaya-ekspertiza",
+      "minzdrav-3n-2017"
+    ],
+    "Договор_ГПД_эксперт.docx": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost",
+      "uk-otvetstvennost-eksperta"
+    ],
+    "Акт_ГПД_эксперт.docx": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost",
+      "uk-otvetstvennost-eksperta"
+    ],
+    "Договор_освидетельствование.docx": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost",
+      "323-fz-meditsinskaya-ekspertiza",
+      "3185-1-psihiatricheskaya-pomoshch"
+    ],
+    "Договор_рецензия.docx": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost",
+      "gpk-ekspertiza",
+      "gost-r-57344-2016"
+    ],
+    "Договор_рецензия_юрлицо.docx": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost",
+      "gpk-ekspertiza",
+      "gost-r-57344-2016"
+    ],
+    "Согласие_ПДн.docx": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost"
+    ]
+  },
+  "by_substring": {
+    "ходатайство": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost",
+      "gpk-ekspertiza",
+      "upk-ekspertiza",
+      "apk-ekspertiza"
+    ],
+    "сппэ": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost",
+      "gpk-ekspertiza",
+      "plenum-vs-28-2010"
+    ],
+    "психология": [
+      "3185-1-psihiatricheskaya-pomoshch",
+      "323-fz-meditsinskaya-ekspertiza",
+      "minzdrav-3n-2017"
+    ],
+    "освидетельствование": [
+      "323-fz-meditsinskaya-ekspertiza",
+      "3185-1-psihiatricheskaya-pomoshch"
+    ],
+    "рецензия": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost",
+      "gpk-ekspertiza",
+      "gost-r-57344-2016"
+    ],
+    "обучение": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost"
+    ],
+    "гпд": [
+      "uk-otvetstvennost-eksperta",
+      "73-fz-sudebno-ekspertnaya-deyatelnost"
+    ],
+    "экспертиз": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost",
+      "gpk-ekspertiza",
+      "upk-ekspertiza"
+    ],
+    "договор": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost",
+      "gpk-ekspertiza"
+    ],
+    "акт": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost"
+    ],
+    "допсоглашение": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost"
+    ],
+    "соглашение": [
+      "73-fz-sudebno-ekspertnaya-deyatelnost"
+    ]
+  },
+  "default": [
+    "73-fz-sudebno-ekspertnaya-deyatelnost"
+  ]
+}

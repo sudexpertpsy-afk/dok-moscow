@@ -97,15 +97,17 @@ async def templates_upload(
         return forbidden_org_admin_page(request, user, db)
     org = get_org_for_user(db, user)
     assert_can_manage_org_templates(db, org.id)
-    raw = await file.read()
+    from app.services.docx_upload import DocxUploadError, read_upload_limited
+
     try:
+        raw = await read_upload_limited(file)
         name = save_org_upload(
             org_id=org.id,
             filename=file.filename or "template.docx",
             data=raw,
             contract_type=(contract_type or "").strip(),
         )
-    except OrgTemplateError as exc:
+    except (OrgTemplateError, DocxUploadError) as exc:
         return templates.TemplateResponse(
             request=request,
             name="cabinet/org_templates.html",

@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.services.docx_upload import DocxUploadError, validate_docx_bytes
 from app.services.templates import (
     ensure_core_on_path,
     invalidate_templates_cache,
@@ -104,12 +105,10 @@ def save_upload(
     data: bytes,
     contract_type: str = "",
 ) -> str:
-    if not data:
-        raise TemplateAdminError("Пустой файл")
-    if len(data) > 25 * 1024 * 1024:
-        raise TemplateAdminError("Файл больше 25 МБ")
-    if not data[:2] == b"PK":
-        raise TemplateAdminError("Нужен файл .docx (Office Open XML)")
+    try:
+        validate_docx_bytes(data)
+    except DocxUploadError as exc:
+        raise TemplateAdminError(str(exc)) from exc
     stem = _safe_stem(filename)
     name = _docx_name(stem)
     dest = _root() / name

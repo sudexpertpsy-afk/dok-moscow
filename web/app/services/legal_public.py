@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
@@ -20,6 +23,8 @@ from app.services.legal_search import (
     LegalSearchResult,
     search_legal,
 )
+
+_NORMATIVE_PATH = Path(__file__).resolve().parents[1] / "data" / "template_normative.json"
 
 CATEGORY_GROUPS: list[tuple[LegalActCategory, str]] = [
     (LegalActCategory.law, "Профильный закон и отраслевые законы"),
@@ -160,7 +165,7 @@ def search_acts_grouped(
     )
 
 
-# Шаблоны документов → рекомендуемые акты (сквозные ссылки в кабинете)
+# Fallback, если JSON недоступен (тесты / урезанный деплой)
 TEMPLATE_NORMATIVE: dict[str, list[str]] = {
     "договор": ["73-fz-sudebno-ekspertnaya-deyatelnost", "gpk-ekspertiza"],
     "экспертиз": ["73-fz-sudebno-ekspertnaya-deyatelnost", "gpk-ekspertiza", "upk-ekspertiza"],
@@ -169,14 +174,57 @@ TEMPLATE_NORMATIVE: dict[str, list[str]] = {
 }
 
 
+@lru_cache
+def _load_template_normative() -> dict:
+    if not _NORMATIVE_PATH.is_file():
+        return {
+            "by_name": {},
+            "by_substring": TEMPLATE_NORMATIVE,
+            "default": ["73-fz-sudebno-ekspertnaya-deyatelnost"],
+        }
+    try:
+        raw = json.loads(_NORMATIVE_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {
+            "by_name": {},
+            "by_substring": TEMPLATE_NORMATIVE,
+            "default": ["73-fz-sudebno-ekspertnaya-deyatelnost"],
+        }
+    by_name = raw.get("by_name") if isinstance(raw, dict) else {}
+    by_sub = raw.get("by_substring") if isinstance(raw, dict) else {}
+    default = raw.get("default") if isinstance(raw, dict) else None
+    return {
+        "by_name": by_name if isinstance(by_name, dict) else {},
+        "by_substring": by_sub if isinstance(by_sub, dict) else dict(TEMPLATE_NORMATIVE),
+        "default": list(default)
+        if isinstance(default, list) and default
+        else ["73-fz-sudebno-ekspertnaya-deyatelnost"],
+    }
+
+
 def normative_for_template(template_name: str) -> list[str]:
-    name = (template_name or "").casefold()
+    """Связка шаблон → slug'и /zakon (манифест template_normative.json)."""
+    data = _load_template_normative()
+    exact = (template_name or "").strip()
+    by_name = data.get("by_name") or {}
+    if exact in by_name and isinstance(by_name[exact], list):
+        return [str(s) for s in by_name[exact] if s]
+
+    name = exact.casefold()
     slugs: list[str] = []
-    for key, vals in TEMPLATE_NORMATIVE.items():
-        if key in name:
+    by_sub = data.get("by_substring") or TEMPLATE_NORMATIVE
+    # Более длинные ключи раньше — точнее совпадение
+    for key in sorted(by_sub.keys(), key=len, reverse=True):
+        if key.casefold() in name:
+            vals = by_sub[key]
+            if not isinstance(vals, list):
+                continue
             for s in vals:
-                if s not in slugs:
+                s = str(s)
+                if s and s not in slugs:
                     slugs.append(s)
+    if not slugs:
+        slugs = [str(s) for s in (data.get("default") or []) if s]
     if not slugs:
         slugs = ["73-fz-sudebno-ekspertnaya-deyatelnost"]
     return slugs

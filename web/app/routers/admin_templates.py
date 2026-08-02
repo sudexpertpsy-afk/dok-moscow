@@ -85,14 +85,16 @@ async def templates_upload(
     contract_type: str = Form(""),
     _: None = Depends(require_csrf),
 ):
-    raw = await file.read()
+    from app.services.docx_upload import DocxUploadError, read_upload_limited
+
     try:
+        raw = await read_upload_limited(file)
         name = save_upload(
             filename=file.filename or "template.docx",
             data=raw,
             contract_type=(contract_type or "").strip(),
         )
-    except TemplateAdminError as exc:
+    except (TemplateAdminError, DocxUploadError) as exc:
         return _error(request, user, str(exc))
     record_event(
         db,

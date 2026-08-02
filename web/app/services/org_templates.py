@@ -12,6 +12,11 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import Contract, Document, TariffCode
 from app.services.billing import get_tariff_limits
+from app.services.docx_upload import (
+    MAX_ORG_TEMPLATES,
+    DocxUploadError,
+    validate_docx_bytes,
+)
 from app.services.templates import ensure_core_on_path
 
 CONTRACT_TYPE_LABELS = {
@@ -169,15 +174,17 @@ def save_org_upload(
     data: bytes,
     contract_type: str = "",
 ) -> str:
-    if not data:
-        raise OrgTemplateError("Пустой файл")
-    if len(data) > 25 * 1024 * 1024:
-        raise OrgTemplateError("Файл больше 25 МБ")
-    if data[:2] != b"PK":
-        raise OrgTemplateError("Нужен файл .docx (Office Open XML)")
+    try:
+        validate_docx_bytes(data)
+    except DocxUploadError as exc:
+        raise OrgTemplateError(str(exc)) from exc
+    root = org_templates_dir(org_id)
+    existing = [p for p in root.glob("*.docx") if not p.name.startswith("~$")]
+    if len(existing) >= MAX_ORG_TEMPLATES:
+        raise OrgTemplateError(f"Лимит своих шаблонов: {MAX_ORG_TEMPLATES}")
     stem = _safe_stem(filename)
     name = f"{stem}.docx"
-    dest = org_templates_dir(org_id) / name
+    dest = root / name
     if dest.exists():
         raise OrgTemplateError(f"Шаблон «{name}» уже есть — переименуйте или удалите старый")
     dest.write_bytes(data)
