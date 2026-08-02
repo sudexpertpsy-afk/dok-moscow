@@ -238,6 +238,12 @@ def pull_publication_pdf_to_draft(
         pdf_bytes = pub.download_pdf(eo)
         path = legal_pdf_storage_path(act, eo)
         path.write_bytes(pdf_bytes)
+        meta_name = ""
+        try:
+            meta = pub.get_document(eo)
+            meta_name = str(meta.get("complexName") or meta.get("name") or "").strip()
+        except Exception:
+            meta_name = ""
         draft = ingest_pdf_version(
             db,
             act_id=act.id,
@@ -249,6 +255,29 @@ def pull_publication_pdf_to_draft(
         )
         if act.eo_number != eo:
             act.eo_number = eo
+        # скан без текстового слоя: карточка со ссылкой на официальный PDF
+        plain = re.sub(r"<[^>]+>", " ", draft.body_html or "")
+        plain = re.sub(r"\s+", " ", plain).strip()
+        if draft.text_origin == "pdf_unrecognized" or len(plain) < 40:
+            pdf_href = pub.pdf_url(eo)
+            title = _escape(meta_name or act.title)
+            draft.body_html = (
+                f"<p><strong>{title}</strong></p>"
+                f"<p>Официальный текст опубликован в виде PDF "
+                f"(скан без текстового слоя; полнотекстовый поиск по странице недоступен).</p>"
+                f"<p>Скачать официальную публикацию: "
+                f'<a href="{_escape(pdf_href)}" rel="noopener noreferrer" target="_blank">'
+                f"publication.pravo.gov.ru · eoNumber={_escape(eo)}</a>.</p>"
+                f"<p>Реквизиты акта в реестре Док.Москва: {_escape(act.act_kind)} "
+                f"№ {_escape(act.number or '—')}.</p>"
+            )
+            draft.text_origin = "pdf_unrecognized"
+            if "скан" not in (draft.change_basis or "").casefold():
+                draft.change_basis = (
+                    (draft.change_basis or "PDF publication")
+                    + " · скан без текстового слоя, карточка со ссылкой"
+                )
+            db.flush()
         n_frag = 0
         if act.mode == LegalActMode.fragments and (draft.body_html or "").strip():
             n_frag = fill_fragments_from_html(db, act, draft.body_html)

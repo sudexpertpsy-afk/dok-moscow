@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from sqlalchemy import select
@@ -122,9 +123,13 @@ def test_pull_publication_pdf_to_draft(app, monkeypatch, tmp_path):
 
             def download_pdf(self, eo_number: str) -> bytes:
                 assert eo_number == act.eo_number
-                # минимальный «PDF» с текстом для pypdf не обязателен —
-                # ingest помечает нераспознанный скан
                 return b"%PDF-1.4 fake"
+
+            def get_document(self, eo_number: str) -> dict:
+                return {"name": "Тестовый приказ 3н", "complexName": ""}
+
+            def pdf_url(self, eo_number: str) -> str:
+                return f"http://publication.pravo.gov.ru/file/pdf?eoNumber={eo_number}"
 
         monkeypatch.setattr(
             "app.services.legal_bootstrap.PublicationClient", FakePub
@@ -140,6 +145,9 @@ def test_pull_publication_pdf_to_draft(app, monkeypatch, tmp_path):
         assert draft.status == ActVersionStatus.draft
         assert draft.pdf_path and Path(draft.pdf_path).is_file()
         assert "eoNumber=" in (draft.change_basis or "")
+        assert draft.text_origin == "pdf_unrecognized"
+        assert "скан без текстового слоя" in (draft.body_html or "").casefold()
+        assert len(re.sub(r"<[^>]+>", " ", draft.body_html or "")) >= 40
     finally:
         db.close()
 
