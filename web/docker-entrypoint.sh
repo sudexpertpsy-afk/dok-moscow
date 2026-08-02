@@ -22,8 +22,13 @@ else:
     raise SystemExit("PostgreSQL недоступен")
 PY
 
-echo "→ alembic upgrade head"
-alembic upgrade head
+# Worker и параллельные реплики: миграции только у app (иначе гонка CREATE EXTENSION).
+if [[ "${SKIP_MIGRATIONS:-0}" != "1" ]]; then
+  echo "→ alembic upgrade head"
+  alembic upgrade head
+else
+  echo "→ SKIP_MIGRATIONS=1 — alembic пропущен"
+fi
 
 echo "→ Запуск приложения"
 exec "$@"

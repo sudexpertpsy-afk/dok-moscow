@@ -229,8 +229,9 @@ def robots_txt(request: Request):
 @router.get("/sitemap.xml")
 def sitemap_xml(request: Request, db: Session = Depends(get_db)):
     from app.hosting import host_role, redirect_url_for_path, request_host
-    from app.models import LegalAct, LegalActStatus
+    from app.models import ActVersionStatus, LegalAct, LegalActMode, LegalActStatus
     from sqlalchemy import select
+    from sqlalchemy.orm import joinedload
 
     role = host_role(request_host(request.headers.get("host")))
     if role == "app":
@@ -244,12 +245,28 @@ def sitemap_xml(request: Request, db: Session = Depends(get_db)):
     ]
     for path in paths:
         body.append(f"  <url><loc>{base}{path}</loc><changefreq>weekly</changefreq></url>")
-    slugs = db.scalars(
-        select(LegalAct.slug).where(LegalAct.status == LegalActStatus.active)
-    ).all()
-    for slug in slugs:
+    # SEO: только активные акты с опубликованной редакцией (или card со ссылкой)
+    acts = db.scalars(
+        select(LegalAct)
+        .options(joinedload(LegalAct.versions))
+        .where(LegalAct.status == LegalActStatus.active)
+        .order_by(LegalAct.sort_order, LegalAct.id)
+    ).unique().all()
+    for act in acts:
+        published = next(
+            (v for v in (act.versions or []) if v.status == ActVersionStatus.published),
+            None,
+        )
+        if published is None and act.mode != LegalActMode.card:
+            continue
+        lastmod = ""
+        if published is not None:
+            ts = published.reviewed_at or published.loaded_at or published.created_at
+            if ts is not None:
+                lastmod = f"<lastmod>{ts.date().isoformat()}</lastmod>"
         body.append(
-            f"  <url><loc>{base}/zakon/{slug}</loc><changefreq>weekly</changefreq></url>"
+            f"  <url><loc>{base}/zakon/{act.slug}</loc>"
+            f"{lastmod}<changefreq>weekly</changefreq></url>"
         )
     body.append("</urlset>")
     return Response("\n".join(body) + "\n", media_type="application/xml")

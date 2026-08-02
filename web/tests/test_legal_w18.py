@@ -8,7 +8,11 @@ from sqlalchemy import select
 
 from app.models import LegalAct
 from app.services.legal_public import normative_for_template, search_acts
-from app.services.legal_registry import create_draft_version, publish_version
+from app.services.legal_registry import (
+    create_draft_version,
+    ensure_legal_registry,
+    publish_version,
+)
 from conftest import login
 
 
@@ -81,11 +85,27 @@ def test_zakon_search_finds_published_text(app):
 
 
 def test_sitemap_includes_zakon(app):
-    client, _ = app
+    client, dbmod = app
+    db = dbmod.SessionLocal()
+    try:
+        ensure_legal_registry(db)
+        act = db.scalar(
+            select(LegalAct).where(LegalAct.slug == "73-fz-sudebno-ekspertnaya-deyatelnost")
+        )
+        assert act is not None
+        draft = create_draft_version(
+            db, act_id=act.id, body_html="<p>sitemap body text long enough</p>"
+        )
+        publish_version(db, draft)
+        db.commit()
+    finally:
+        db.close()
+
     r = client.get("/sitemap.xml")
     assert r.status_code == 200
     assert "/zakon/" in r.text
     assert "/zakon/73-fz-sudebno-ekspertnaya-deyatelnost" in r.text
+    assert "<lastmod>" in r.text
 
 
 def test_landing_nav_has_zakon(app):

@@ -67,6 +67,7 @@ services:
       TEMPLATES_DIR: /app/core/Шаблоны
       BILLING_WORKER: "1"
       JOBS_INLINE: "0"
+      SKIP_MIGRATIONS: "1"
     command: ["python", "-m", "app.worker"]
     volumes:
       - files:/srv/dok/files
@@ -75,6 +76,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      app:
+        condition: service_started
       gotenberg:
         condition: service_started
     restart: unless-stopped
