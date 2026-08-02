@@ -142,6 +142,21 @@ NAV_REGISTRY: tuple[NavItem, ...] = (
         group="Справка",
     ),
     _item(
+        "help",
+        "Как пользоваться",
+        "/cabinet/help/",
+        synonyms=(
+            "помощь",
+            "инструкции",
+            "справка",
+            "faq",
+            "руководство",
+            "обучение",
+            "шаблоны",
+        ),
+        group="Справка",
+    ),
+    _item(
         "billing",
         "Тариф и оплата",
         "/cabinet/billing/",

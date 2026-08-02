@@ -30,6 +30,7 @@ from app.routers import (
     billing,
     cabinet,
     cabinet_billing,
+    cabinet_help,
     cabinet_templates,
     cabinet_zakon,
     calendar,
@@ -232,6 +233,7 @@ def create_app() -> FastAPI:
     app.include_router(global_search.router)
     app.include_router(cabinet.router)
     app.include_router(cabinet_billing.router)
+    app.include_router(cabinet_help.router)
     app.include_router(cabinet_templates.router)
     app.include_router(cabinet_zakon.router)
     app.include_router(staff.router)
