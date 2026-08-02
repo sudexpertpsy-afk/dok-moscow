@@ -39,6 +39,8 @@ _ADMIN_ACTIVE_KEYS = {
     "status": "admin_status",
     "legal": "admin_legal",
     "server": "admin_server",
+    "admin_security": "admin_security",
+    "security": "admin_security",
 }
 
 
