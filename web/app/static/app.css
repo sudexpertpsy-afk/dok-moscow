@@ -606,3 +606,8 @@ body.gs-open { overflow: hidden; }
   padding: 0.55rem 0.75rem; cursor: pointer; font: inherit;
 }
 .suggest-box button:hover, .suggest-pick:hover { background: #eef5f1; }
+
+/* W-35: законодательство в кабинете */
+.zk-cab-act .zk-body { line-height: 1.65; }
+.zk-cab-act .zk-body .W9 { font-size: 0.75em; vertical-align: super; line-height: 0; }
+.zk-cab-act .zk-body .WB { font-weight: 600; }

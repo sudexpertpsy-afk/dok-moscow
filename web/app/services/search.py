@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.deps import CurrentUser
-from app.hosting import public_url
 from app.services.global_search import (
     GlobalSearchResult,
     SearchGroup,
@@ -77,15 +76,15 @@ def search_page(
 
 
 def _absolutize_legal(result: GlobalSearchResult) -> GlobalSearchResult:
-    """Ссылки на /zakon ведут на публичный хост."""
+    """Для залогиненного Cmd+K ссылки НПА ведут в кабинетную версию (W-35)."""
     for g in result.groups:
         if g.key != "legal":
             continue
         fixed: list[SearchGroupItem] = []
         for it in g.items:
-            url = it.url
+            url = it.url or ""
             if url.startswith("/zakon"):
-                url = public_url(url)
+                url = "/cabinet" + url
             fixed.append(
                 SearchGroupItem(
                     title=it.title,

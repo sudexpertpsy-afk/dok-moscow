@@ -8,7 +8,6 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.hosting import public_url
 from app.models import (
     CalendarEvent,
     CalendarEventStatus,
@@ -181,4 +180,5 @@ def load_dashboard(db: Session, org_id: int) -> DashboardData:
 
 
 def legal_public_href(act: LegalAct) -> str:
-    return public_url(f"/zakon/{act.slug}")
+    """Ссылка на акт из дашборда — кабинетная версия (W-35)."""
+    return f"/cabinet/zakon/{act.slug}"

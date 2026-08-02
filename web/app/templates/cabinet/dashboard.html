@@ -65,12 +65,12 @@
   <ul style="list-style:none;padding:0;margin:0">
     {% for act in dash.legal_news %}
     <li style="padding:0.4rem 0">
-      <a href="{{ public_base_url }}/zakon/{{ act.slug }}" target="_blank" rel="noopener" hx-boost="false">{{ act.title }}</a>
+      <a href="/cabinet/zakon/{{ act.slug }}">{{ act.title }}</a>
     </li>
     {% endfor %}
   </ul>
   {% else %}
-  <p class="muted"><a href="{{ public_base_url }}/zakon/" target="_blank" rel="noopener" hx-boost="false">Нормативная база</a></p>
+  <p class="muted"><a href="/cabinet/zakon/">Нормативная база</a></p>
   {% endif %}
 </section>
 {% include "cabinet/_layout_end.html" %}

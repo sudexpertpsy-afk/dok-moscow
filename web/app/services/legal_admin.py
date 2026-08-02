@@ -143,7 +143,15 @@ def do_publish(db: Session, version_id: int, user_id: int) -> ActVersion:
     version = db.get(ActVersion, version_id)
     if version is None:
         raise ValueError("Редакция не найдена")
-    return publish_version(db, version, reviewed_by_user_id=user_id)
+    published = publish_version(db, version, reviewed_by_user_id=user_id)
+    # W-35: письма подписчикам только после публикации (не по черновику)
+    try:
+        from app.services.cabinet_zakon import notify_watchers_after_publish
+
+        notify_watchers_after_publish(db, published.act_id, published.id)
+    except Exception:  # noqa: BLE001 — публикация не должна падать из‑за почты
+        pass
+    return published
 
 
 @dataclass
@@ -220,7 +228,13 @@ def publish_all_drafts(
             continue
         try:
             with db.begin_nested():
-                publish_version(db, draft, reviewed_by_user_id=user_id)
+                published = publish_version(db, draft, reviewed_by_user_id=user_id)
+                try:
+                    from app.services.cabinet_zakon import notify_watchers_after_publish
+
+                    notify_watchers_after_publish(db, published.act_id, published.id)
+                except Exception:  # noqa: BLE001
+                    pass
             items.append(
                 PublishBatchItem(
                     act_id=act.id, slug=act.slug, version_id=draft.id, ok=True

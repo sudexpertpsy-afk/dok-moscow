@@ -160,4 +160,4 @@ def test_document_form_normative_links(app):
     r = client.get(f"/cabinet/documents/new/{template_name}")
     assert r.status_code == 200
     assert "Нормативная база" in r.text
-    assert "/zakon/" in r.text
+    assert "/cabinet/zakon/" in r.text

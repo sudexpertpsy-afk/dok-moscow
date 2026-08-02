@@ -6,11 +6,7 @@
       {% for key, label, href in nav %}
       <div class="nav-item" draggable="true" data-nav-key="{{ key }}">
         <button type="button" class="nav-handle" title="Перетащить пункт меню" aria-label="Перетащить «{{ label }}»" tabindex="-1">⋮⋮</button>
-        {% if key == 'zakon_nav' %}
-        <a href="{{ public_base_url }}{{ href }}" class="{% if active == key %}active{% endif %}" target="_blank" rel="noopener" hx-boost="false">{{ label }}</a>
-        {% else %}
         <a href="{{ href }}" class="{% if active == key %}active{% endif %}" hx-boost="true">{{ label }}</a>
-        {% endif %}
       </div>
       {% endfor %}
     </nav>

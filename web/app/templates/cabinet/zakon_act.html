@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}{{ act.title }} — Законодательство — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "cabinet/_layout_start.html" %}
+<section class="panel zk-cab-act">
+  <p class="muted"><a href="/cabinet/zakon/">Законодательство</a> · {{ category_label.get(act.category, act.category.value) }}</p>
+  <h1>{{ act.title }}</h1>
+  <p class="muted">{{ meta_line }}{% if act.authority %} · {{ act.authority }}{% endif %}</p>
+
+  <div class="zk-cab-plaque muted">
+    {% if published and published.revision_date %}
+    Редакция от {{ published.revision_date.strftime('%d.%m.%Y') }}
+    {% elif published %}
+    Опубликованная редакция
+    {% else %}
+    Текст редакции готовится к публикации
+    {% endif %}
+    · <a href="{{ act.source_url }}" rel="noopener noreferrer" target="_blank" hx-boost="false">первоисточник</a>
+    · <a href="{{ public_base_url }}/zakon/{{ act.slug }}" target="_blank" rel="noopener" hx-boost="false">публичная страница</a>
+  </div>
+
+  <div class="zk-cab-toolbar actions" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin:1rem 0">
+    {% set act_key = bookmark_key_fn(act.id, none) %}
+    <form method="post" action="/cabinet/zakon/{{ act.slug }}/bookmark" hx-boost="false">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" title="Закладка на акт">{% if act_key in bookmarked %}★ В закладках{% else %}☆ В закладки{% endif %}</button>
+    </form>
+
+    <button type="button" class="btn secondary" data-quote-act="{{ act.slug }}" title="Копировать цитату">Копировать цитату</button>
+
+    {% if paid %}
+    <form method="post" action="/cabinet/zakon/{{ act.slug }}/watch" hx-boost="false">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" title="Уведомлять об изменениях">{% if watching %}🔔 Отслеживается{% else %}🔔 Уведомлять об изменениях{% endif %}</button>
+    </form>
+    <a class="btn secondary" href="/cabinet/zakon/{{ act.slug }}/export.docx">⭐ Экспорт DOCX</a>
+    {% else %}
+    <a class="btn secondary" href="{{ billing_url }}?error=zakon_premium" title="Доступно на тарифах Специалист и Организация">⭐ Слежение и экспорт — в тарифе</a>
+    {% endif %}
+
+    {% if pdf_url %}
+    <a class="btn secondary" href="{{ pdf_url }}" target="_blank" rel="noopener" hx-boost="false">PDF</a>
+    {% endif %}
+  </div>
+
+  {% if not paid %}
+  <div class="alert" style="margin-bottom:1rem">
+    Заметки к статьям, слежение за изменениями и экспорт DOCX — на тарифах «Специалист» и «Организация».
+    <a href="{{ billing_url }}">Перейти к тарифам</a>
+  </div>
+  {% endif %}
+
+  {% if act.mode == mode_card %}
+  <div class="zk-body" data-edition-body>
+    <p>{{ act.notes or 'Национальный стандарт. Полный текст в свободной републикации не размещается.' }}</p>
+  </div>
+  {% elif act.mode == mode_fragments %}
+  <div class="zk-toc">
+    <h2>Оглавление</h2>
+    <ol>
+      {% for f in fragments %}
+      <li>
+        <a href="#{{ article_anchor(f.article_ref) }}">{{ f.article_ref }}{% if f.title and f.title != f.article_ref %} — {{ f.title }}{% endif %}</a>
+        {% if paid and notes.get(f.id) %} · 📝{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+  <div class="zk-body" data-edition-body>
+    {% for f in fragments %}
+    {% set fkey = bookmark_key_fn(act.id, f.id) %}
+    <section id="{{ article_anchor(f.article_ref) }}" class="zk-frag">
+      <div class="zk-frag-head" style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center">
+        <h3 style="margin:0;flex:1 1 auto">{{ f.article_ref }}{% if f.title and f.title != f.article_ref %} — {{ f.title }}{% endif %}</h3>
+        <form method="post" action="/cabinet/zakon/{{ act.slug }}/bookmark" hx-boost="false" style="margin:0">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="fragment_id" value="{{ f.id }}">
+          <button type="submit" class="btn secondary" style="padding:0.25rem 0.5rem">{% if fkey in bookmarked %}★{% else %}☆{% endif %}</button>
+        </form>
+        <button type="button" class="btn secondary" style="padding:0.25rem 0.5rem" data-quote-act="{{ act.slug }}" data-quote-frag="{{ f.id }}">Цитата</button>
+        {% if paid %}
+        <a class="btn secondary" style="padding:0.25rem 0.5rem" href="/cabinet/zakon/{{ act.slug }}/export.docx?fragment_id={{ f.id }}">DOCX</a>
+        {% endif %}
+      </div>
+      {% if f.body_html %}
+      {{ f.body_html|safe }}
+      {% else %}
+      <p class="muted">Текст статьи будет загружен после сверки с официальной редакцией.</p>
+      {% endif %}
+      {% if paid %}
+      <form method="post" action="/cabinet/zakon/{{ act.slug }}/note/{{ f.id }}" class="zk-note-form" hx-boost="false">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="note-{{ f.id }}">⭐ Заметка{% if notes.get(f.id) %} · есть{% endif %}</label>
+        <textarea id="note-{{ f.id }}" name="body" rows="2" placeholder="Личная заметка к статье…">{{ notes.get(f.id, '') }}</textarea>
+        <button type="submit">Сохранить заметку</button>
+      </form>
+      {% endif %}
+    </section>
+    {% else %}
+    <p class="muted">Список статей уточняется.</p>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="zk-body" data-edition-body>
+    {% if published and published.body_html %}
+    {{ published.body_html|safe }}
+    {% else %}
+    <p class="muted">Опубликованная редакция ещё не загружена.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if archives %}
+  <section style="margin-top:2rem">
+    <h2>Архив редакций</h2>
+    <ul>
+      {% for v in archives %}
+      <li>{% if v.revision_date %}{{ v.revision_date.strftime('%d.%m.%Y') }}{% else %}без даты{% endif %}
+        {% if v.change_basis %} — {{ v.change_basis[:160] }}{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <p class="muted" style="margin-top:1.5rem">{{ disclaimer }}</p>
+</section>
+<style>
+.zk-cab-plaque { margin: 0.75rem 0; padding: 0.75rem 1rem; border-radius: 8px; background: rgba(0,0,0,.03); }
+.zk-frag { margin: 1.5rem 0; scroll-margin-top: 4rem; }
+.zk-note-form { margin-top: 0.75rem; display: grid; gap: 0.35rem; }
+.zk-note-form textarea { width: 100%; }
+.zk-toc ol { padding-left: 1.2rem; }
+</style>
+<script>
+(function () {
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+    return Promise.resolve();
+  }
+  document.querySelectorAll("[data-quote-act]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var slug = btn.getAttribute("data-quote-act");
+      var frag = btn.getAttribute("data-quote-frag");
+      var url = "/cabinet/zakon/" + encodeURIComponent(slug) + "/quote";
+      if (frag) url += "?fragment_id=" + encodeURIComponent(frag);
+      fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.text) return;
+          copyText(data.text).then(function () {
+            var old = btn.textContent;
+            btn.textContent = "Скопировано";
+            setTimeout(function () { btn.textContent = old; }, 1500);
+          });
+        })
+        .catch(function () {});
+    });
+  });
+})();
+</script>
+{% include "cabinet/_layout_end.html" %}
+{% endblock %}

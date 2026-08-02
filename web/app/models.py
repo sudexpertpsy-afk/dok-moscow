@@ -1023,3 +1023,121 @@ class OpsJournalEntry(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
     )
+
+
+class LawBookmark(Base):
+    """Личная закладка на акт или статью (W-35)."""
+
+    __tablename__ = "law_bookmarks"
+    __table_args__ = (
+        Index("uq_law_bookmarks_user_key", "user_id", "bookmark_key", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    act_id: Mapped[int] = mapped_column(
+        ForeignKey("legal_acts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    fragment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("act_fragments.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    # Уникальный ключ без NULL: «{act_id}:0» или «{act_id}:{fragment_id}»
+    bookmark_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
+    )
+
+
+class LawNote(Base):
+    """Личная заметка к статье (W-35, платный тариф)."""
+
+    __tablename__ = "law_notes"
+    __table_args__ = (
+        Index("uq_law_notes_user_fragment", "user_id", "fragment_id", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    fragment_id: Mapped[int] = mapped_column(
+        ForeignKey("act_fragments.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
+    )
+
+
+class LawWatch(Base):
+    """Слежение за актом: письмо при публикации новой редакции (W-35, платный)."""
+
+    __tablename__ = "law_watches"
+    __table_args__ = (
+        Index("uq_law_watches_user_act", "user_id", "act_id", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    act_id: Mapped[int] = mapped_column(
+        ForeignKey("legal_acts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
+    )
+
+
+class LawView(Base):
+    """История просмотров актов в кабинете (W-35)."""
+
+    __tablename__ = "law_views"
+    __table_args__ = (Index("ix_law_views_user_viewed", "user_id", "viewed_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    act_id: Mapped[int] = mapped_column(
+        ForeignKey("legal_acts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    fragment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("act_fragments.id", ondelete="SET NULL"), nullable=True
+    )
+    viewed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
+    )
+
+
+class LawWatchNotice(Base):
+    """Очередь уведомлений о публикации для дайджеста (W-35)."""
+
+    __tablename__ = "law_watch_notices"
+    __table_args__ = (
+        Index("ix_law_watch_notices_user_sent", "user_id", "sent_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    act_id: Mapped[int] = mapped_column(
+        ForeignKey("legal_acts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    version_id: Mapped[int] = mapped_column(
+        ForeignKey("act_versions.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

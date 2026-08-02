@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}{% if query %}Поиск: {{ query }} — {% endif %}Законодательство — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "cabinet/_layout_start.html" %}
+<section class="panel zk-cab">
+  <h1>Законодательство</h1>
+  <p class="muted">Справочник НПА о судебной экспертизе. Публичная версия без изменений — на сайте
+    <a href="{{ public_base_url }}/zakon/" target="_blank" rel="noopener" hx-boost="false">dok.moscow/zakon</a>.
+  </p>
+
+  {% if bookmarks %}
+  <div class="zk-cab-block">
+    <h2>Мои закладки</h2>
+    <ul class="zk-cab-list">
+      {% for b in bookmarks %}
+      <li><a href="{{ b.href }}">{{ b.label }}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if paid and watches %}
+  <div class="zk-cab-block">
+    <h2>Отслеживаемые акты</h2>
+    <ul class="zk-cab-list">
+      {% for a in watches %}
+      <li><a href="/cabinet/zakon/{{ a.slug }}">{{ a.title }}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if history %}
+  <div class="zk-cab-block">
+    <h2>Недавние просмотры</h2>
+    <ul class="zk-cab-list">
+      {% for h in history %}
+      <li><a href="{{ h.href }}">{{ h.act.title }}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <form class="zk-cab-search" method="get" action="/cabinet/zakon/" role="search">
+    <label class="sr-only" for="czk-q">Поиск</label>
+    <input id="czk-q" name="q" type="search" value="{{ query }}" placeholder="ст. 79 ГПК, внушаемость…" maxlength="200">
+    <button type="submit">Найти</button>
+    {% if query %}
+    <div class="zk-cab-filters">
+      <label>Категория
+        <select name="category">
+          <option value="">все</option>
+          <option value="law" {% if filters.category == 'law' %}selected{% endif %}>законы</option>
+          <option value="code" {% if filters.category == 'code' %}selected{% endif %}>кодексы</option>
+          <option value="plenum" {% if filters.category == 'plenum' %}selected{% endif %}>пленумы</option>
+          <option value="order" {% if filters.category == 'order' %}selected{% endif %}>приказы</option>
+          <option value="standard" {% if filters.category == 'standard' %}selected{% endif %}>стандарты</option>
+        </select>
+      </label>
+      <label>Орган <input name="authority" value="{{ filters.authority }}"></label>
+      <label>Статус
+        <select name="status">
+          <option value="">действует</option>
+          <option value="active" {% if filters.status in ('active', 'действует') %}selected{% endif %}>действует</option>
+          <option value="repealed" {% if filters.status in ('repealed', 'архив') %}selected{% endif %}>архив</option>
+        </select>
+      </label>
+    </div>
+    {% endif %}
+  </form>
+
+  {% if query %}
+  <h2>Результаты «{{ query }}»</h2>
+  {% if direct %}
+  <p class="muted">Прямой переход →
+    <a href="/cabinet/zakon/{{ direct.act.slug }}{% if direct.article_ref %}#{{ article_anchor(direct.article_ref) }}{% endif %}">
+      {{ direct.article_ref or direct.act.title }}
+    </a>
+  </p>
+  {% endif %}
+  {% if groups_search %}
+  {% for act, act_hits in groups_search %}
+  <div class="zk-cab-group">
+    <h3><a href="/cabinet/zakon/{{ act.slug }}">{{ act.title }}</a></h3>
+    <ul class="zk-cab-list">
+      {% for hit in act_hits %}
+      <li>
+        <a href="{{ hit.cabinet_url }}">{{ hit.article_ref or hit.heading or act.title }}</a>
+        {% if hit.snippet %}<p class="muted">{{ highlight(hit.snippet, query)|safe }}</p>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="muted">Ничего не найдено. <a href="/cabinet/zakon/">Каталог</a></p>
+  {% endif %}
+  {% else %}
+  {% for label, acts in groups %}
+  <div class="zk-cab-group">
+    <h2>{{ label }}</h2>
+    <ul class="zk-cab-list">
+      {% for act in acts %}
+      <li>
+        <a href="/cabinet/zakon/{{ act.slug }}">{{ act.title }}</a>
+        <div class="muted">
+          {% if act.number %}{{ act.number }} · {% endif %}{{ category_label.get(act.category, act.category.value) }}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <p class="muted" style="margin-top:1.5rem">{{ disclaimer }}</p>
+</section>
+<style>
+.zk-cab-block { margin: 1rem 0 1.25rem; padding: 0.75rem 0; border-bottom: 1px solid rgba(0,0,0,.06); }
+.zk-cab-block h2, .zk-cab-group h2, .zk-cab-group h3 { font-family: var(--font-display); font-size: 1.15rem; margin: 0.75rem 0 0.4rem; }
+.zk-cab-list { list-style: none; padding: 0; margin: 0; }
+.zk-cab-list li { padding: 0.35rem 0; }
+.zk-cab-search { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0 1.25rem; align-items: center; }
+.zk-cab-search input[type=search] { flex: 1 1 16rem; min-width: 12rem; }
+.zk-cab-filters { display: flex; flex-wrap: wrap; gap: 0.75rem; width: 100%; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+</style>
+{% include "cabinet/_layout_end.html" %}
+{% endblock %}
