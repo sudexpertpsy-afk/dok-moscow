@@ -1,4 +1,4 @@
-"""Пароли, CSRF, сессии."""
+"""Пароли, CSRF (токен в session, не cookie), сессии."""
 
 from __future__ import annotations
 

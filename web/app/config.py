@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     session_https_only: bool = False
     # Опционально: общий домен cookie (например ".dok.moscow") для поддоменов
     session_cookie_domain: str = ""
-    csrf_cookie: str = "dok_csrf"
+    # CSRF — signed token в session (см. app.security), отдельной cookie нет (T3).
     invite_ttl_hours: int = 72
     login_rate_limit: int = 5
     login_rate_window_sec: int = 15 * 60
