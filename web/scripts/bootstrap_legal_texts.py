@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Первичное наполнение НПА из ИПС → черновики (публикация в /admin/legal/).
+"""Первичное наполнение НПА из ИПС / publication PDF → черновики.
 
 Пример:
   cd web && PYTHONPATH=. python scripts/bootstrap_legal_texts.py
@@ -17,12 +17,14 @@ sys.path.insert(0, str(ROOT))
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Подтянуть тексты ИПС в черновики")
+    parser = argparse.ArgumentParser(
+        description="Подтянуть тексты ИПС / PDF publication в черновики"
+    )
     parser.add_argument("--limit", type=int, default=50)
     parser.add_argument(
         "--all-with-nd",
         action="store_true",
-        help="Не только без published, а все с ips_nd (осторожно)",
+        help="Не только без published, а все с ips_nd/eo_number (осторожно)",
     )
     parser.add_argument("--replace-draft", action="store_true")
     parser.add_argument(

@@ -30,7 +30,7 @@ from app.services.legal_admin import (
 from app.services.legal_bootstrap import (
     acts_needing_fill,
     bootstrap_missing,
-    pull_ips_to_draft,
+    pull_act_to_draft,
 )
 from app.templating import templates
 
@@ -346,7 +346,7 @@ def legal_pull_ips(
     act = get_act_admin(db, act_id)
     if act is None:
         return _err(None, "Акт не найден")
-    result = pull_ips_to_draft(
+    result = pull_act_to_draft(
         db,
         act,
         user_id=user.id,
@@ -356,13 +356,14 @@ def legal_pull_ips(
         return _err(act_id, result.error or result.skipped or "не удалось")
     record_event(
         db,
-        type="legal_ips_pulled",
+        type="legal_source_pulled",
         org_id=None,
         user_id=user.id,
         details={
             "act_id": act_id,
             "draft_id": result.draft_id,
             "fragments_filled": result.fragments_filled,
+            "source": "ips" if act.ips_nd else "publication_pdf",
         },
     )
     db.commit()

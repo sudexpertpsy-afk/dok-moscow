@@ -11,6 +11,7 @@ from app.services.legal_bootstrap import (
     bootstrap_missing,
     fill_fragments_from_html,
     pull_ips_to_draft,
+    pull_publication_pdf_to_draft,
 )
 from app.services.legal_registry import ensure_legal_registry, publish_version
 from app.services.sources.ips_loader import normalize_ips_html
@@ -93,17 +94,52 @@ def test_fill_fragments_from_html(app):
         db.close()
 
 
-def test_bootstrap_skips_without_ips_nd(app):
+def test_bootstrap_skips_without_source(app):
     _, dbmod = app
     db = dbmod.SessionLocal()
     try:
         ensure_legal_registry(db)
         db.commit()
-        # без сети: все с ips_nd упадут или skip; без nd — skip
+        # без сети: акты с источником упадут/skip; без ips_nd и eo — skip
         report = bootstrap_missing(db, only_without_published=True, limit=100)
-        # хотя бы реестр обошли
         assert report.results
-        assert any(r.skipped == "нет ips_nd" for r in report.results)
+        assert any(r.skipped == "нет ips_nd и eo_number" for r in report.results)
+    finally:
+        db.close()
+
+
+def test_pull_publication_pdf_to_draft(app, monkeypatch, tmp_path):
+    _, dbmod = app
+    db = dbmod.SessionLocal()
+    try:
+        ensure_legal_registry(db)
+        act = db.scalar(select(LegalAct).where(LegalAct.slug == "minzdrav-3n-2017"))
+        assert act and act.eo_number
+
+        class FakePub:
+            def __init__(self, *a, **k):
+                pass
+
+            def download_pdf(self, eo_number: str) -> bytes:
+                assert eo_number == act.eo_number
+                # минимальный «PDF» с текстом для pypdf не обязателен —
+                # ingest помечает нераспознанный скан
+                return b"%PDF-1.4 fake"
+
+        monkeypatch.setattr(
+            "app.services.legal_bootstrap.PublicationClient", FakePub
+        )
+        monkeypatch.setattr(
+            "app.services.legal_bootstrap.get_settings",
+            lambda: type("S", (), {"files_root": str(tmp_path)})(),
+        )
+        result = pull_publication_pdf_to_draft(db, act, user_id=1)
+        db.commit()
+        assert result.ok and result.draft_id
+        draft = db.get(ActVersion, result.draft_id)
+        assert draft.status == ActVersionStatus.draft
+        assert draft.pdf_path and Path(draft.pdf_path).is_file()
+        assert "eoNumber=" in (draft.change_basis or "")
     finally:
         db.close()
 

@@ -1,4 +1,4 @@
-"""Первичное наполнение реестра НПА из ИПС (после W-19).
+"""Первичное наполнение реестра НПА из ИПС / publication PDF (после W-19).
 
 Тексты приходят как черновики — публикация только вручную в админке.
 """
@@ -8,10 +8,12 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.models import (
     ActFragment,
     ActVersion,
@@ -21,9 +23,10 @@ from app.models import (
     LegalActStatus,
 )
 from app.services.legal_registry import create_draft_version, published_version
-from app.services.legal_search import split_html_articles
+from app.services.legal_search import ingest_pdf_version, split_html_articles
 from app.services.sources.http_client import ThrottledClient
 from app.services.sources.ips_loader import IpsLoaderError, load_ips_document
+from app.services.sources.publication_api import PublicationClient
 from app.services.sources.diff_text import paragraph_diff
 
 log = logging.getLogger("dok.legal.bootstrap")
@@ -124,6 +127,16 @@ def has_pending_draft(db: Session, act_id: int) -> bool:
     )
 
 
+def _archive_pending_drafts(db: Session, act_id: int) -> None:
+    for d in db.scalars(
+        select(ActVersion).where(
+            ActVersion.act_id == act_id,
+            ActVersion.status == ActVersionStatus.draft,
+        )
+    ).all():
+        d.status = ActVersionStatus.archived
+
+
 def pull_ips_to_draft(
     db: Session,
     act: LegalAct,
@@ -145,13 +158,7 @@ def pull_ips_to_draft(
         return PullResult(act.id, slug, ok=False, skipped="уже есть черновик")
 
     if replace_draft:
-        for d in db.scalars(
-            select(ActVersion).where(
-                ActVersion.act_id == act.id,
-                ActVersion.status == ActVersionStatus.draft,
-            )
-        ).all():
-            d.status = ActVersionStatus.archived
+        _archive_pending_drafts(db, act.id)
 
     try:
         if body_html is None:
@@ -191,6 +198,105 @@ def pull_ips_to_draft(
     )
 
 
+def legal_pdf_storage_path(act: LegalAct, eo_number: str) -> Path:
+    root = Path(get_settings().files_root) / "legal" / act.slug
+    root.mkdir(parents=True, exist_ok=True)
+    safe_eo = re.sub(r"[^\w.-]+", "_", eo_number or "doc")
+    return root / f"{safe_eo}.pdf"
+
+
+def pull_publication_pdf_to_draft(
+    db: Session,
+    act: LegalAct,
+    *,
+    http: ThrottledClient | None = None,
+    user_id: int | None = None,
+    eo_number: str | None = None,
+    replace_draft: bool = False,
+) -> PullResult:
+    """Скачать PDF с publication.pravo.gov.ru → черновик через ingest_pdf_version."""
+    slug = act.slug
+    if act.mode == LegalActMode.card:
+        return PullResult(act.id, slug, ok=False, skipped="режим card — только ссылка")
+    if act.status != LegalActStatus.active:
+        return PullResult(act.id, slug, ok=False, skipped="акт не active")
+
+    eo = (eo_number or act.eo_number or "").strip()
+    if not eo:
+        return PullResult(act.id, slug, ok=False, skipped="нет eo_number")
+
+    if has_pending_draft(db, act.id) and not replace_draft:
+        return PullResult(act.id, slug, ok=False, skipped="уже есть черновик")
+
+    if replace_draft:
+        _archive_pending_drafts(db, act.id)
+
+    owns = http is None
+    client = http or ThrottledClient()
+    try:
+        pub = PublicationClient(http=client)
+        pdf_bytes = pub.download_pdf(eo)
+        path = legal_pdf_storage_path(act, eo)
+        path.write_bytes(pdf_bytes)
+        draft = ingest_pdf_version(
+            db,
+            act_id=act.id,
+            pdf_path=str(path),
+            change_basis=(
+                f"Первичное наполнение / PDF publication.pravo.gov.ru; eoNumber={eo}"
+            ),
+            loaded_by_user_id=user_id,
+        )
+        if act.eo_number != eo:
+            act.eo_number = eo
+        n_frag = 0
+        if act.mode == LegalActMode.fragments and (draft.body_html or "").strip():
+            n_frag = fill_fragments_from_html(db, act, draft.body_html)
+        return PullResult(
+            act_id=act.id,
+            slug=slug,
+            ok=True,
+            draft_id=draft.id,
+            fragments_filled=n_frag,
+        )
+    except Exception as exc:
+        log.exception("Publication PDF pull failed act=%s eo=%s", slug, eo)
+        return PullResult(act.id, slug, ok=False, error=str(exc))
+    finally:
+        if owns:
+            client.close()
+
+
+def pull_act_to_draft(
+    db: Session,
+    act: LegalAct,
+    *,
+    http: ThrottledClient | None = None,
+    user_id: int | None = None,
+    replace_draft: bool = False,
+) -> PullResult:
+    """ИПС (предпочтительно) или PDF publication по eo_number."""
+    if act.ips_nd:
+        return pull_ips_to_draft(
+            db,
+            act,
+            http=http,
+            user_id=user_id,
+            replace_draft=replace_draft,
+        )
+    if act.eo_number:
+        return pull_publication_pdf_to_draft(
+            db,
+            act,
+            http=http,
+            user_id=user_id,
+            replace_draft=replace_draft,
+        )
+    return PullResult(
+        act.id, act.slug, ok=False, skipped="нет ips_nd и eo_number"
+    )
+
+
 def bootstrap_missing(
     db: Session,
     *,
@@ -200,7 +306,7 @@ def bootstrap_missing(
     limit: int = 50,
     replace_draft: bool = False,
 ) -> BootstrapReport:
-    """Пройти акты с ips_nd без опубликованной редакции (или все с nd)."""
+    """Пройти акты с ips_nd/eo_number без опубликованной редакции (или все с источником)."""
     acts = db.scalars(
         select(LegalAct)
         .where(LegalAct.status == LegalActStatus.active)
@@ -213,9 +319,11 @@ def bootstrap_missing(
         for act in acts:
             if len([r for r in report.results if r.ok]) >= limit:
                 break
-            if not act.ips_nd:
+            if not act.ips_nd and not act.eo_number:
                 report.results.append(
-                    PullResult(act.id, act.slug, ok=False, skipped="нет ips_nd")
+                    PullResult(
+                        act.id, act.slug, ok=False, skipped="нет ips_nd и eo_number"
+                    )
                 )
                 continue
             if only_without_published and published_version(db, act.id) is not None:
@@ -223,7 +331,7 @@ def bootstrap_missing(
                     PullResult(act.id, act.slug, ok=False, skipped="уже опубликовано")
                 )
                 continue
-            result = pull_ips_to_draft(
+            result = pull_act_to_draft(
                 db,
                 act,
                 http=client,
@@ -239,7 +347,7 @@ def bootstrap_missing(
 
 
 def acts_needing_fill(db: Session) -> list[LegalAct]:
-    """Активные акты без published и с возможностью наполнения (ips_nd или fragments)."""
+    """Активные акты без published и с возможностью наполнения."""
     out: list[LegalAct] = []
     for act in db.scalars(
         select(LegalAct)
