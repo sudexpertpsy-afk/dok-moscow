@@ -390,6 +390,23 @@ button:hover, .btn:hover { filter: brightness(1.05); }
   border-radius: 8px;
 }
 button.danger, .btn.danger { background: var(--danger); }
+.inline-form { display: inline; margin: 0; padding: 0; }
+.journal-actions { white-space: nowrap; }
+button.link-danger {
+  display: inline;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  border-radius: 0;
+  color: var(--danger);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+button.link-danger:hover { filter: none; opacity: 0.85; }
 
 /* Календарь кабинета */
 .cal-head {

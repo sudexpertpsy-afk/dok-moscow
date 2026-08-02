@@ -8,12 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
-from app.deps import CurrentUser, require_org_user
+from app.deps import CurrentUser, require_csrf, require_org_user
 from app.models import Document, DocumentFormat, JobType
 from app.org_scope import get_document_for_org, get_org_for_user, require_org_id
 from app.security import check_csrf, get_csrf_token
 from app.services.counters import allocate_number
 from app.services.jobs import enqueue_job
+from app.services.journal import delete_org_document
 from app.services.limits import assert_can_generate
 from app.services.templates import (
     absolute_file,
@@ -230,5 +231,34 @@ async def document_to_pdf(
     )
     return RedirectResponse(
         f"/cabinet/jobs/{job.id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/{doc_id}/delete", response_class=HTMLResponse)
+async def document_delete(
+    doc_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    """Удалить готовый документ из журнала (файл + запись)."""
+    org_id = require_org_id(user)
+    doc = get_document_for_org(db, org_id, doc_id)
+    try:
+        delete_org_document(db, org_id=org_id, doc=doc, user_id=user.id)
+        db.commit()
+    except OSError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500, detail="Не удалось удалить файл документа"
+        ) from exc
+
+    # HTMX из журнала: убрать строку таблицы
+    if request.headers.get("hx-request"):
+        return HTMLResponse("")
+    return RedirectResponse(
+        "/cabinet/journal?ok=deleted",
         status_code=status.HTTP_303_SEE_OTHER,
     )

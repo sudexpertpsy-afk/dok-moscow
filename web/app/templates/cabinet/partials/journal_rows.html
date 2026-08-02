@@ -1,12 +1,20 @@
 {% for d in rows %}
-<tr>
+<tr id="journal-doc-{{ d.id }}">
   <td class="muted">{{ d.created_at }}</td>
   <td>{{ d.template }}</td>
   <td class="mono">{{ d.number or '—' }}</td>
   <td>{% if d.counterparty_id %}<a href="/cabinet/counterparties/{{ d.counterparty_id }}">{{ cp_map.get(d.counterparty_id, d.counterparty_id) }}</a>{% else %}—{% endif %}</td>
-  <td>
+  <td class="journal-actions">
     <a href="/cabinet/documents/{{ d.id }}">Открыть</a>
     · <a href="/cabinet/package/repeat/{{ d.id }}">Повторить</a>
+    · <form method="post" action="/cabinet/documents/{{ d.id }}/delete" class="inline-form"
+            hx-post="/cabinet/documents/{{ d.id }}/delete"
+            hx-target="#journal-doc-{{ d.id }}"
+            hx-swap="outerHTML"
+            hx-confirm="Удалить документ «{{ d.template }}»{% if d.number %} № {{ d.number }}{% endif %}? Файл будет удалён безвозвратно.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="link-danger">Удалить</button>
+    </form>
   </td>
 </tr>
 {% endfor %}

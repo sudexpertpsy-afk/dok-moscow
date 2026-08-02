@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, time, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Document
+from app.services.audit import record_event
+from app.services.templates import absolute_file
+
+log = logging.getLogger("dok.journal")
 
 
 def _day_start(d: date) -> datetime:
@@ -71,3 +76,41 @@ def distinct_templates(db: Session, org_id: int) -> list[str]:
         select(Document.template).where(Document.org_id == org_id).distinct().order_by(Document.template)
     ).all()
     return list(rows)
+
+
+def delete_org_document(
+    db: Session,
+    *,
+    org_id: int,
+    doc: Document,
+    user_id: int | None,
+) -> None:
+    """Удалить файл документа (если есть) и запись Document в пределах org."""
+    if doc.org_id != org_id:
+        raise PermissionError("Документ другой организации")
+    doc_id = doc.id
+    template = doc.template
+    number = doc.number
+    rel_path = doc.file_path
+    try:
+        path = absolute_file(doc)
+        if path.is_file():
+            path.unlink()
+    except FileNotFoundError:
+        log.info("Файл документа #%s уже отсутствует: %s", doc_id, rel_path)
+    except OSError:
+        log.exception("Не удалось удалить файл документа #%s", doc_id)
+        raise
+    db.delete(doc)
+    record_event(
+        db,
+        type="document_deleted",
+        org_id=org_id,
+        user_id=user_id,
+        details={
+            "document_id": doc_id,
+            "template": template,
+            "number": number or "",
+        },
+        commit=False,
+    )

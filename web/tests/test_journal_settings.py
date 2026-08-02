@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 from sqlalchemy import select
 
+from app.config import get_settings
 from app.defaults import empty_requisites
 from app.models import (
     Counter,
@@ -14,6 +16,7 @@ from app.models import (
     CounterpartyType,
     Document,
     DocumentFormat,
+    Event,
     Organization,
     User,
     UserRole,
@@ -235,5 +238,61 @@ def test_search_isolation(app):
             # url вида /cabinet/counterparties/{id}
             cp_id = int(item.url.rstrip("/").rsplit("/", 1)[-1])
             assert db.get(Counterparty, cp_id).org_id == user_b.org_id
+    finally:
+        db.close()
+
+
+def test_journal_delete_document_and_idor(app):
+    client, dbmod = app
+    org_id, _, _, doc_id = _seed(dbmod, email="del@example.com")
+    files = Path(get_settings().files_root)
+    path = files / f"{org_id}/2026-07/demo.docx"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"PK\x03\x04demo")
+
+    assert login(client, "del@example.com", "Passw0rd!").status_code == 303
+    page = client.get("/cabinet/journal")
+    assert page.status_code == 200
+    assert "Удалить" in page.text
+    assert f'/cabinet/documents/{doc_id}/delete' in page.text
+
+    token = csrf_from(client, "/cabinet/journal")
+    r = client.post(
+        f"/cabinet/documents/{doc_id}/delete",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "/cabinet/journal" in r.headers["location"]
+    assert not path.exists()
+
+    db = dbmod.SessionLocal()
+    try:
+        assert db.get(Document, doc_id) is None
+        ev = db.scalar(
+            select(Event).where(Event.type == "document_deleted").order_by(Event.id.desc())
+        )
+        assert ev is not None
+        assert ev.org_id == org_id
+        assert ev.details.get("document_id") == doc_id
+    finally:
+        db.close()
+
+    # IDOR: чужой документ
+    org_b, _, _, doc_b = _seed(dbmod, email="del-b@example.com")
+    files_b = Path(get_settings().files_root) / f"{org_b}/2026-07/demo.docx"
+    files_b.parent.mkdir(parents=True, exist_ok=True)
+    files_b.write_bytes(b"PK\x03\x04other")
+    token = csrf_from(client, "/cabinet/journal")
+    r = client.post(
+        f"/cabinet/documents/{doc_b}/delete",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
+    assert r.status_code == 404
+    assert files_b.exists()
+    db = dbmod.SessionLocal()
+    try:
+        assert db.get(Document, doc_b) is not None
     finally:
         db.close()

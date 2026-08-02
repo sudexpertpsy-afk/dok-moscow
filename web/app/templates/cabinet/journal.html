@@ -37,6 +37,9 @@
           <button type="submit">Фильтровать</button>
         </div>
       </form>
+      {% if request.query_params.get('ok') == 'deleted' %}
+      <div class="alert alert-ok">Документ удалён.</div>
+      {% endif %}
       <p class="muted">Найдено: {{ total }}</p>
       <table class="table">
         <thead><tr><th>Дата</th><th>Шаблон</th><th>Номер</th><th>Контрагент</th><th></th></tr></thead>

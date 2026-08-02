@@ -16,7 +16,13 @@
           <button type="submit" class="secondary">В PDF (Gotenberg)</button>
         </form>
         {% endif %}
-        <a class="btn secondary" href="/cabinet/documents/">Ещё документ</a>
+        <a class="btn secondary" href="/cabinet/journal">В журнал</a>
+        <form method="post" action="/cabinet/documents/{{ doc.id }}/delete" style="display:inline"
+              hx-boost="false"
+              onsubmit="return confirm('Удалить документ безвозвратно?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="danger">Удалить</button>
+        </form>
       </div>
     </section>
   {% include "cabinet/_layout_end.html" %}

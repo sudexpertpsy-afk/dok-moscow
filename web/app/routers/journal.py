@@ -122,6 +122,7 @@ def journal_rows(
         name="cabinet/partials/journal_rows.html",
         context={
             "request": request,
+            "csrf_token": get_csrf_token(request),
             "rows": rows,
             "page": page,
             "pages": pages,
