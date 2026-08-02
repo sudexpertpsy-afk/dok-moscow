@@ -56,3 +56,6 @@ def test_helpers():
     assert host_role("localhost") == "dev"
     assert "app.dok.moscow" in redirect_url_for_path("/login")
     assert "dok.moscow" in redirect_url_for_path("/zakon/")
+    # host-hop с каноническим слэшем — без второго slash-редиректа
+    assert redirect_url_for_path("/zakon") == "https://dok.moscow/zakon/"
+    assert redirect_url_for_path("/cabinet/zakon").endswith("/cabinet/zakon/")

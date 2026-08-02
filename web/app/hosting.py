@@ -35,6 +35,9 @@ _PUBLIC_EXACT = frozenset(
 )
 _PUBLIC_PREFIXES = ("/zakon",)
 
+# Каталоги с trailing-slash роутами: без слэша → один 301, не второй hop после host-редиректа.
+_DIRECTORY_INDEX_PATHS = frozenset({"/zakon", "/cabinet/zakon"})
+
 
 def _hostname(url: str) -> str:
     return (urlparse(url).hostname or "").lower()
@@ -95,6 +98,13 @@ def host_role(host: str, settings: Settings | None = None) -> str:
     return "dev"
 
 
+def canonicalize_directory_path(path: str) -> str:
+    """Для index-каталогов добавить trailing slash (host + slash = один hop)."""
+    if path in _DIRECTORY_INDEX_PATHS:
+        return f"{path}/"
+    return path
+
+
 def redirect_url_for_path(
     path: str,
     *,
@@ -103,6 +113,7 @@ def redirect_url_for_path(
 ) -> str:
     """Абсолютный URL правильного хоста для path."""
     settings = settings or get_settings()
+    path = canonicalize_directory_path(path)
     surface = path_surface(path)
     base = settings.public_base_url if surface == "public" else settings.app_base_url
     base = base.rstrip("/")

@@ -40,6 +40,9 @@ services:
       - "8000"
       - "--workers"
       - "2"
+      # Caddy шлёт X-Forwarded-Proto; без allow-ips Starlette строит Location: http://…
+      - "--forwarded-allow-ips"
+      - "*"
     volumes:
       - files:/srv/dok/files
       - ../core:/app/core:ro

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -59,6 +59,14 @@ def _parse_date(raw: str | None) -> date | None:
         return date.fromisoformat(raw.strip())
     except ValueError:
         return None
+
+
+@router.get("", include_in_schema=False)
+def zakon_index_trailing_slash(request: Request):
+    """Один 301 /zakon → /zakon/ с относительным Location (без http:// от Starlette)."""
+    qs = request.url.query
+    target = "/zakon/" + (f"?{qs}" if qs else "")
+    return RedirectResponse(url=target, status_code=301)
 
 
 @router.get("/", response_class=HTMLResponse)
