@@ -227,7 +227,10 @@ button:hover, .btn:hover { filter: brightness(1.05); }
 .nav-handle:hover { color: rgba(233, 242, 239, 0.85); background: rgba(255,255,255,0.06); }
 .nav-handle:active { cursor: grabbing; }
 .nav a {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
   flex: 1 1 auto;
   color: rgba(233, 242, 239, 0.82);
   padding: 0.55rem 0.75rem;
@@ -239,6 +242,20 @@ button:hover, .btn:hover { filter: brightness(1.05); }
   background: rgba(15, 122, 102, 0.35);
   color: #fff;
   text-decoration: none;
+}
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #e8a23a;
+  color: #1a1206;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
 }
 .nav-hint {
   margin: 1rem 0 0;
@@ -772,4 +789,63 @@ body.gs-open { overflow: hidden; }
 @media (max-width: 640px) {
   .sub-manage-grid { grid-template-columns: 1fr; }
   .sub-manage-seg { grid-template-columns: 1fr; }
+}
+
+/* W-39: воронка заявок */
+.leads-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.75rem 0 1rem;
+  max-width: 22rem;
+}
+.leads-filter label { margin: 0; }
+.leads-filter select { margin: 0; }
+.lead-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-width: 14rem;
+}
+.lead-soft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+  align-items: center;
+}
+.lead-secondary {
+  width: 100%;
+  font-size: 0.9rem;
+}
+.lead-secondary summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.lead-existing-invite {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+.lead-comment {
+  margin-top: 0.25rem;
+  white-space: pre-wrap;
+  max-width: 22rem;
+  font-size: 0.85rem;
+}
+.lead-admin-note {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: #7a4b10;
+}
+.lead-row-new td:first-child {
+  box-shadow: inset 3px 0 0 #e8a23a;
+}
+.lead-row-flash {
+  animation: lead-flash 1.6s ease;
+}
+@keyframes lead-flash {
+  from { background: rgba(232, 162, 58, 0.28); }
+  to { background: transparent; }
 }

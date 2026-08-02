@@ -174,8 +174,10 @@ def landing_apply(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    lead = create_lead(db, email=email_n, profile=profile_n, comment=comment_n or None)
-    notify_admin_new_lead(settings, lead)
+    lead, _is_new = create_lead(
+        db, email=email_n, profile=profile_n, comment=comment_n or None
+    )
+    notify_admin_new_lead(settings, lead, db=db)
     lead_limiter.register_failure(key)  # считаем успешные отправки в окне
 
     return templates.TemplateResponse(

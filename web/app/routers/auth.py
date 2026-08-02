@@ -531,6 +531,9 @@ def invite_accept(
     invite.used_at = utcnow()
     db.add(user)
     db.flush()
+    from app.services.leads import mark_lead_registered_from_invite
+
+    mark_lead_registered_from_invite(db, invite)
     record_event(
         db,
         type="login_success",

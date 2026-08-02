@@ -65,6 +65,23 @@
     </label>
     <p class="muted">При выключении кнопка на странице входа скрыта; уже созданные привязки сохраняются.</p>
 
+    <h2 style="font-family:var(--font-display);font-size:1.15rem;margin-top:1.5rem">Бета-доступ по умолчанию</h2>
+    <p class="muted">Стартовая подписка при «Создать организацию и пригласить» из заявки (W-39).</p>
+    <label for="beta_default_tariff">Тариф</label>
+    <select id="beta_default_tariff" name="beta_default_tariff">
+      {% set bt = settings_row.beta_default_tariff if settings_row else 'organization' %}
+      <option value="guest" {% if bt == 'guest' %}selected{% endif %}>Гость</option>
+      <option value="specialist" {% if bt == 'specialist' %}selected{% endif %}>Специалист</option>
+      <option value="organization" {% if bt == 'organization' %}selected{% endif %}>Организация</option>
+    </select>
+    <label for="beta_default_months">Срок</label>
+    <select id="beta_default_months" name="beta_default_months">
+      {% set bm = settings_row.beta_default_months if settings_row else 3 %}
+      {% for m in [1, 3, 6, 12] %}
+      <option value="{{ m }}" {% if bm == m %}selected{% endif %}>+{{ m }} мес</option>
+      {% endfor %}
+    </select>
+
     <div class="actions">
       <button type="submit">Сохранить</button>
     </div>

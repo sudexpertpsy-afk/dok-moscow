@@ -43,6 +43,21 @@ _ADMIN_ACTIVE_KEYS = {
 
 
 def _ctx(request: Request, user: CurrentUser, active: str, **extra):
+    from app.services.leads import count_new_leads
+
+    new_leads_count = extra.pop("new_leads_count", None)
+    db_for_count = extra.pop("db", None)
+    if new_leads_count is None:
+        if db_for_count is not None:
+            new_leads_count = count_new_leads(db_for_count)
+        else:
+            from app.db import SessionLocal
+
+            s = SessionLocal()
+            try:
+                new_leads_count = count_new_leads(s)
+            finally:
+                s.close()
     data = {
         "request": request,
         "csrf_token": get_csrf_token(request),
@@ -53,6 +68,7 @@ def _ctx(request: Request, user: CurrentUser, active: str, **extra):
         "flash_error": None,
         "flash_ok": None,
         "last_invite_link": None,
+        "new_leads_count": int(new_leads_count or 0),
     }
     data.update(extra)
     return data
@@ -222,6 +238,9 @@ def admin_organization_detail(
         select(Invite).where(Invite.org_id == org_id).order_by(Invite.id.desc()).limit(50)
     ).all()
     sub = get_current_subscription(db, org_id)
+    source_lead = None
+    if org.source_lead_id:
+        source_lead = db.get(Lead, org.source_lead_id)
     return templates.TemplateResponse(
         request=request,
         name="admin/organization_detail.html",
@@ -229,6 +248,7 @@ def admin_organization_detail(
             request,
             user,
             "orgs",
+            db=db,
             org=org,
             users=users,
             invites=invites,
@@ -237,6 +257,7 @@ def admin_organization_detail(
             sub_info=subscription_badge(sub),
             sub_history=subscription_history(db, org_id),
             reason_choices=REASON_CHOICES,
+            source_lead=source_lead,
             flash_ok=request.query_params.get("ok"),
             flash_error=request.query_params.get("err"),
         ),
@@ -512,18 +533,118 @@ def admin_reset_2fa(
     )
 
 
+def _leads_page_ctx(
+    request: Request,
+    user: CurrentUser,
+    db: Session,
+    *,
+    status_filter: str = "",
+    flash_ok: str | None = None,
+    flash_error: str | None = None,
+    last_invite_link: str | None = None,
+):
+    from app.models import LeadStatus, Tariff
+    from app.services.billing import ensure_tariffs
+    from app.services.leads import (
+        STATUS_FILTERS,
+        STATUS_LABELS,
+        beta_defaults,
+        default_org_name,
+        lead_view,
+    )
+
+    ensure_tariffs(db)
+    q = select(Lead).order_by(Lead.id.desc()).limit(200)
+    if status_filter:
+        try:
+            st = LeadStatus(status_filter)
+            q = q.where(Lead.status == st)
+        except ValueError:
+            status_filter = ""
+    leads = db.scalars(q).all()
+    views = [lead_view(db, L) for L in leads]
+    db.commit()  # авто-синхронизация registered
+    orgs = db.scalars(select(Organization).order_by(Organization.name)).all()
+    tariffs = db.scalars(select(Tariff).where(Tariff.is_active.is_(True)).order_by(Tariff.id)).all()
+    def_tariff, def_months = beta_defaults(db)
+    return _ctx(
+        request,
+        user,
+        "leads",
+        db=db,
+        lead_views=views,
+        orgs=orgs,
+        tariffs=tariffs,
+        status_filter=status_filter,
+        status_filters=STATUS_FILTERS,
+        status_labels=STATUS_LABELS,
+        default_tariff=def_tariff,
+        default_months=def_months,
+        default_org_name=default_org_name,
+        flash_ok=flash_ok or request.query_params.get("ok"),
+        flash_error=flash_error or request.query_params.get("err"),
+        last_invite_link=last_invite_link,
+    )
+
+
 @router.get("/leads", response_class=HTMLResponse)
 def admin_leads(
     request: Request,
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
 ):
-    leads = db.scalars(select(Lead).order_by(Lead.id.desc()).limit(100)).all()
-    orgs = db.scalars(select(Organization).order_by(Organization.name)).all()
+    status_filter = (request.query_params.get("status") or "").strip()
     return templates.TemplateResponse(
         request=request,
         name="admin/leads.html",
-        context=_ctx(request, user, "leads", leads=leads, orgs=orgs),
+        context=_leads_page_ctx(request, user, db, status_filter=status_filter),
+    )
+
+
+@router.post("/leads/{lead_id}/create-org", response_class=HTMLResponse)
+def create_org_from_lead(
+    lead_id: int,
+    request: Request,
+    org_name: str = Form(""),
+    tariff_code: str = Form("organization"),
+    months: int = Form(3),
+    send_email_now: str | None = Form(None),
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from app.models import User as UserModel
+    from app.services.leads import LeadError, create_org_and_invite
+
+    lead = db.get(Lead, lead_id)
+    if lead is None:
+        return RedirectResponse("/admin/leads", status_code=status.HTTP_303_SEE_OTHER)
+    actor = db.get(UserModel, user.id)
+    assert actor is not None
+    try:
+        result = create_org_and_invite(
+            db,
+            lead=lead,
+            actor=actor,
+            org_name=org_name,
+            tariff_code=tariff_code,
+            months=months,
+            send_email_now=bool(send_email_now),
+        )
+    except LeadError as exc:
+        db.rollback()
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/leads.html",
+            context=_leads_page_ctx(
+                request, user, db, flash_error=str(exc)
+            ),
+            status_code=400,
+        )
+    return RedirectResponse(
+        f"/admin/leads?ok=Организация+создана.+Инвайт"
+        f"{'+отправлен' if result.email_sent else '+создан'}#lead-{lead_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
     )
 
 
@@ -532,57 +653,142 @@ def invite_from_lead(
     lead_id: int,
     request: Request,
     org_id: int = Form(...),
+    send_email_now: str | None = Form("1"),
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf),
 ):
+    from app.models import User as UserModel
+    from app.services.leads import LeadError, invite_to_existing_org
+
     lead = db.get(Lead, lead_id)
     org = db.get(Organization, org_id)
     if lead is None or org is None:
         return RedirectResponse("/admin/leads", status_code=status.HTTP_303_SEE_OTHER)
-    email_norm = lead.email.strip().lower()
-    if db.scalar(select(User).where(User.email == email_norm)):
-        leads = db.scalars(select(Lead).order_by(Lead.id.desc()).limit(100)).all()
-        orgs = db.scalars(select(Organization).order_by(Organization.name)).all()
+    actor = db.get(UserModel, user.id)
+    assert actor is not None
+    try:
+        result = invite_to_existing_org(
+            db,
+            lead=lead,
+            actor=actor,
+            org=org,
+            send_email_now=bool(send_email_now),
+        )
+    except LeadError as exc:
+        db.rollback()
         return templates.TemplateResponse(
             request=request,
             name="admin/leads.html",
-            context=_ctx(
-                request,
-                user,
-                "leads",
-                leads=leads,
-                orgs=orgs,
-                flash_error=f"Пользователь {email_norm} уже зарегистрирован.",
-            ),
+            context=_leads_page_ctx(request, user, db, flash_error=str(exc)),
             status_code=409,
         )
-    settings = get_settings()
-    token = new_invite_token()
-    invite = Invite(
-        org_id=org.id,
-        email=email_norm,
-        token=token,
-        expires_at=utcnow() + timedelta(hours=settings.invite_ttl_hours),
+    return RedirectResponse(
+        f"/admin/leads?ok=Инвайт+создан#lead-{lead_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
     )
-    db.add(invite)
-    db.commit()
-    invites = db.scalars(select(Invite).order_by(Invite.id.desc()).limit(100)).all()
-    orgs = db.scalars(select(Organization).order_by(Organization.name)).all()
-    return templates.TemplateResponse(
-        request=request,
-        name="admin/invites.html",
-        context=_ctx(
-            request,
-            user,
-            "invites",
-            invites=invites,
-            orgs=orgs,
-            org_names={o.id: o.name for o in orgs},
-            flash_ok="Приглашение создано из заявки.",
-            last_invite_link=_invite_link(request, token),
-            invite_ttl=get_settings().invite_ttl_hours,
-        ),
+
+
+@router.post("/leads/{lead_id}/resend", response_class=HTMLResponse)
+def resend_lead_invite(
+    lead_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from app.models import User as UserModel
+    from app.services.leads import LeadError, resend_invite
+
+    lead = db.get(Lead, lead_id)
+    if lead is None:
+        return RedirectResponse("/admin/leads", status_code=status.HTTP_303_SEE_OTHER)
+    actor = db.get(UserModel, user.id)
+    assert actor is not None
+    try:
+        resend_invite(db, lead=lead, actor=actor)
+    except LeadError as exc:
+        db.rollback()
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/leads.html",
+            context=_leads_page_ctx(request, user, db, flash_error=str(exc)),
+            status_code=400,
+        )
+    return RedirectResponse(
+        f"/admin/leads?ok=Инвайт+отправлен+повторно#lead-{lead_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/leads/{lead_id}/reject", response_class=HTMLResponse)
+def reject_lead_route(
+    lead_id: int,
+    request: Request,
+    send_mail: str | None = Form(None),
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from app.models import User as UserModel
+    from app.services.leads import reject_lead
+
+    lead = db.get(Lead, lead_id)
+    if lead is None:
+        return RedirectResponse("/admin/leads", status_code=status.HTTP_303_SEE_OTHER)
+    actor = db.get(UserModel, user.id)
+    assert actor is not None
+    reject_lead(db, lead=lead, actor=actor, send_mail=bool(send_mail))
+    return RedirectResponse(
+        f"/admin/leads?ok=Заявка+отклонена#lead-{lead_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/leads/{lead_id}/spam", response_class=HTMLResponse)
+def spam_lead_route(
+    lead_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from app.models import User as UserModel
+    from app.services.leads import mark_spam
+
+    lead = db.get(Lead, lead_id)
+    if lead is None:
+        return RedirectResponse("/admin/leads", status_code=status.HTTP_303_SEE_OTHER)
+    actor = db.get(UserModel, user.id)
+    assert actor is not None
+    mark_spam(db, lead=lead, actor=actor)
+    return RedirectResponse(
+        f"/admin/leads?ok=Помечено+как+спам#lead-{lead_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/leads/{lead_id}/note", response_class=HTMLResponse)
+def note_lead_route(
+    lead_id: int,
+    request: Request,
+    admin_note: str = Form(""),
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from app.models import User as UserModel
+    from app.services.leads import save_admin_note
+
+    lead = db.get(Lead, lead_id)
+    if lead is None:
+        return RedirectResponse("/admin/leads", status_code=status.HTTP_303_SEE_OTHER)
+    actor = db.get(UserModel, user.id)
+    assert actor is not None
+    save_admin_note(db, lead=lead, actor=actor, note=admin_note)
+    return RedirectResponse(
+        f"/admin/leads?ok=Заметка+сохранена#lead-{lead_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
     )
 
 

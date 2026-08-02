@@ -6,7 +6,12 @@
       {% for key, label, href in admin_nav %}
       <div class="nav-item" draggable="true" data-nav-key="{{ key }}">
         <button type="button" class="nav-handle" title="Перетащить пункт меню" aria-label="Перетащить «{{ label }}»" tabindex="-1">⋮⋮</button>
-        <a href="{{ href }}" class="{% if active == key %}active{% endif %}" hx-boost="true">{{ label }}</a>
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}" hx-boost="true">
+          {{ label }}
+          {% if key == 'admin_leads' and new_leads_count %}
+          <span class="nav-badge" title="Новые заявки">{{ new_leads_count }}</span>
+          {% endif %}
+        </a>
       </div>
       {% endfor %}
     </nav>

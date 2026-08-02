@@ -95,6 +95,8 @@ def payment_settings_save(
     party_check_daily_limit: str = Form("100"),
     require_2fa_for_org_admins: str | None = Form(None),
     yandex_login_enabled: str | None = Form(None),
+    beta_default_tariff: str = Form("organization"),
+    beta_default_months: str = Form("3"),
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf),
@@ -121,6 +123,17 @@ def payment_settings_save(
     row.party_check_daily_limit = max(1, min(limit, 10_000))
     row.require_2fa_for_org_admins = bool(require_2fa_for_org_admins)
     row.yandex_login_enabled = bool(yandex_login_enabled)
+    tariff = (beta_default_tariff or "organization").strip()
+    if tariff not in ("guest", "specialist", "organization"):
+        tariff = "organization"
+    row.beta_default_tariff = tariff
+    try:
+        months = int(str(beta_default_months).strip() or "3")
+    except ValueError:
+        months = 3
+    if months not in (1, 3, 6, 12):
+        months = 3
+    row.beta_default_months = months
     row.updated_by_user_id = user.id
     record_event(
         db,
@@ -137,6 +150,8 @@ def payment_settings_save(
             "party_check_daily_limit": row.party_check_daily_limit,
             "require_2fa_for_org_admins": row.require_2fa_for_org_admins,
             "yandex_login_enabled": row.yandex_login_enabled,
+            "beta_default_tariff": row.beta_default_tariff,
+            "beta_default_months": row.beta_default_months,
         },
         commit=False,
     )

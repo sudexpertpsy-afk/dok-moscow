@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from sqlalchemy import select
 
 from app.defaults import empty_requisites
@@ -130,14 +132,15 @@ def test_invite_from_lead(app):
         db.close()
 
     token = csrf_from(client, "/admin/leads")
-    r = client.post(
-        f"/admin/leads/{lead_id}/invite",
-        data={"org_id": org_id, "csrf_token": token},
-        follow_redirects=True,
-    )
+    with patch("app.services.leads.send_email", return_value=True):
+        r = client.post(
+            f"/admin/leads/{lead_id}/invite",
+            data={"org_id": org_id, "csrf_token": token, "send_email_now": "1"},
+            follow_redirects=True,
+        )
     assert r.status_code == 200
-    assert "Приглашение создано" in r.text
     assert "lead2@example.com" in r.text
+    assert "приглашение отправлено" in r.text.lower() or "Инвайт" in r.text
 
 
 def test_htmx_self_hosted_and_boost(app):
