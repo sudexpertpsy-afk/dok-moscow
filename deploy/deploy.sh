@@ -20,6 +20,9 @@ if grep -qE '^YANDEX_REDIRECT_URI=https://dok\.moscow/' .env 2>/dev/null; then
   echo "⚠ YANDEX_REDIRECT_URI указывает на dok.moscow — нужен https://app.dok.moscow/auth/yandex/callback"
 fi
 
+# Правило аудита (F-03): деплой только при зелёном полном pytest в CI/агенте.
+# На сервере полный прогон не гоняем — ожидаем, что ветка уже проверена до push в main.
+
 echo "→ git pull"
 git -C "$ROOT" pull --ff-only
 
