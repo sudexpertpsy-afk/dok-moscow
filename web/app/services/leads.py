@@ -101,17 +101,27 @@ def lead_admin_url(settings: Settings, lead_id: int) -> str:
     return f"{base}/admin/leads#lead-{lead_id}"
 
 
+def normalize_lead_inn(inn: str | None) -> str | None:
+    """Пусто → None; иначе только цифры (10 или 12)."""
+    digits = "".join(ch for ch in (inn or "") if ch.isdigit())
+    if not digits:
+        return None
+    return digits
+
+
 def create_lead(
     db: Session,
     *,
     email: str,
     profile: str | None,
     comment: str | None,
+    inn: str | None = None,
 ) -> tuple[Lead, bool]:
     """Создать или поднять заявку. Возвращает (lead, is_new)."""
     email_n = email.strip().lower()
     profile_n = (profile or "").strip()[:255] or None
     comment_n = (comment or "").strip() or None
+    inn_n = normalize_lead_inn(inn)
     now = utcnow()
 
     existing = db.scalar(select(Lead).where(Lead.email == email_n).order_by(Lead.id.desc()))
@@ -119,6 +129,8 @@ def create_lead(
         existing.contact_count = int(existing.contact_count or 1) + 1
         if profile_n:
             existing.profile = profile_n
+        if inn_n:
+            existing.inn = inn_n
         if comment_n:
             stamp = now.strftime("%d.%m.%Y %H:%M")
             prev = (existing.comment or "").strip()
@@ -137,6 +149,7 @@ def create_lead(
                 "email": existing.email,
                 "contact_count": existing.contact_count,
                 "status": existing.status.value,
+                "inn": existing.inn,
             },
             commit=False,
         )
@@ -147,6 +160,7 @@ def create_lead(
     lead = Lead(
         email=email_n,
         profile=profile_n,
+        inn=inn_n,
         comment=comment_n,
         status=LeadStatus.new,
         contact_count=1,
@@ -159,7 +173,12 @@ def create_lead(
         type="lead_created",
         org_id=None,
         user_id=None,
-        details={"lead_id": lead.id, "email": lead.email, "profile": lead.profile},
+        details={
+            "lead_id": lead.id,
+            "email": lead.email,
+            "profile": lead.profile,
+            "inn": lead.inn,
+        },
         commit=False,
     )
     db.commit()
@@ -173,11 +192,12 @@ def notify_admin_new_lead(settings: Settings, lead: Lead, db: Session | None = N
         return False
     to_addr = (settings.admin_notify_email or settings.bootstrap_admin_email or "").strip()
     link = lead_admin_url(settings, lead.id)
-    subject = f"[Док.Москва] Заявка на ранний доступ: {lead.email}"
+    subject = f"[Док.Москва] Заявка с лендинга: {lead.email}"
     body = (
         f"Новая заявка с лендинга.\n\n"
         f"E-mail: {lead.email}\n"
         f"Профиль: {lead.profile or '—'}\n"
+        f"ИНН: {lead.inn or '—'}\n"
         f"Комментарий: {lead.comment or '—'}\n"
         f"ID: {lead.id}\n"
         f"Время: {lead.ts}\n\n"

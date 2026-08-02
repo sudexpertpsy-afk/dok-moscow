@@ -25,7 +25,9 @@ def test_landing_home(app):
     assert 'id="how"' in r.text
     assert 'id="features"' in r.text
     assert 'id="faq"' in r.text
-    assert "Запросить ранний доступ" in r.text
+    assert "Оставить заявку" in r.text
+    assert "Запросить ранний доступ" not in r.text
+    assert 'name="inn"' in r.text
     assert "Популярный" in r.text
 
 
@@ -36,6 +38,8 @@ def test_landing_tariffs_comparison(app):
     assert "Сравнение функций" in r.text
     assert "ЕГРЮЛ-проверка" in r.text
     assert "lp-tariff-card" in r.text
+    assert "Оставить заявку" in r.text
+    assert "Запросить доступ" not in r.text
 
 
 def test_landing_assets_present(app):
@@ -199,6 +203,7 @@ def test_apply_saves_lead_and_notifies(app):
             data={
                 "email": "Lead@Example.COM",
                 "profile": "Независимый эксперт / ИП",
+                "inn": "7707817216",
                 "comment": "Нужен пилот на 3 эксперта",
                 "csrf_token": token,
                 "website": "",
@@ -214,7 +219,50 @@ def test_apply_saves_lead_and_notifies(app):
         lead = db.scalar(select(Lead).where(Lead.email == "lead@example.com"))
         assert lead is not None
         assert lead.profile == "Независимый эксперт / ИП"
+        assert lead.inn == "7707817216"
         assert "пилот" in (lead.comment or "")
+    finally:
+        db.close()
+
+
+def test_apply_inn_optional_and_validated(app):
+    client, dbmod = app
+    token = csrf_from(client, "/")
+    with patch("app.routers.landing.notify_admin_new_lead", return_value=True):
+        r = client.post(
+            "/apply",
+            data={
+                "email": "noinn@example.com",
+                "profile": "Другое",
+                "inn": "",
+                "comment": "",
+                "csrf_token": token,
+                "website": "",
+            },
+            follow_redirects=False,
+        )
+    assert r.status_code == 201
+
+    token = csrf_from(client, "/")
+    r = client.post(
+        "/apply",
+        data={
+            "email": "badinn@example.com",
+            "profile": "Другое",
+            "inn": "123",
+            "comment": "",
+            "csrf_token": token,
+            "website": "",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 400
+    assert "ИНН" in r.text
+
+    db = dbmod.SessionLocal()
+    try:
+        assert db.scalar(select(Lead).where(Lead.email == "noinn@example.com")) is not None
+        assert db.scalar(select(Lead).where(Lead.email == "badinn@example.com")) is None
     finally:
         db.close()
 

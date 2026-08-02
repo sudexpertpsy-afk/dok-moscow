@@ -21,12 +21,13 @@ from app.services.cms import (
     tariff_features,
     tariff_price_label,
 )
-from app.services.leads import create_lead, notify_admin_new_lead
+from app.services.leads import create_lead, normalize_lead_inn, notify_admin_new_lead
 from app.templating import templates
 
 router = APIRouter(tags=["landing"])
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_INN_RE = re.compile(r"^(\d{10}|\d{12})$")
 lead_limiter = LoginRateLimiter(limit=5, window_sec=60 * 60, name="lead")
 
 PROFILES = (
@@ -62,6 +63,7 @@ def _public_ctx(request: Request, db: Session | None = None, **extra):
         "flash_ok": None,
         "form_email": "",
         "form_profile": "",
+        "form_inn": "",
         "form_comment": "",
         "public_tariffs": public_tariffs,
         "content_slots": content_slots,
@@ -89,11 +91,33 @@ def landing_home(request: Request, db: Session = Depends(get_db)):
     )
 
 
+def _apply_form_ctx(
+    request: Request,
+    db: Session,
+    *,
+    email: str = "",
+    profile: str = "",
+    inn: str = "",
+    comment: str = "",
+    **extra,
+):
+    return _public_ctx(
+        request,
+        db,
+        form_email=email,
+        form_profile=profile,
+        form_inn=inn,
+        form_comment=comment,
+        **extra,
+    )
+
+
 @router.post("/apply", response_class=HTMLResponse)
 def landing_apply(
     request: Request,
     email: str = Form(""),
     profile: str = Form(""),
+    inn: str = Form(""),
     comment: str = Form(""),
     website: str = Form(""),  # honeypot
     csrf_token: str = Form(""),
@@ -104,13 +128,14 @@ def landing_apply(
         return templates.TemplateResponse(
             request=request,
             name="landing/index.html",
-            context=_public_ctx(
+            context=_apply_form_ctx(
                 request,
                 db,
+                email=email,
+                profile=profile,
+                inn=inn,
+                comment=comment,
                 flash_error="Сессия устарела. Обновите страницу и отправьте форму снова.",
-                form_email=email,
-                form_profile=profile,
-                form_comment=comment,
             ),
             status_code=status.HTTP_403_FORBIDDEN,
         )
@@ -130,13 +155,14 @@ def landing_apply(
         return templates.TemplateResponse(
             request=request,
             name="landing/index.html",
-            context=_public_ctx(
+            context=_apply_form_ctx(
                 request,
                 db,
+                email=email,
+                profile=profile,
+                inn=inn,
+                comment=comment,
                 flash_error="Слишком много заявок с вашего адреса. Попробуйте позже.",
-                form_email=email,
-                form_profile=profile,
-                form_comment=comment,
             ),
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
         )
@@ -144,18 +170,20 @@ def landing_apply(
     email_n = email.strip().lower()
     profile_n = profile.strip()
     comment_n = comment.strip()[:2000]
+    inn_n = normalize_lead_inn(inn)
 
     if not _EMAIL_RE.match(email_n):
         return templates.TemplateResponse(
             request=request,
             name="landing/index.html",
-            context=_public_ctx(
+            context=_apply_form_ctx(
                 request,
                 db,
+                email=email,
+                profile=profile,
+                inn=inn,
+                comment=comment,
                 flash_error="Укажите корректный e-mail.",
-                form_email=email,
-                form_profile=profile,
-                form_comment=comment,
             ),
             status_code=status.HTTP_400_BAD_REQUEST,
         )
@@ -163,19 +191,39 @@ def landing_apply(
         return templates.TemplateResponse(
             request=request,
             name="landing/index.html",
-            context=_public_ctx(
+            context=_apply_form_ctx(
                 request,
                 db,
+                email=email,
+                profile=profile,
+                inn=inn,
+                comment=comment,
                 flash_error="Выберите профиль деятельности.",
-                form_email=email,
-                form_profile=profile,
-                form_comment=comment,
+            ),
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if inn_n is not None and not _INN_RE.match(inn_n):
+        return templates.TemplateResponse(
+            request=request,
+            name="landing/index.html",
+            context=_apply_form_ctx(
+                request,
+                db,
+                email=email,
+                profile=profile,
+                inn=inn,
+                comment=comment,
+                flash_error="ИНН — 10 или 12 цифр, либо оставьте поле пустым.",
             ),
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
     lead, _is_new = create_lead(
-        db, email=email_n, profile=profile_n, comment=comment_n or None
+        db,
+        email=email_n,
+        profile=profile_n,
+        comment=comment_n or None,
+        inn=inn_n,
     )
     notify_admin_new_lead(settings, lead, db=db)
     lead_limiter.register_failure(key)  # считаем успешные отправки в окне

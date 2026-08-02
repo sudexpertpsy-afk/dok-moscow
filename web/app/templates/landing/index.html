@@ -10,7 +10,7 @@
     <h1 class="lp-headline">{% if content_slots.hero_headline %}{{ content_slots.hero_headline }}{% else %}Комплект документов экспертизы — за 5 минут вместо часа{% endif %}</h1>
     <p class="lp-sub">{% if content_slots.hero_sub %}{{ content_slots.hero_sub }}{% else %}Договор, счёт, акт и кассовый ордер по шаблонам, выверенным практикующей судебно-экспертной организацией. Реквизиты заказчика — из ЕГРЮЛ по одному ИНН. Сроки договоров — под контролем.{% endif %}</p>
     <div class="lp-cta">
-      <a class="lp-btn" href="#apply">Запросить ранний доступ</a>
+      <a class="lp-btn" href="#apply">Оставить заявку</a>
       <a class="lp-btn lp-btn-ghost" href="#samples">Примеры документов ↓</a>
     </div>
     <p class="lp-trust">Сделано экспертами ООО «УСЭ» (лицензия ЛО-77-01-017900) · Данные хранятся в России · 152-ФЗ</p>
@@ -132,7 +132,7 @@
       </article>
     </div>
     <div class="lp-cta lp-cta-center">
-      <a class="lp-btn" href="#apply">Запросить ранний доступ</a>
+      <a class="lp-btn" href="#apply">Оставить заявку</a>
     </div>
   </div>
 </section>
@@ -229,7 +229,7 @@
               <li>{{ feature }}</li>
             {% endfor %}
           </ul>
-          <a class="lp-btn{% if t.code.value != 'specialist' %} lp-btn-outline{% endif %}" href="#apply">Запросить доступ</a>
+          <a class="lp-btn{% if t.code.value != 'specialist' %} lp-btn-outline{% endif %}" href="#apply">Оставить заявку</a>
         </article>
       {% endfor %}
     </div>
@@ -295,6 +295,10 @@
           <option value="{{ p }}" {% if form_profile == p %}selected{% endif %}>{{ p }}</option>
         {% endfor %}
       </select>
+
+      <label for="inn">ИНН <span class="lp-optional">(необязательно)</span></label>
+      <input id="inn" name="inn" type="text" inputmode="numeric" maxlength="12" pattern="[0-9]{10}|[0-9]{12}"
+        value="{{ form_inn }}" autocomplete="off" placeholder="10 или 12 цифр">
 
       <label for="comment">Комментарий <span class="lp-optional">(необязательно)</span></label>
       <textarea id="comment" name="comment" rows="3" maxlength="2000">{{ form_comment }}</textarea>

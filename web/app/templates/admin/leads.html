@@ -22,6 +22,7 @@
         <th>ID</th>
         <th>E-mail</th>
         <th>Профиль</th>
+        <th>ИНН</th>
         <th>Статус</th>
         <th>Обращений</th>
         <th>Когда</th>
@@ -40,6 +41,7 @@
           {% if L.admin_note %}<div class="lead-admin-note">Заметка: {{ L.admin_note }}</div>{% endif %}
         </td>
         <td>{{ L.profile or "—" }}</td>
+        <td class="mono">{{ L.inn or "—" }}</td>
         <td>
           <span class="badge {% if L.status.value == 'new' %}warn{% elif L.status.value == 'registered' %}ok{% elif L.status.value in ['rejected','spam'] %}danger{% else %}{% endif %}">
             {{ status_labels.get(L.status.value, L.status.value) }}
@@ -164,7 +166,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="muted">Заявок пока нет</td></tr>
+      <tr><td colspan="8" class="muted">Заявок пока нет</td></tr>
       {% endfor %}
     </tbody>
   </table>

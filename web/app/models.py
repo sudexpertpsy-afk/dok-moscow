@@ -478,6 +478,7 @@ class Lead(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
     profile: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    inn: Mapped[str | None] = mapped_column(String(12), nullable=True)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     ts: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
