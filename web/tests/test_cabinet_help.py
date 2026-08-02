@@ -54,6 +54,9 @@ def test_help_page_renders(app):
     assert "Как пользоваться" in r.text
     assert "Комплект документов" in r.text
     assert "Свои шаблоны DOCX" in r.text
+    assert "Свои поля (плейсхолдеры)" in r.text
+    assert 'id="custom-fields"' in r.text
+    assert "/cabinet/templates/fields" in r.text
     assert 'href="/cabinet/package/"' in r.text
     assert "Как пользоваться" in r.text  # в nav тоже
     # пункт меню активен
