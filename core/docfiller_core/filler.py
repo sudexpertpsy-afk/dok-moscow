@@ -298,11 +298,11 @@ def fill_template(template_path, output_path, context, settings=None):
     """
     # SandboxedEnvironment: org-загрузки DOCX не должны выполнять произвольный Python (P7).
     env = SandboxedEnvironment()
+    from .config import _to_attrdict, settings_from_dict
+
     if settings is None:
         settings = load_settings()
     elif isinstance(settings, dict):
-        from .config import settings_from_dict
-
         settings = settings_from_dict(settings)
     filters.install(env, declensions=_declensions_from_settings(settings))
 
@@ -311,7 +311,9 @@ def fill_template(template_path, output_path, context, settings=None):
     # Подставить пустую строку для всех переменных, которых нет в данных,
     full_context = {var: '' for var in doc.get_undeclared_template_variables(env)}
 
-    full_context['настройки'] = _sanitize_docx_value(settings)
+    # sanitize даёт обычный dict — вернём AttrDict, чтобы {{ настройки.банк.* }}
+    # стабильно резолвились через атрибуты, а не только через __getitem__.
+    full_context['настройки'] = _to_attrdict(_sanitize_docx_value(settings))
 
     # Пользовательские поля перекрывают всё — на случай, если в реестре
     # вдруг окажется столбец с именем «настройки» или что-то системное.

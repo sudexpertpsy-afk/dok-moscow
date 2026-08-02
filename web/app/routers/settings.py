@@ -17,11 +17,15 @@ from app.security import check_csrf, get_csrf_token, hash_password, verify_passw
 from app.services.audit import record_event
 from app.services.retention import get_retention_days, set_retention_days
 from app.services.settings_svc import (
+    BANK_FIELD_LABELS,
     BANK_FIELDS,
+    BANK_FORM_MAP,
     ORG_FIELDS,
     PRICE_FIELDS,
     SIGNATORY_BLOCKS,
     adjust_counter,
+    bank_from_form,
+    bank_is_complete,
     ensure_requisites,
     list_counters,
     update_section,
@@ -106,6 +110,9 @@ def _page(request: Request, user: CurrentUser, org, db, section: str, **extra):
         "flash_ok": None,
         "ORG_FIELDS": ORG_FIELDS,
         "BANK_FIELDS": BANK_FIELDS,
+        "BANK_FORM_MAP": BANK_FORM_MAP,
+        "BANK_FIELD_LABELS": BANK_FIELD_LABELS,
+        "bank_complete": bank_is_complete(req),
         "PRICE_FIELDS": PRICE_FIELDS,
         "SIGNATORY_BLOCKS": SIGNATORY_BLOCKS,
     }
@@ -195,7 +202,21 @@ async def settings_bank_save(
     form = await request.form()
     if not check_csrf(request, form.get("csrf_token")):
         raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
-    values = {f: form.get(f) for f in BANK_FIELDS}
+    values = bank_from_form(form)
+    if not values:
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/settings.html",
+            context=_page(
+                request,
+                user,
+                org,
+                db,
+                "банк",
+                flash_error="Не получены поля банка. Обновите страницу и сохраните снова.",
+            ),
+            status_code=400,
+        )
     errors = update_section(org, "банк", values)
     if errors:
         return templates.TemplateResponse(

@@ -90,8 +90,16 @@ def document_form(
         if act:
             normative_links.append({"slug": act.slug, "title": act.title})
     from app.services.form_assist import enrich_form_context
+    from app.services.settings_svc import bank_is_complete, ensure_requisites, is_bill_template
 
     assist = enrich_form_context(db, org.id, variables, {})
+    flash_error = None
+    if is_bill_template(template_name) and not bank_is_complete(ensure_requisites(org)):
+        flash_error = (
+            "В настройках не заполнены банковские реквизиты организации "
+            "(Банк → расчётный счёт, БИК, корр. счёт). Без них в счёте останутся пустые поля. "
+            "Заполните раздел «Настройки → Банк»."
+        )
     return templates.TemplateResponse(
         request=request,
         name="cabinet/document_form.html",
@@ -108,6 +116,7 @@ def document_form(
             standard_vars=assist["standard_vars"],
             org_vars=assist["org_vars"],
             normative_links=normative_links,
+            flash_error=flash_error,
         ),
     )
 
@@ -134,10 +143,36 @@ async def document_generate(
 
     from app.services.form_assist import enrich_form_context
     from app.services.org_fields import org_field_map
+    from app.services.settings_svc import bank_is_complete, ensure_requisites, is_bill_template
 
     org_map = org_field_map(db, org.id)
     assist_meta = enrich_form_context(db, org.id, variables, {})
     field_meta = assist_meta["field_meta"]
+
+    if is_bill_template(template_name) and not bank_is_complete(ensure_requisites(org)):
+        assist = enrich_form_context(db, org.id, variables, {})
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/document_form.html",
+            context=_page(
+                request,
+                user,
+                org,
+                db,
+                template_name=template_name,
+                variables=variables,
+                values=assist["values"],
+                field_meta=assist["field_meta"],
+                number_peeks=assist["number_peeks"],
+                standard_vars=assist["standard_vars"],
+                org_vars=assist["org_vars"],
+                flash_error=(
+                    "Сначала заполните банковские реквизиты в «Настройки → Банк» "
+                    "(расчётный счёт, банк, БИК, корр. счёт) — иначе в счёте они будут пустыми."
+                ),
+            ),
+            status_code=400,
+        )
 
     context: dict = {}
     for var in variables:

@@ -22,6 +22,13 @@ def _seed(dbmod, email="pkg@example.com"):
     db = dbmod.SessionLocal()
     try:
         org = Organization(name="ПакетОрг", requisites=empty_requisites())
+        # Счета в комплекте требуют банк организации
+        org.requisites["банк"] = {
+            "расчётный_счёт": "40702810338000013478",
+            "банк": 'ПАО "СБЕРБАНК РОССИИ"',
+            "бик": "044525225",
+            "корр_счёт": "30101810400000000225",
+        }
         db.add(org)
         db.flush()
         user = User(

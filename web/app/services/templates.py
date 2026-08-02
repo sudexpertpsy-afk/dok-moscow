@@ -147,7 +147,10 @@ def generate_docx(
         out_path = out_dir / out_name
         n += 1
 
-    fill_template(src, out_path, context, settings=org.requisites or {})
+    from app.services.settings_svc import ensure_requisites
+
+    # Полные реквизиты с каноническими ключами банка (ё/алиасы), не «сырой» JSONB.
+    fill_template(src, out_path, context, settings=ensure_requisites(org))
 
     rel = str(out_path.relative_to(Path(get_settings().files_root)))
     # не храним ПДн-тяжёлый полный контекст как есть? ТЗ: контекст JSONB — нужен для повтора.

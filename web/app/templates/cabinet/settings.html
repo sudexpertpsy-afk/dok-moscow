@@ -34,14 +34,58 @@
       {% endif %}
 
       {% elif section == 'банк' %}
-      <form method="post" action="/cabinet/settings/bank">
+      {% if not bank_complete %}
+      <div class="alert alert-error" style="margin:0 0 1rem">
+        Банковские реквизиты не заполнены — в счетах на оплату останутся пустые «Банк получателя», БИК и расчётный счёт.
+        Укажите БИК (можно выбрать из подсказки), банк, р/с и корр. счёт, затем нажмите «Сохранить».
+      </div>
+      {% endif %}
+      <form method="post" action="/cabinet/settings/bank" hx-boost="false" id="bank-settings-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        {% for f in BANK_FIELDS %}
-          <label for="b_{{ loop.index }}">{{ f }}</label>
-          <input id="b_{{ loop.index }}" name="{{ f }}" value="{{ requisites.банк.get(f, '') }}">
-        {% endfor %}
+        <label for="bank_bik">{{ BANK_FIELD_LABELS['бик'] }}</label>
+        <input id="bank_bik" name="bank_bik" value="{{ requisites.банк.get('бик', '') }}"
+               autocomplete="off" inputmode="numeric"
+               hx-get="/cabinet/counterparties/suggest/bank"
+               hx-trigger="keyup changed delay:300ms"
+               hx-target="#org-bank-suggest"
+               hx-include="[name='bank_bik']">
+        <div id="org-bank-suggest" class="suggest-box"></div>
+        <label for="bank_name">{{ BANK_FIELD_LABELS['банк'] }}</label>
+        <input id="bank_name" name="bank_name" value="{{ requisites.банк.get('банк', '') }}">
+        <label for="bank_account">{{ BANK_FIELD_LABELS['расчётный_счёт'] }}</label>
+        <input id="bank_account" name="account" value="{{ requisites.банк.get('расчётный_счёт', '') }}"
+               autocomplete="off" inputmode="numeric">
+        <label for="bank_corr_account">{{ BANK_FIELD_LABELS['корр_счёт'] }}</label>
+        <input id="bank_corr_account" name="corr_account" value="{{ requisites.банк.get('корр_счёт', '') }}"
+               autocomplete="off" inputmode="numeric">
         <div class="actions"><button type="submit">Сохранить</button></div>
       </form>
+      <style>
+      .suggest-box { margin: 0.25rem 0 0.6rem; }
+      .suggest-box button {
+        display: block; width: 100%; text-align: left; margin: 0.2rem 0;
+        background: #fff; color: var(--ink); border: 1px solid var(--line);
+        border-radius: 8px; padding: 0.55rem 0.7rem; font-weight: 500;
+      }
+      </style>
+      <script>
+      function applyBank(btn) {
+        try {
+          var data = JSON.parse(btn.getAttribute('data-json') || '{}');
+          var map = [
+            ['bank_bik', data.bank_bik],
+            ['bank_name', data.bank_name],
+            ['bank_corr_account', data.bank_corr_account]
+          ];
+          map.forEach(function (pair) {
+            var el = document.getElementById(pair[0]);
+            if (el && pair[1]) el.value = pair[1];
+          });
+          var box = document.getElementById('org-bank-suggest');
+          if (box) box.innerHTML = '';
+        } catch (e) {}
+      }
+      </script>
 
       {% elif section == 'подписанты' %}
       <form method="post" action="/cabinet/settings/signatories">

@@ -370,8 +370,38 @@ async def package_step3_post(
     _save(request, data)
 
     from app.services.limits import assert_can_generate
+    from app.services.settings_svc import bank_is_complete, ensure_requisites, is_bill_template
 
     assert_can_generate(db, org.id)
+
+    if any(is_bill_template(t) for t in selected) and not bank_is_complete(ensure_requisites(org)):
+        all_fields = list(dict.fromkeys([*core_names, *additional]))
+        values = {**core_values, **additional_values}
+        assist = _assist_ctx(db, org.id, all_fields, values)
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/package_step3.html",
+            context=_page(
+                request,
+                user,
+                org,
+                db,
+                3,
+                wizard=data,
+                core_names=core_names,
+                additional=additional,
+                values=assist["values"],
+                field_meta=assist["field_meta"],
+                number_peeks=assist["number_peeks"],
+                selected=selected,
+                display_name=display_name,
+                flash_error=(
+                    "В комплекте есть счёт на оплату, но в «Настройки → Банк» не заполнены "
+                    "реквизиты получателя. Заполните банк и повторите генерацию."
+                ),
+            ),
+            status_code=400,
+        )
 
     try:
         result = generate_package(
