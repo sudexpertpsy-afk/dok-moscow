@@ -208,23 +208,27 @@ button:hover, .btn:hover { filter: brightness(1.05); }
   outline: 1px dashed rgba(233, 242, 239, 0.45);
 }
 .nav-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
-  width: 1.4rem;
+  width: 1.55rem;
   height: 2rem;
   margin: 0;
   padding: 0;
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: rgba(233, 242, 239, 0.35);
+  color: rgba(233, 242, 239, 0.55);
   cursor: grab;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   letter-spacing: -0.08em;
   line-height: 1;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: none;
 }
-.nav-handle:hover { color: rgba(233, 242, 239, 0.85); background: rgba(255,255,255,0.06); }
+.nav-handle:hover { color: rgba(233, 242, 239, 0.95); background: rgba(255,255,255,0.08); }
 .nav-handle:active { cursor: grabbing; }
 .nav a {
   display: flex;

@@ -91,6 +91,8 @@ def test_cabinet_menu_respects_saved_order(app):
     assert cal < docs
     assert "data-nav-sortable" in r.text
     assert "nav-sortable.js" in r.text
+    assert 'class="nav-handle"' in r.text
+    assert "<button" not in r.text.split("data-nav-sortable", 1)[1].split("</nav>", 1)[0]
 
 
 def test_api_saves_nav_order(app):
