@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.deps import client_ip, get_optional_user
 from app.models import User
+from app.rate_limit import LoginRateLimiter
 from app.routers.auth import _finish_login, _render
 from app.services.audit import record_event
 from app.totp_2fa import DEVICE_COOKIE, validate_device_token
@@ -31,6 +32,10 @@ from app.yandex_oauth import (
 log = logging.getLogger("dok.yandex_auth")
 
 router = APIRouter(tags=["auth-yandex"])
+
+# F-06: OAuth start/callback по IP
+oauth_start_limiter = LoginRateLimiter(20, 60 * 60, name="oauth_start")
+oauth_callback_limiter = LoginRateLimiter(30, 60 * 60, name="oauth_callback")
 
 _EMAIL_EXISTS_MSG = (
     "Аккаунт с этим e-mail уже есть — войдите паролем и привяжите Яндекс ID в профиле."
@@ -54,6 +59,20 @@ def yandex_start(
     user=Depends(get_optional_user),
 ):
     settings = get_settings()
+    ip = client_ip(request)
+    key = f"ip:{ip}"
+    if oauth_start_limiter.is_blocked(key):
+        return _render(
+            request,
+            "auth/login.html",
+            {
+                "flash_error": "Слишком много попыток входа через Яндекс. Попробуйте позже.",
+                "yandex_login_available": yandex_button_visible(db, settings),
+            },
+            status_code=429,
+        )
+    oauth_start_limiter.register_failure(key)
+
     if not yandex_credentials_configured(settings) or not yandex_login_enabled_in_db(db):
         return _render(
             request,
@@ -119,6 +138,19 @@ def yandex_callback(
 ):
     settings = get_settings()
     ip = client_ip(request)
+    okey = f"ip:{ip}"
+    if oauth_callback_limiter.is_blocked(okey):
+        _clear_oauth_session(request)
+        return _render(
+            request,
+            "auth/login.html",
+            {
+                "flash_error": "Слишком много попыток входа через Яндекс. Попробуйте позже.",
+                "yandex_login_available": yandex_button_visible(db, settings),
+            },
+            status_code=429,
+        )
+    oauth_callback_limiter.register_failure(okey)
     err = request.query_params.get("error")
     if err:
         _clear_oauth_session(request)

@@ -324,13 +324,14 @@ def check_alerts(db: Session) -> list[str]:
         fired.append(key)
 
     backup_age = marker_age_sec("backup_ok")
-    # Алерт только если маркер когда-либо существовал или явно протух > 36 ч
-    if backup_age is not None and backup_age > 36 * 3600:
+    # Алерт если маркер протух > 26 ч (ночной cron + запас)
+    if backup_age is not None and backup_age > 26 * 3600:
         key = "backup_stale"
         _send_alert(
             key,
             f"[{app_name}] Бэкап не обновлялся",
-            f"Маркер backup_ok: {_fmt_age(backup_age)}. Проверьте deploy/backup.sh.\n",
+            f"Маркер backup_ok: {_fmt_age(backup_age)} (порог 26 ч). Проверьте deploy/backup.sh.\n"
+            f"Ожидаемый путь маркера: FILES_ROOT/.ops/backup_ok.json\n",
         )
         fired.append(key)
 

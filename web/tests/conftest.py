@@ -21,6 +21,10 @@ os.environ["BOOTSTRAP_ADMIN_PASSWORD"] = "AdminPass123!"
 os.environ["FILES_ROOT"] = "/tmp/dok_files_test"
 os.environ["BILLING_WORKER"] = "0"
 os.environ["JOBS_INLINE"] = "1"
+# Dual-host прод-URL: тесты W-26/zakon/absolute не должны читать localhost из web/.env
+os.environ["PUBLIC_BASE_URL"] = "https://dok.moscow"
+os.environ["APP_BASE_URL"] = "https://app.dok.moscow"
+os.environ["YANDEX_REDIRECT_URI"] = "https://app.dok.moscow/auth/yandex/callback"
 
 from app.config import get_settings  # noqa: E402
 from app.db import Base, SessionLocal, engine  # noqa: E402
@@ -41,6 +45,9 @@ def app(tmp_path):
     os.environ["BOOTSTRAP_ADMIN_PASSWORD"] = "AdminPass123!"
     os.environ["FILES_ROOT"] = str(tmp_path / "files")
     os.environ["JOBS_INLINE"] = "1"
+    os.environ["PUBLIC_BASE_URL"] = "https://dok.moscow"
+    os.environ["APP_BASE_URL"] = "https://app.dok.moscow"
+    os.environ["YANDEX_REDIRECT_URI"] = "https://app.dok.moscow/auth/yandex/callback"
     get_settings.cache_clear()
 
     # пересоздать engine на новый файл
@@ -58,6 +65,14 @@ def app(tmp_path):
     auth_router.reset_limiter.clear()
     auth_router.totp_limiter.clear()
     landing_router.lead_limiter.clear()
+    from app.routers import counterparties as cp_router
+    from app.routers import global_search as gs_router
+    from app.routers import yandex_auth as ya_router
+
+    gs_router.search_limiter.clear()
+    ya_router.oauth_start_limiter.clear()
+    ya_router.oauth_callback_limiter.clear()
+    cp_router.dadata_limiter.clear()
     with TestClient(application) as client:
         # гарантируем bootstrap
         db = dbmod.SessionLocal()
@@ -81,6 +96,14 @@ def app(tmp_path):
     auth_router.reset_limiter.clear()
     auth_router.totp_limiter.clear()
     landing_router.lead_limiter.clear()
+    from app.routers import counterparties as cp_router
+    from app.routers import global_search as gs_router
+    from app.routers import yandex_auth as ya_router
+
+    gs_router.search_limiter.clear()
+    ya_router.oauth_start_limiter.clear()
+    ya_router.oauth_callback_limiter.clear()
+    cp_router.dadata_limiter.clear()
 
 
 def csrf_from(client: TestClient, path: str = "/login") -> str:

@@ -382,6 +382,21 @@ def reset_password_submit(
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf),
 ):
+    # F-06: лимит по IP на POST сброса (отдельно от forgot-password)
+    ip = client_ip(request)
+    reset_key = f"reset_submit:{ip}"
+    if reset_limiter.is_blocked(reset_key):
+        return _render(
+            request,
+            "auth/reset_password.html",
+            {
+                "flash_error": "Слишком много попыток. Попробуйте позже.",
+                "token": token,
+            },
+            status_code=429,
+        )
+    reset_limiter.register_failure(reset_key)
+
     row = db.scalar(
         select(PasswordResetToken).where(PasswordResetToken.token_hash == _hash_token(token))
     )

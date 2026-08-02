@@ -16,11 +16,9 @@ def _rub(amount_kop: int) -> str:
 
 
 def _fmt_dt(value: datetime | None) -> str:
-    if value is None:
-        return "—"
-    if value.tzinfo is None:
-        return value.strftime("%d.%m.%Y %H:%M UTC")
-    return value.strftime("%d.%m.%Y %H:%M %Z")
+    from app.timeutil import format_moscow
+
+    return format_moscow(value)
 
 
 def notify_payment_success(

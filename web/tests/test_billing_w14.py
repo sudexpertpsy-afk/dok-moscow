@@ -221,9 +221,11 @@ def test_expiry_notice_7_and_1_days(app):
         sub = db.scalar(select(Subscription).where(Subscription.org_id == org.id))
         sub.auto_renew = False
         sub.status = SubscriptionStatus.active
-        sub.ends_at = utcnow().replace(hour=12, minute=0, second=0, microsecond=0) + timedelta(
-            days=7
-        )
+        # Середина московского календарного дня «сегодня + 7» (не UTC-полночь)
+        from app.timeutil import moscow_day_bounds_utc
+
+        day_start, day_end = moscow_day_bounds_utc(7)
+        sub.ends_at = day_start + (day_end - day_start) / 2
         db.add(
             User(
                 org_id=org.id,

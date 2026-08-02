@@ -14,6 +14,7 @@ from app.models import Counterparty, CounterpartySource, CounterpartyType, Docum
 from app.org_scope import get_counterparty_for_org, get_org_for_user, list_counterparties, require_org_id
 from app.privacy import counterparty_list_item, mask_address, mask_passport
 from app.nav_context import cabinet_nav
+from app.rate_limit import LoginRateLimiter
 from app.security import check_csrf, get_csrf_token
 from app.services.counterparties import (
     apply_fields,
@@ -27,6 +28,17 @@ from app.services.dadata import (
     suggest,
 )
 from app.templating import templates
+
+# F-06: DaData-прокси — 30 запросов / мин на пользователя (поверх дневного лимита org)
+dadata_limiter = LoginRateLimiter(30, 60, name="dadata_suggest")
+
+
+def _dadata_rate_ok(user: CurrentUser) -> bool:
+    key = f"user:{user.id}"
+    if dadata_limiter.is_blocked(key):
+        return False
+    dadata_limiter.register_failure(key)
+    return True
 
 router = APIRouter(prefix="/cabinet/counterparties", tags=["counterparties"])
 
@@ -138,6 +150,8 @@ def suggest_party(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    if not _dadata_rate_ok(user):
+        return HTMLResponse("<p class='muted'>Слишком много запросов. Подождите минуту.</p>", status_code=429)
     items = suggest(
         db,
         org_id=require_org_id(user),
@@ -164,6 +178,8 @@ def suggest_address(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    if not _dadata_rate_ok(user):
+        return HTMLResponse("<p class='muted'>Слишком много запросов. Подождите минуту.</p>", status_code=429)
     items = suggest(
         db,
         org_id=require_org_id(user),
@@ -186,6 +202,8 @@ def suggest_bank(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    if not _dadata_rate_ok(user):
+        return HTMLResponse("<p class='muted'>Слишком много запросов. Подождите минуту.</p>", status_code=429)
     items = suggest(
         db,
         org_id=require_org_id(user),

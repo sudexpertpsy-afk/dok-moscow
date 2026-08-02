@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, time, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
@@ -108,9 +108,11 @@ def ensure_payment_settings(db: Session) -> PaymentSettings:
 
 
 def beta_trial_ends_at() -> datetime:
+    """Конец календарного дня BETA_TRIAL_UNTIL по Europe/Moscow (не 23:59 UTC)."""
+    from app.timeutil import end_of_moscow_day
+
     settings = get_settings()
-    d = settings.beta_trial_until
-    return datetime.combine(d, time.max.replace(microsecond=0), tzinfo=timezone.utc)
+    return end_of_moscow_day(settings.beta_trial_until)
 
 
 def ensure_beta_subscriptions(db: Session) -> int:

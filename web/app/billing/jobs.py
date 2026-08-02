@@ -180,14 +180,13 @@ def process_autorenewals(db: Session, *, within_days: int = 3) -> int:
 
 
 def notify_expiring_subscriptions(db: Session) -> int:
-    """Письма за 7 и за 1 день до окончания, если автопродление выключено (W-14)."""
+    """Письма за 7 и за 1 день до окончания (календарь Europe/Moscow), без автопродления."""
+    from app.timeutil import moscow_day_bounds_utc
+
     now = utcnow()
     sent = 0
     for days in EXPIRY_NOTICE_DAYS:
-        day_start = (now + timedelta(days=days)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-        day_end = day_start + timedelta(days=1)
+        day_start, day_end = moscow_day_bounds_utc(days, now=now)
         subs = db.scalars(
             select(Subscription)
             .options(joinedload(Subscription.tariff), joinedload(Subscription.organization))

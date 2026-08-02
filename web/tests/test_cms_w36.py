@@ -50,6 +50,21 @@ def _org_sub(dbmod):
         db.close()
 
 
+def _seed_terminal(db, password: str = "test-terminal-password") -> None:
+    from app.billing.crypto import encrypt_secret
+    from app.models import PaymentSettings
+
+    settings = db.get(PaymentSettings, 1)
+    if settings is None:
+        from app.services.billing import ensure_payment_settings
+
+        ensure_payment_settings(db)
+        settings = db.get(PaymentSettings, 1)
+    settings.terminal_key = "TestTerminalKey"
+    settings.password_encrypted = encrypt_secret(password)
+    db.commit()
+
+
 def test_public_price_uses_same_amount_helper_as_init(app):
     client, dbmod = app
     db = dbmod.SessionLocal()
@@ -69,6 +84,7 @@ def test_public_price_uses_same_amount_helper_as_init(app):
     _org_id, sub_id = _org_sub(dbmod)
     db = dbmod.SessionLocal()
     try:
+        _seed_terminal(db)
         sub = db.get(Subscription, sub_id)
         tariff = db.scalar(select(Tariff).where(Tariff.code == TariffCode.specialist))
         fake = MagicMock()
@@ -101,6 +117,7 @@ def test_promo_discount_math_and_limits(app):
     org_id, sub_id = _org_sub(dbmod)
     db = dbmod.SessionLocal()
     try:
+        _seed_terminal(db)
         tariff = db.scalar(select(Tariff).where(Tariff.code == TariffCode.specialist))
         promo = PromoCode(
             code="SAVE10",

@@ -10,11 +10,15 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import CurrentUser, get_current_user
+from app.rate_limit import LoginRateLimiter
 from app.security import check_csrf
 from app.services.nav_order import NAV_AREAS, save_nav_order
 from app.services.search import result_to_api_dict, search
 
 router = APIRouter(prefix="/api", tags=["search"])
+
+# F-06: поиск — 60 запросов / мин на пользователя
+search_limiter = LoginRateLimiter(60, 60, name="global_search")
 
 
 @router.get("/global-search")
@@ -23,6 +27,10 @@ def api_global_search(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    key = f"user:{user.id}"
+    if search_limiter.is_blocked(key):
+        raise HTTPException(status_code=429, detail="Слишком много запросов поиска")
+    search_limiter.register_failure(key)
     result = search(db, user, q, limit=8)
     show_all = f"/cabinet/search?q={quote(result.query)}" if len(result.query) >= 2 else None
     return JSONResponse(result_to_api_dict(result, show_all_url=show_all))

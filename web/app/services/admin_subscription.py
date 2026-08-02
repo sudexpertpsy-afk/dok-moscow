@@ -90,9 +90,12 @@ def subscription_badge(sub: Subscription | None, *, now: datetime | None = None)
             "badge_label": "нет",
             "is_current": False,
         }
+    from app.timeutil import moscow_calendar_days_left
+
     end = _aware(sub.ends_at)
     current = sub.is_current(now)
-    days_left = (end - now).total_seconds() / 86400.0
+    # Бейдж «истекает» — по календарным дням МСК, не по UTC-суткам.
+    days_left = float(moscow_calendar_days_left(end, now=now))
     if not current or sub.status == SubscriptionStatus.cancelled:
         badge, label = "expired", "истекла"
         if sub.status == SubscriptionStatus.cancelled and end > now:
