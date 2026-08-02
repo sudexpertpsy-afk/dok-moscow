@@ -9,9 +9,10 @@ cd web
 source ../.venv/bin/activate   # или ./scripts/setup_dev.sh из корня
 pip install -r requirements-dev.txt
 cp .env.example .env           # SECRET_KEY, BOOTSTRAP_ADMIN_*, DB_URL
-# миграции (PostgreSQL):
+# миграции (обязательно; create_all при старте отключён — T1):
 alembic upgrade head
 uvicorn app.main:app --reload --app-dir .
+# быстрый sqlite без Alembic: DB_AUTO_CREATE=true (не для прода)
 ```
 
 Откройте http://127.0.0.1:8000/ (лендинг) или http://127.0.0.1:8000/login.

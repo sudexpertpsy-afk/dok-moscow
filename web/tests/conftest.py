@@ -48,12 +48,12 @@ def app(tmp_path):
 
     dbmod.engine.dispose()
     dbmod.reset_engine(os.environ["DB_URL"])
-    # sync module-level engine used by main.create_all — recreate app after reset
+    # Схема в тестах — явно здесь (T1: lifespan не вызывает create_all без DB_AUTO_CREATE).
     Base.metadata.drop_all(bind=dbmod.engine)
     Base.metadata.create_all(bind=dbmod.engine)
 
     application = create_app()
-    # create_all again via startup; TestClient triggers lifespan/startup
+    # TestClient triggers lifespan/startup (bootstrap admin/billing/legal)
     auth_router.login_limiter.clear()
     auth_router.reset_limiter.clear()
     auth_router.totp_limiter.clear()

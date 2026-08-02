@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # Пул SQLAlchemy (PostgreSQL); для SQLite игнорируется
     db_pool_size: int = 5
     db_max_overflow: int = 10
+    # T1: create_all только по явному флагу (тесты/быстрый локальный sqlite).
+    # Прод и docker: alembic upgrade head в entrypoint; DB_AUTO_CREATE не задавать.
+    db_auto_create: bool = False
 
 
 @lru_cache

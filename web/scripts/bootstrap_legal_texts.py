@@ -28,11 +28,10 @@ def main() -> int:
     args = parser.parse_args()
 
     from app import db as dbmod
-    from app.db import Base
     from app.services.legal_bootstrap import bootstrap_missing
     from app.services.legal_registry import ensure_legal_registry
 
-    Base.metadata.create_all(bind=dbmod.engine)
+    # Схема — через Alembic (`alembic upgrade head`), не create_all (T1).
     db = dbmod.SessionLocal()
     try:
         ensure_legal_registry(db)

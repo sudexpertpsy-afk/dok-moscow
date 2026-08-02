@@ -101,7 +101,10 @@ async def lifespan(_app: FastAPI):
 
     from app.billing.jobs import billing_background_loop
 
-    Base.metadata.create_all(bind=dbmod.engine)
+    # T1: схема только через Alembic (entrypoint / `alembic upgrade head`).
+    # create_all — исключительно при DB_AUTO_CREATE=1 (локальный sqlite без миграций).
+    if get_settings().db_auto_create:
+        Base.metadata.create_all(bind=dbmod.engine)
     _bootstrap_admin()
     _bootstrap_billing()
     _bootstrap_legal()
