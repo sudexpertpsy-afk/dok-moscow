@@ -16,6 +16,7 @@ HASH_NAMES = (
     "global-search.js",
     "htmx-config.js",
     "nav-sortable.js",
+    "form-assist.js",
     "htmx.min.js",
 )
 

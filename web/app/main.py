@@ -32,6 +32,7 @@ from app.routers import (
     calendar,
     counterparties,
     documents,
+    form_assist,
     global_search,
     jobs,
     journal,
@@ -229,6 +230,7 @@ def create_app() -> FastAPI:
     app.include_router(staff.router)
     app.include_router(jobs.router)
     app.include_router(documents.router)
+    app.include_router(form_assist.router)
     app.include_router(package.router)
     app.include_router(counterparties.router)
     app.include_router(party_check.router)

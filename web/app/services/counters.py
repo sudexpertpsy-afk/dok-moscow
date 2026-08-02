@@ -80,6 +80,30 @@ def allocation_section(db: Session):
     return _sqlite_lock if dialect == "sqlite" else nullcontext()
 
 
+def peek_number(
+    db: Session,
+    org_id: int,
+    key: str,
+    *,
+    prefix: str = "",
+    suffix: str = "",
+    width: int = 0,
+) -> str:
+    """Следующий номер без инкремента (для placeholder в форме, T8)."""
+    counter = db.scalar(
+        select(Counter).where(Counter.org_id == org_id, Counter.key == key)
+    )
+    if counter is None:
+        nxt = 1
+        pref, suf = prefix, suffix
+    else:
+        nxt = int(counter.value) + 1
+        pref = counter.prefix or prefix
+        suf = counter.suffix or suffix
+    body = str(nxt).zfill(width) if width > 0 else str(nxt)
+    return f"{pref}{body}{suf}"
+
+
 def allocate_number(
     db: Session,
     org_id: int,

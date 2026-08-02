@@ -110,14 +110,22 @@ def package_start(
     тип = data.get("тип") or "Физлицо"
     cps = list_counterparties(db, org.id)
     cps = [c for c in cps if c.type == TYPE_TO_CP.get(тип, c.type)]
+    core_fields = _core_field_names(тип)
+    assist = _assist_ctx(db, org.id, core_fields, data.get("core_values") or {})
     return templates.TemplateResponse(
         request=request,
         name="cabinet/package_step1.html",
-        context=_page(request, user, org, db, 1,
+        context=_page(
+            request,
+            user,
+            org,
+            db,
+            1,
             wizard=data,
             counterparties=cps,
-            core_fields=_core_field_names(тип),
+            core_fields=core_fields,
             egrul_warning=egrul_warning,
+            **assist,
         ),
     )
 
@@ -129,6 +137,17 @@ def _core_field_names(тип: str) -> list[str]:
     from docfiller_core.master import core_fields
 
     return core_fields(тип)
+
+
+def _assist_ctx(db, org_id: int, field_names: list[str], values: dict | None = None) -> dict:
+    from app.services.form_assist import enrich_form_context
+
+    assist = enrich_form_context(db, org_id, field_names, values or {})
+    return {
+        "values": assist["values"],
+        "field_meta": assist["field_meta"],
+        "number_peeks": assist["number_peeks"],
+    }
 
 
 @router.post("/step1", response_class=HTMLResponse)
@@ -164,18 +183,26 @@ async def package_step1(
     else:
         data["counterparty_id"] = None
 
-    first = _core_field_names(тип)[0] if _core_field_names(тип) else ""
+    core_names = _core_field_names(тип)
+    first = core_names[0] if core_names else ""
     if first and not core.get(first):
         cps = [c for c in list_counterparties(db, org.id) if c.type == TYPE_TO_CP[тип]]
+        assist = _assist_ctx(db, org.id, core_names, core)
         return templates.TemplateResponse(
             request=request,
             name="cabinet/package_step1.html",
-            context=_page(request, user, org, db, 1,
+            context=_page(
+                request,
+                user,
+                org,
+                db,
+                1,
                 wizard=data,
                 counterparties=cps,
-                core_fields=_core_field_names(тип),
+                core_fields=core_names,
                 flash_error="Заполните основные данные контрагента.",
                 prefill=core,
+                **assist,
             ),
             status_code=400,
         )
@@ -277,15 +304,22 @@ def package_step3_get(
     if not selected:
         return RedirectResponse("/cabinet/package/step2", status_code=303)
     core_names, additional = collect_fields(selected, data["тип"], org.id)
+    all_fields = list(dict.fromkeys([*core_names, *additional]))
+    from app.services.form_assist import peek_numbers_for
+
+    next_numbers = peek_numbers_for(db, org.id, all_fields)
     defaults = field_defaults(
         data.get("contract_template") or "",
         data.get("core_values") or {},
         data.get("extras") or [],
+        next_numbers=next_numbers,
     )
     values = {}
     values.update(defaults)
     values.update(data.get("core_values") or {})
     values.update(data.get("additional_values") or {})
+    assist = _assist_ctx(db, org.id, all_fields, values)
+    values = assist["values"]
     egrul_warning = data.get("egrul_warning")
     if data.get("counterparty_id"):
         cp = db.get(Counterparty, int(data["counterparty_id"]))
@@ -304,6 +338,8 @@ def package_step3_get(
             core_names=core_names,
             additional=additional,
             values=values,
+            field_meta=assist["field_meta"],
+            number_peeks=assist["number_peeks"],
             selected=selected,
             display_name=display_name,
             egrul_warning=egrul_warning,

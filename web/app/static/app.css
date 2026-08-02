@@ -587,3 +587,22 @@ body.gs-open { overflow: hidden; }
 .stack input[type="text"], .stack input[type="date"], .stack textarea, .stack select {
   width: 100%; max-width: 48rem;
 }
+
+/* T8: поля форм документов */
+.field-block { margin: 0.75rem 0 1rem; position: relative; }
+.field-block label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+.field-hint { font-size: 0.82rem; margin: 0 0 0.35rem; }
+.field-block input, .field-block textarea {
+  width: 100%; max-width: 40rem;
+}
+.suggest-box {
+  position: absolute; z-index: 5; left: 0; right: 0; max-width: 40rem;
+  background: #fff; border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(20, 32, 28, 0.08); max-height: 14rem; overflow: auto;
+}
+.suggest-box:empty { display: none; }
+.suggest-box button, .suggest-pick {
+  display: block; width: 100%; text-align: left; border: 0; background: transparent;
+  padding: 0.55rem 0.75rem; cursor: pointer; font: inherit;
+}
+.suggest-box button:hover, .suggest-pick:hover { background: #eef5f1; }

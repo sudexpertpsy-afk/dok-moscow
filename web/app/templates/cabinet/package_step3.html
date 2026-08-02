@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "cabinet/_steps.html" import steps_bar %}
+{% from "cabinet/_field_input.html" import field_input %}
 {% block title %}Комплект — поля — {{ app_name }}{% endblock %}
 {% block body %}
 {% include "cabinet/_layout_start.html" %}
@@ -11,21 +12,19 @@
       </p>
       {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
       {% if egrul_warning %}<div class="alert alert-warn">{{ egrul_warning }}</div>{% endif %}
-      <form method="post" action="/cabinet/package/step3">
+      <form method="post" action="/cabinet/package/step3" class="doc-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1rem 0 0.35rem">Контрагент</h2>
         {% for f in core_names %}
-          <label for="c_{{ loop.index }}">{{ f }}</label>
-          <input id="c_{{ loop.index }}" name="{{ f }}" value="{{ values.get(f, '') }}">
+          {{ field_input(f, values, field_meta, number_peeks, 'c') }}
         {% endfor %}
         {% if additional %}
         <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1rem 0 0.35rem">Дополнительно</h2>
         {% for f in additional %}
-          <label for="a_{{ loop.index }}">{{ f }}</label>
-          <input id="a_{{ loop.index }}" name="{{ f }}" value="{{ values.get(f, '') }}">
+          {{ field_input(f, values, field_meta, number_peeks, 'a') }}
         {% endfor %}
         {% endif %}
-        <p class="muted" style="margin-top:0.8rem">Пустой номер договора/счёта/акта/ПКО — взять следующий из счётчика.</p>
+        <p class="muted" style="margin-top:0.8rem">Пустой номер — взять следующий из счётчика (см. placeholder).</p>
         <div class="actions">
           <a class="btn secondary" href="/cabinet/package/step2">Назад</a>
           <button type="submit">Сгенерировать комплект</button>

@@ -88,12 +88,22 @@ def document_form(
         act = db.scalar(select(LegalAct).where(LegalAct.slug == slug))
         if act:
             normative_links.append({"slug": act.slug, "title": act.title})
+    from app.services.form_assist import enrich_form_context
+
+    assist = enrich_form_context(db, org.id, variables, {})
     return templates.TemplateResponse(
         request=request,
         name="cabinet/document_form.html",
-        context=_page(request, user, org, db, template_name=template_name,
+        context=_page(
+            request,
+            user,
+            org,
+            db,
+            template_name=template_name,
             variables=variables,
-            values={},
+            values=assist["values"],
+            field_meta=assist["field_meta"],
+            number_peeks=assist["number_peeks"],
             normative_links=normative_links,
         ),
     )

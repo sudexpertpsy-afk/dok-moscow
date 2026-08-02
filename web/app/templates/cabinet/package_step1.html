@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "cabinet/_steps.html" import steps_bar %}
+{% from "cabinet/_field_input.html" import field_input %}
 {% block title %}Комплект — {{ app_name }}{% endblock %}
 {% block body %}
 {% include "cabinet/_layout_start.html" %}
@@ -8,7 +9,7 @@
       {{ steps_bar(step, steps) }}
       {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
       {% if egrul_warning %}<div class="alert alert-warn">{{ egrul_warning }}</div>{% endif %}
-      <form method="post" action="/cabinet/package/step1">
+      <form method="post" action="/cabinet/package/step1" class="doc-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="тип">Тип контрагента</label>
         <select id="тип" name="тип" onchange="location.href='/cabinet/package/?тип='+encodeURIComponent(this.value)">
@@ -28,10 +29,9 @@
         </select>
 
         <h2 style="font-family:var(--font-display);font-size:1.2rem;margin:1.2rem 0 0.4rem">Данные</h2>
-        {% set prefill = prefill or wizard.core_values or {} %}
+        {% set values = values or prefill or wizard.core_values or {} %}
         {% for f in core_fields %}
-          <label for="cf_{{ loop.index }}">{{ f }}</label>
-          <input id="cf_{{ loop.index }}" name="{{ f }}" value="{{ prefill.get(f, '') }}">
+          {{ field_input(f, values, field_meta, number_peeks, 'cf') }}
         {% endfor %}
         <div class="actions">
           <button type="submit">Далее</button>

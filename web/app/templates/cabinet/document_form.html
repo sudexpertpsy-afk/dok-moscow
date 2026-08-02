@@ -1,16 +1,16 @@
 {% extends "base.html" %}
+{% from "cabinet/_field_input.html" import field_input %}
 {% block title %}{{ template_name }} — {{ app_name }}{% endblock %}
 {% block body %}
 {% include "cabinet/_layout_start.html" %}
 <section class="panel">
       <h1>{{ template_name }}</h1>
-      <p class="muted">Пустое поле номера («номер_договора» и др.) — взять следующий из счётчика.</p>
+      <p class="muted">Пустое поле номера — взять следующий из счётчика (подсказка в placeholder). Даты по умолчанию — сегодня.</p>
       {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
-      <form method="post" action="/cabinet/documents/new/{{ template_name }}">
+      <form method="post" action="/cabinet/documents/new/{{ template_name }}" class="doc-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         {% for var in variables %}
-          <label for="f_{{ loop.index }}">{{ var }}</label>
-          <input id="f_{{ loop.index }}" name="{{ var }}" value="{{ values.get(var, '') }}">
+          {{ field_input(var, values, field_meta, number_peeks, 'f') }}
         {% endfor %}
         <div class="actions">
           <button type="submit">Сгенерировать DOCX</button>
