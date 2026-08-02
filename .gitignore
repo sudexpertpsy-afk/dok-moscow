@@ -12,3 +12,10 @@ screenshots/
 # W-31: манифест хэшированной статики (собирается в Docker / scripts/hash_static.py)
 web/app/static/manifest.json
 
+
+# Секреты деплоя на VDS (не коммитить)
+deploy/.env
+deploy/.env.*
+deploy/backup.key
+!.env.example
+!deploy/.env.example
