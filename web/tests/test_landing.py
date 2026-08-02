@@ -61,7 +61,7 @@ def test_w37_scope_non_landing_templates_untouched():
 
     repo = Path(__file__).resolve().parents[2]
     out = subprocess.check_output(
-        ["git", "diff", "--name-only", "main...HEAD"],
+        ["git", "-c", "core.quotepath=false", "diff", "--name-only", "main...HEAD"],
         cwd=repo,
         text=True,
     )
@@ -73,28 +73,25 @@ def test_w37_scope_non_landing_templates_untouched():
         "scripts/make_samples.py",
         "docs/",
     )
-    # Пока ветка пуста относительно себя — сравниваем с рабочей копией
-    dirty = subprocess.check_output(
-        ["git", "status", "--porcelain"],
-        cwd=repo,
-        text=True,
-    )
-    paths: set[str] = set()
-    for line in out.splitlines():
-        if line.strip():
-            paths.add(line.strip())
-    for line in dirty.splitlines():
-        # " M path" / "?? path"
-        parts = line.strip().split(maxsplit=1)
-        if len(parts) == 2:
-            paths.add(parts[1])
+    allowed_exact = {
+        "web/app/static/landing.css",
+        "web/tests/test_landing.py",
+        "scripts/make_samples.py",
+    }
+
+    def _norm(path: str) -> str:
+        path = path.strip().strip('"')
+        # git quotepath octal escapes → utf-8
+        if "\\" in path:
+            try:
+                path = path.encode("utf-8").decode("unicode_escape")
+            except UnicodeDecodeError:
+                pass
+        return path
+
+    paths: set[str] = {_norm(line) for line in out.splitlines() if line.strip()}
     for path in sorted(paths):
-        if path.startswith(allowed_prefixes) or path in allowed_prefixes:
-            continue
-        # hash манифесты статики после смены CSS — допустимы
-        if path.startswith("web/app/static/") and (
-            path.endswith(".css") or "manifest" in path or "hashes" in path
-        ):
+        if path in allowed_exact or any(path.startswith(p) for p in allowed_prefixes):
             continue
         raise AssertionError(f"W-37 вне scope: {path}")
 
