@@ -73,6 +73,15 @@
 </head>
 <body class="lp">
   <a class="skip" href="#main">К содержанию</a>
+  {% if announcement %}
+  <div class="lp-announcement" id="lp-announcement-{{ announcement.id }}" data-announcement-id="{{ announcement.id }}">
+    <div class="lp-announcement-inner">
+      {% if announcement.title %}<strong>{{ announcement.title }}</strong>{% endif %}
+      <span>{{ announcement.html }}</span>
+      <button type="button" aria-label="Скрыть объявление" onclick="(function(btn){var box=btn.closest('.lp-announcement');if(!box)return;var id=box.getAttribute('data-announcement-id');var d=new Date();d.setTime(d.getTime()+7*24*60*60*1000);document.cookie='dok_announcement_dismissed='+encodeURIComponent(id)+'; expires='+d.toUTCString()+'; path=/; SameSite=Lax';box.remove();})(this)">×</button>
+    </div>
+  </div>
+  {% endif %}
   <header class="lp-nav">
     <a class="lp-nav-brand" href="/">{{ app_name }}</a>
     <nav class="lp-nav-links" aria-label="Разделы">
@@ -98,7 +107,13 @@
         <a href="/contacts">Контакты</a>
         <a href="{{ app_base_url }}/login">Кабинет</a>
       </p>
-      <p class="lp-footer-copy">© {{ app_name }}. Документы и данные — в РФ.</p>
+      <p class="lp-footer-copy">
+        {% if content_slots and content_slots.footer_text %}
+          {{ content_slots.footer_text }}
+        {% else %}
+          © {{ app_name }}. Документы и данные — в РФ.
+        {% endif %}
+      </p>
     </div>
   </footer>
 </body>

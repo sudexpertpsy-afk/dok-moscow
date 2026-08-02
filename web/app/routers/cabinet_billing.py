@@ -26,6 +26,12 @@ from app.org_scope import get_org_for_user
 from app.nav_context import cabinet_nav
 from app.security import get_csrf_token
 from app.services.billing import get_current_subscription, get_tariff
+from app.services.cms import (
+    format_price_rub,
+    tariff_amount_kop,
+    tariff_price_label,
+    validate_promo_code,
+)
 from app.services.limits import usage_snapshot
 from app.templating import templates
 
@@ -85,9 +91,46 @@ def billing_page(
                 pay_settings and pay_settings.terminal_key and pay_settings.password_encrypted
             ),
             receipt_email_default=org_email or user.email,
+            tariff_price_label=tariff_price_label,
             flash_error=error,
         ),
     )
+
+
+@router.get("/promo-preview", response_class=HTMLResponse)
+def promo_preview(
+    tariff_code: str = "",
+    period: str = "month",
+    promo_code: str = "",
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        code = TariffCode(tariff_code)
+        per = SubscriptionPeriod(period)
+    except ValueError:
+        return HTMLResponse('<p class="muted">Выберите тариф и период.</p>')
+    tariff = get_tariff(db, code)
+    if tariff is None or code == TariffCode.guest:
+        return HTMLResponse('<p class="muted">Промокод доступен для платных тарифов.</p>')
+    base = tariff_amount_kop(tariff, per)
+    result = validate_promo_code(
+        db,
+        code=promo_code,
+        tariff=tariff,
+        period=per,
+        base_amount_kop=base,
+    )
+    if not promo_code.strip():
+        return HTMLResponse(f'<p class="muted">К оплате: {format_price_rub(base)}.</p>')
+    if not result.ok:
+        return HTMLResponse(f'<p class="alert alert-error">{result.message}</p>')
+    body = (
+        f'<p class="alert alert-ok">{result.message}: '
+        f'−{format_price_rub(result.discount_kop)}, '
+        f'к оплате {format_price_rub(result.final_amount_kop)}.</p>'
+    )
+    return HTMLResponse(body)
 
 
 @router.post("/pay", response_class=HTMLResponse)
@@ -97,6 +140,7 @@ def billing_pay(
     period: str = Form(...),
     auto_renew: str | None = Form(None),
     receipt_email: str | None = Form(None),
+    promo_code: str = Form(""),
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf),
@@ -112,7 +156,7 @@ def billing_pay(
     if tariff is None or code == TariffCode.guest:
         raise HTTPException(status_code=400, detail="Этот тариф нельзя оплатить картой")
 
-    amount = tariff.price_year_kop if per == SubscriptionPeriod.year else tariff.price_month_kop
+    amount = tariff_amount_kop(tariff, per)
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Нулевая сумма")
 
@@ -141,6 +185,7 @@ def billing_pay(
             amount_kop=amount,
             email=email,
             auto_renew=want_renew,
+            promo_code=promo_code,
         )
         db.commit()
     except TBankError as exc:
@@ -158,6 +203,7 @@ def billing_pay(
                 recurrents_enabled=False,
                 terminal_ready=False,
                 receipt_email_default=email,
+                tariff_price_label=tariff_price_label,
                 flash_error=str(exc),
             ),
             status_code=400,

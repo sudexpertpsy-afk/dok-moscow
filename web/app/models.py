@@ -98,6 +98,11 @@ class PaymentMode(str, enum.Enum):
     live = "live"
 
 
+class PromoCodeType(str, enum.Enum):
+    percent = "percent"
+    fixed = "fixed"
+
+
 class CalendarEventKind(str, enum.Enum):
     plan = "plan"
     meeting = "meeting"
@@ -497,9 +502,40 @@ class Tariff(Base):
     limit_documents_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
     limit_users: Mapped[int | None] = mapped_column(Integer, nullable=True)
     watermark: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    blurb: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    features: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     subscriptions: Mapped[list[Subscription]] = relationship(back_populates="tariff")
+
+
+class TariffPriceLog(Base):
+    """История изменений публичных цен и описаний тарифов (W-36)."""
+
+    __tablename__ = "tariff_price_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tariff_id: Mapped[int] = mapped_column(
+        ForeignKey("tariffs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    tariff_code: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    old_price_month_kop: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    new_price_month_kop: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    old_price_year_kop: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    new_price_year_kop: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    old_blurb: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    new_blurb: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    old_features: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    new_features: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    updated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
+    )
+
+    tariff: Mapped[Tariff] = relationship()
+    user: Mapped[User | None] = relationship()
 
 
 class Subscription(Base):
@@ -583,6 +619,11 @@ class Payment(Base):
         ForeignKey("subscriptions.id", ondelete="SET NULL"), nullable=True, index=True
     )
     amount_kop: Mapped[int] = mapped_column(Integer, nullable=False)
+    amount_base_kop: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    discount_kop: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    promo_code_id: Mapped[int | None] = mapped_column(
+        ForeignKey("promo_codes.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     purpose: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     status: Mapped[PaymentStatus] = mapped_column(
         Enum(PaymentStatus, name="payment_status", **_STR_ENUM),
@@ -612,6 +653,7 @@ class Payment(Base):
 
     organization: Mapped[Organization] = relationship(back_populates="payments")
     subscription: Mapped[Subscription | None] = relationship(back_populates="payments")
+    promo_code: Mapped["PromoCode | None"] = relationship(back_populates="payments")
 
     def append_event(self, event: dict) -> None:
         events = list(self.raw_events or [])
@@ -654,6 +696,118 @@ class PaymentSettings(Base):
     updated_by_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+
+
+class ContentBlock(Base):
+    """Публичные CMS-слоты лендинга (W-36)."""
+
+    __tablename__ = "content_blocks"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    body_md: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft", index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    updated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    versions: Mapped[list["ContentBlockVersion"]] = relationship(
+        back_populates="block", cascade="all, delete-orphan"
+    )
+    user: Mapped[User | None] = relationship()
+
+
+class ContentBlockVersion(Base):
+    """Снимок опубликованной версии CMS-слота."""
+
+    __tablename__ = "content_block_versions"
+    __table_args__ = (Index("uq_content_block_versions_key_version", "block_key", "version", unique=True),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    block_key: Mapped[str] = mapped_column(
+        ForeignKey("content_blocks.key", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    body_md: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="published")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
+    )
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    block: Mapped[ContentBlock] = relationship(back_populates="versions")
+    user: Mapped[User | None] = relationship()
+
+
+class PromoCode(Base):
+    """Промокод на одну оплату подписки (W-36)."""
+
+    __tablename__ = "promo_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    type: Mapped[PromoCodeType] = mapped_column(
+        Enum(PromoCodeType, name="promo_code_type", **_STR_ENUM),
+        nullable=False,
+        default=PromoCodeType.percent,
+    )
+    value: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tariff_codes: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    periods: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    used_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    payments: Mapped[list[Payment]] = relationship(back_populates="promo_code")
+
+
+class Announcement(Base):
+    """Публичная плашка над шапкой лендинга."""
+
+    __tablename__ = "announcements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    body_md: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft", index=True)
+    valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    updated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    user: Mapped[User | None] = relationship()
 
 
 class PartyCheck(Base):

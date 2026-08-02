@@ -12,6 +12,15 @@ from app.config import get_settings
 from app.db import get_db
 from app.rate_limit import LoginRateLimiter
 from app.security import check_csrf, get_csrf_token
+from app.services.cms import (
+    active_announcement,
+    format_price_rub,
+    get_content_slots,
+    list_public_tariffs,
+    tariff_blurb,
+    tariff_features,
+    tariff_price_label,
+)
 from app.services.leads import create_lead, notify_admin_new_lead
 from app.templating import templates
 
@@ -29,8 +38,18 @@ PROFILES = (
 )
 
 
-def _public_ctx(request: Request, **extra):
+def _public_ctx(request: Request, db: Session | None = None, **extra):
     settings = get_settings()
+    public_tariffs = []
+    content_slots = {}
+    announcement = None
+    if db is not None:
+        public_tariffs = list_public_tariffs(db)
+        content_slots = get_content_slots(db)
+        announcement = active_announcement(
+            db,
+            dismissed_id=request.cookies.get("dok_announcement_dismissed"),
+        )
     data = {
         "request": request,
         "csrf_token": get_csrf_token(request),
@@ -44,6 +63,13 @@ def _public_ctx(request: Request, **extra):
         "form_email": "",
         "form_profile": "",
         "form_comment": "",
+        "public_tariffs": public_tariffs,
+        "content_slots": content_slots,
+        "announcement": announcement,
+        "format_price_rub": format_price_rub,
+        "tariff_price_label": tariff_price_label,
+        "tariff_blurb": tariff_blurb,
+        "tariff_features": tariff_features,
     }
     data.update(extra)
     return data
@@ -55,11 +81,11 @@ def _client_key(request: Request) -> str:
 
 
 @router.get("/", response_class=HTMLResponse)
-def landing_home(request: Request):
+def landing_home(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
         request=request,
         name="landing/index.html",
-        context=_public_ctx(request),
+        context=_public_ctx(request, db),
     )
 
 
@@ -80,6 +106,7 @@ def landing_apply(
             name="landing/index.html",
             context=_public_ctx(
                 request,
+                db,
                 flash_error="Сессия устарела. Обновите страницу и отправьте форму снова.",
                 form_email=email,
                 form_profile=profile,
@@ -105,6 +132,7 @@ def landing_apply(
             name="landing/index.html",
             context=_public_ctx(
                 request,
+                db,
                 flash_error="Слишком много заявок с вашего адреса. Попробуйте позже.",
                 form_email=email,
                 form_profile=profile,
@@ -123,6 +151,7 @@ def landing_apply(
             name="landing/index.html",
             context=_public_ctx(
                 request,
+                db,
                 flash_error="Укажите корректный e-mail.",
                 form_email=email,
                 form_profile=profile,
@@ -136,6 +165,7 @@ def landing_apply(
             name="landing/index.html",
             context=_public_ctx(
                 request,
+                db,
                 flash_error="Выберите профиль деятельности.",
                 form_email=email,
                 form_profile=profile,
@@ -153,6 +183,7 @@ def landing_apply(
         name="landing/index.html",
         context=_public_ctx(
             request,
+            db,
             flash_ok="Заявка принята. Мы свяжемся с вами по e-mail, когда откроем доступ.",
         ),
         status_code=status.HTTP_201_CREATED,
@@ -160,47 +191,47 @@ def landing_apply(
 
 
 @router.get("/privacy", response_class=HTMLResponse)
-def privacy_page(request: Request):
+def privacy_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
         request=request,
         name="landing/privacy.html",
-        context=_public_ctx(request),
+        context=_public_ctx(request, db),
     )
 
 
 @router.get("/offer", response_class=HTMLResponse)
-def offer_page(request: Request):
+def offer_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
         request=request,
         name="landing/offer.html",
-        context=_public_ctx(request),
+        context=_public_ctx(request, db),
     )
 
 
 @router.get("/requisites", response_class=HTMLResponse)
-def requisites_page(request: Request):
+def requisites_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
         request=request,
         name="landing/requisites.html",
-        context=_public_ctx(request),
+        context=_public_ctx(request, db),
     )
 
 
 @router.get("/tariffs", response_class=HTMLResponse)
-def tariffs_page(request: Request):
+def tariffs_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
         request=request,
         name="landing/tariffs.html",
-        context=_public_ctx(request),
+        context=_public_ctx(request, db),
     )
 
 
 @router.get("/contacts", response_class=HTMLResponse)
-def contacts_page(request: Request):
+def contacts_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
         request=request,
         name="landing/contacts.html",
-        context=_public_ctx(request),
+        context=_public_ctx(request, db),
     )
 
 

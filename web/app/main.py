@@ -22,6 +22,7 @@ from app.models import User, UserRole
 from app.routers import (
     admin,
     admin_billing,
+    admin_cms,
     admin_legal,
     admin_server,
     admin_templates,
@@ -245,6 +246,7 @@ def create_app() -> FastAPI:
     app.include_router(settings_routes.router)
     app.include_router(admin.router)
     app.include_router(admin_billing.router)
+    app.include_router(admin_cms.router)
     app.include_router(admin_legal.router)
     app.include_router(admin_server.router)
     app.include_router(admin_templates.router)

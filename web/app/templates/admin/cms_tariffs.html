@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Тарифы — Единое окно{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+<section class="panel">
+  <h1>Единое окно → Тарифы</h1>
+  <p class="muted">Цены и описания идут на лендинг, `/tariffs` и в оплату. Изменение требует двух подтверждений и TOTP.</p>
+  <form method="post" action="/admin/cms/tariffs" hx-boost="false" class="stack" style="margin-top:1rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% for t in tariffs %}
+      <fieldset style="border:1px solid var(--line);border-radius:12px;padding:1rem;margin:0 0 1rem">
+        <legend>{{ t.name }} <span class="muted">({{ t.code.value }})</span></legend>
+        <div class="grid-2">
+          <div>
+            <label for="price_month_{{ t.code.value }}">Цена за месяц, ₽</label>
+            <input id="price_month_{{ t.code.value }}" name="price_month_{{ t.code.value }}" type="number" min="0" step="1" value="{{ t.price_month_kop // 100 }}">
+          </div>
+          <div>
+            <label for="price_year_{{ t.code.value }}">Цена за год, ₽</label>
+            <input id="price_year_{{ t.code.value }}" name="price_year_{{ t.code.value }}" type="number" min="0" step="1" value="{{ t.price_year_kop // 100 }}">
+          </div>
+        </div>
+        <label for="blurb_{{ t.code.value }}">Короткое описание</label>
+        <textarea id="blurb_{{ t.code.value }}" name="blurb_{{ t.code.value }}" rows="2">{{ t.blurb or '' }}</textarea>
+        <label for="features_{{ t.code.value }}">Фичи, по одной строке</label>
+        <textarea id="features_{{ t.code.value }}" name="features_{{ t.code.value }}" rows="4">{% for f in tariff_features(t) %}{{ f }}
+{% endfor %}</textarea>
+      </fieldset>
+    {% endfor %}
+    <div class="alert alert-warn">
+      Для сохранения введите <span class="mono">UPDATE_TARIFFS</span>, затем <span class="mono">YES</span>, и код 2FA.
+    </div>
+    <div class="grid-2">
+      <div>
+        <label for="confirm_1">Подтверждение 1</label>
+        <input id="confirm_1" name="confirm_1" autocomplete="off">
+      </div>
+      <div>
+        <label for="confirm_2">Подтверждение 2</label>
+        <input id="confirm_2" name="confirm_2" autocomplete="off">
+      </div>
+      <div>
+        <label for="totp_code">Код 2FA</label>
+        <input id="totp_code" name="totp_code" inputmode="numeric" autocomplete="one-time-code">
+      </div>
+    </div>
+    <div class="actions"><button type="submit" class="danger">Сохранить тарифы</button></div>
+  </form>
+</section>
+
+<section class="panel" style="margin-top:1rem">
+  <h2>Журнал изменений</h2>
+  <table class="table">
+    <thead><tr><th>Дата</th><th>Тариф</th><th>Месяц</th><th>Год</th><th>Админ</th></tr></thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td class="muted">{{ log.updated_at.strftime('%d.%m.%Y %H:%M') }}</td>
+        <td>{{ log.tariff_code }}</td>
+        <td>{{ format_price_rub(log.old_price_month_kop) }} → {{ format_price_rub(log.new_price_month_kop) }}</td>
+        <td>{{ format_price_rub(log.old_price_year_kop) }} → {{ format_price_rub(log.new_price_year_kop) }}</td>
+        <td>{{ log.updated_by or '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted">Пока нет изменений</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% include "admin/_layout_end.html" %}
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Промокоды — Единое окно{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+<section class="panel">
+  <h1>Единое окно → Промокоды</h1>
+  <p class="muted">Один промокод применяется к одному платежу. Percent: `10` = 10%. Fixed: значение в копейках.</p>
+  <form method="post" action="/admin/cms/promos" hx-boost="false" class="grid-2" style="margin-top:1rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div>
+      <label for="code">Код</label>
+      <input id="code" name="code" required autocomplete="off">
+    </div>
+    <div>
+      <label for="type">Тип</label>
+      <select id="type" name="type">
+        <option value="percent">percent</option>
+        <option value="fixed">fixed</option>
+      </select>
+    </div>
+    <div>
+      <label for="value">Значение</label>
+      <input id="value" name="value" type="number" min="0" required>
+    </div>
+    <div>
+      <label for="max_uses">Max uses</label>
+      <input id="max_uses" name="max_uses" type="number" min="1">
+    </div>
+    <div>
+      <label for="tariff_codes">Тарифы (csv, пусто = все)</label>
+      <input id="tariff_codes" name="tariff_codes" placeholder="specialist, organization">
+    </div>
+    <div>
+      <label for="periods">Периоды (csv, пусто = все)</label>
+      <input id="periods" name="periods" placeholder="month, year">
+    </div>
+    <div>
+      <label for="valid_from">Действует с</label>
+      <input id="valid_from" name="valid_from" type="date">
+    </div>
+    <div>
+      <label for="valid_to">Действует до</label>
+      <input id="valid_to" name="valid_to" type="date">
+    </div>
+    <label style="display:flex;gap:0.5rem;align-items:center;margin-top:0.9rem">
+      <input type="checkbox" name="is_active" value="1" checked style="width:auto"> Активен
+    </label>
+    <div class="actions"><button type="submit">Сохранить промокод</button></div>
+  </form>
+</section>
+
+<section class="panel" style="margin-top:1rem">
+  <h2>Список и статистика</h2>
+  <table class="table">
+    <thead><tr><th>Код</th><th>Тип</th><th>Значение</th><th>Ограничения</th><th>Исп.</th><th>Платежи</th><th></th></tr></thead>
+    <tbody>
+      {% for p in promos %}
+      <tr>
+        <td><strong>{{ p.code }}</strong>{% if not p.is_active %} <span class="badge danger">off</span>{% endif %}</td>
+        <td>{{ p.type.value }}</td>
+        <td>{{ p.value }}</td>
+        <td class="muted">
+          тарифы: {{ (p.tariff_codes or [])|join(', ') or 'все' }}<br>
+          периоды: {{ (p.periods or [])|join(', ') or 'все' }}
+        </td>
+        <td>{{ p.used_count }}{% if p.max_uses %} / {{ p.max_uses }}{% endif %}</td>
+        <td>{{ payment_counts.get(p.id, 0) }}</td>
+        <td>
+          {% if p.is_active %}
+          <form method="post" action="/admin/cms/promos/{{ p.id }}/delete" class="inline-form" hx-boost="false">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="secondary">Выключить</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="muted">Промокодов нет</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% include "admin/_layout_end.html" %}
+{% endblock %}

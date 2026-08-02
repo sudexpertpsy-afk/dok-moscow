@@ -31,6 +31,8 @@ DEFAULT_TARIFFS: tuple[dict, ...] = (
         "limit_documents_month": 3,
         "limit_users": 1,
         "watermark": True,
+        "blurb": "До 3 документов в месяц, водяной знак на PDF. Чтобы оценить кабинет без оплаты.",
+        "features": ["до 3 документов в месяц", "1 пользователь", "водяной знак на PDF"],
     },
     {
         "code": TariffCode.specialist,
@@ -40,6 +42,8 @@ DEFAULT_TARIFFS: tuple[dict, ...] = (
         "limit_documents_month": None,
         "limit_users": 1,
         "watermark": False,
+        "blurb": "Один пользователь, полный кабинет без водяного знака.",
+        "features": ["полный кабинет без водяного знака", "1 пользователь", "журналы, шаблоны, DaData"],
     },
     {
         "code": TariffCode.organization,
@@ -49,6 +53,12 @@ DEFAULT_TARIFFS: tuple[dict, ...] = (
         "limit_documents_month": None,
         "limit_users": 5,
         "watermark": False,
+        "blurb": "До 5 пользователей, свои шаблоны.",
+        "features": [
+            "до 5 пользователей по приглашениям",
+            "свои шаблоны организации",
+            "приоритет для команд СРО и учреждений",
+        ],
     },
 )
 
@@ -66,21 +76,23 @@ class TariffLimits:
 
 
 def ensure_tariffs(db: Session) -> list[Tariff]:
-    """Создать/обновить справочник тарифов (идемпотентно)."""
+    """Создать недостающие тарифы (идемпотентно).
+
+    W-36: цены и описания правятся в админке — при повторном вызове
+    существующие строки НЕ перезаписываются.
+    """
     out: list[Tariff] = []
     for row in DEFAULT_TARIFFS:
         tariff = db.scalar(select(Tariff).where(Tariff.code == row["code"]))
         if tariff is None:
-            tariff = Tariff(**row, is_active=True)
+            data = dict(row)
+            # опциональные поля лендинга (если колонки уже есть)
+            if hasattr(Tariff, "blurb"):
+                data.setdefault("blurb", "")
+            if hasattr(Tariff, "features"):
+                data.setdefault("features", [])
+            tariff = Tariff(**data, is_active=True)
             db.add(tariff)
-        else:
-            tariff.name = row["name"]
-            tariff.price_month_kop = row["price_month_kop"]
-            tariff.price_year_kop = row["price_year_kop"]
-            tariff.limit_documents_month = row["limit_documents_month"]
-            tariff.limit_users = row["limit_users"]
-            tariff.watermark = row["watermark"]
-            tariff.is_active = True
         out.append(tariff)
     db.flush()
     return out

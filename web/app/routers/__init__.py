@@ -1,5 +1,6 @@
 from app.routers import (
     admin,
+    admin_cms,
     auth,
     cabinet,
     counterparties,
@@ -12,6 +13,7 @@ from app.routers import (
 
 __all__ = [
     "admin",
+    "admin_cms",
     "auth",
     "cabinet",
     "counterparties",

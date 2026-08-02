@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Единое окно — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+<section class="panel">
+  <h1>Единое окно</h1>
+  <p class="muted">Публичные тарифы, тексты лендинга, промокоды и объявления.</p>
+  <div class="stat-row" style="margin-top:1rem">
+    <a class="stat" href="/admin/cms/tariffs"><span class="n">{{ tariffs_count }}</span><span class="l">Тарифы</span></a>
+    <a class="stat" href="/admin/cms/content"><span class="n">{{ content_count }}</span><span class="l">Контент-слоты</span></a>
+    <a class="stat" href="/admin/cms/promos"><span class="n">{{ promos_count }}</span><span class="l">Промокоды</span></a>
+    <a class="stat" href="/admin/cms/announcements"><span class="n">{{ announcements_count }}</span><span class="l">Объявления</span></a>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/admin/cms/tariffs">Тарифы</a>
+    <a class="btn secondary" href="/admin/cms/content">Контент</a>
+    <a class="btn secondary" href="/admin/cms/promos">Промокоды</a>
+    <a class="btn secondary" href="/admin/cms/announcements">Объявления</a>
+  </div>
+</section>
+{% include "admin/_layout_end.html" %}
+{% endblock %}

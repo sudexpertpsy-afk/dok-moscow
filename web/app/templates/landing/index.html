@@ -36,8 +36,8 @@
   </div>
   <div class="lp-hero-copy">
     <p class="lp-brand">{{ app_name }}</p>
-    <h1 class="lp-headline">Кабинет экспертной организации</h1>
-    <p class="lp-sub">Договоры, счета и акты по проверенным шаблонам Шаблонера — в браузере, с картотекой и подсказками ЕГРЮЛ.</p>
+    <h1 class="lp-headline">{% if content_slots.hero_headline %}{{ content_slots.hero_headline }}{% else %}Кабинет экспертной организации{% endif %}</h1>
+    <p class="lp-sub">{% if content_slots.hero_sub %}{{ content_slots.hero_sub }}{% else %}Договоры, счета и акты по проверенным шаблонам Шаблонера — в браузере, с картотекой и подсказками ЕГРЮЛ.{% endif %}</p>
     <div class="lp-cta">
       <a class="lp-btn" href="#apply">Запросить ранний доступ</a>
       <a class="lp-btn lp-btn-ghost" href="{{ app_base_url }}/login">Войти в кабинет</a>
@@ -50,9 +50,9 @@
     <h2>Примеры документов</h2>
     <p class="lp-section-lead">Обезличенные PDF из настоящих шаблонов сервиса (с водяным знаком «ОБРАЗЕЦ»). Так выглядит результат генерации в кабинете.</p>
     <ul class="lp-samples">
-      <li><a href="/static/samples/dogovor-fl.pdf">Договор (ФЛ)</a></li>
-      <li><a href="/static/samples/schet.pdf">Счёт</a></li>
-      <li><a href="/static/samples/akt.pdf">Акт</a></li>
+      <li>{% if content_slots.feature_1 %}{{ content_slots.feature_1 }}{% else %}<a href="/static/samples/dogovor-fl.pdf">Договор (ФЛ)</a>{% endif %}</li>
+      <li>{% if content_slots.feature_2 %}{{ content_slots.feature_2 }}{% else %}<a href="/static/samples/schet.pdf">Счёт</a>{% endif %}</li>
+      <li>{% if content_slots.feature_3 %}{{ content_slots.feature_3 }}{% else %}<a href="/static/samples/akt.pdf">Акт</a>{% endif %}</li>
     </ul>
   </div>
 </section>
@@ -60,23 +60,15 @@
 <section class="lp-section lp-section-alt" id="pricing">
   <div class="lp-wrap">
     <h2>Тарифы</h2>
-    <p class="lp-section-lead">Закрытая бета по приглашениям. После пилота — оплата картой через Т‑Кассу. Подробности на <a href="/tariffs">странице тарифов</a>.</p>
+    <p class="lp-section-lead">{% if content_slots.tariffs_note %}{{ content_slots.tariffs_note }}{% else %}Закрытая бета по приглашениям. После пилота — оплата картой через Т‑Кассу. Подробности на <a href="/tariffs">странице тарифов</a>.{% endif %}</p>
     <div class="lp-tariffs">
-      <article>
-        <h3>Гость</h3>
-        <p class="lp-price">0&nbsp;₽</p>
-        <p>До 3 документов в месяц, водяной знак на PDF. Чтобы оценить кабинет без оплаты.</p>
-      </article>
-      <article>
-        <h3>Специалист</h3>
-        <p class="lp-price">990&nbsp;₽/мес</p>
-        <p>Один пользователь, полный кабинет без водяного знака. Год — 9&nbsp;900&nbsp;₽ (−2 месяца).</p>
-      </article>
-      <article>
-        <h3>Организация</h3>
-        <p class="lp-price">2&nbsp;490&nbsp;₽/мес</p>
-        <p>До 5 пользователей, свои шаблоны. Год — 24&nbsp;900&nbsp;₽ (−2 месяца).</p>
-      </article>
+      {% for t in public_tariffs %}
+        <article>
+          <h3>{{ t.name }}</h3>
+          <p class="lp-price">{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'month') }}{% endif %}</p>
+          <p>{{ tariff_blurb(t) }}{% if t.code.value != 'guest' %} Год — {{ format_price_rub(t.price_year_kop) }}.{% endif %}</p>
+        </article>
+      {% endfor %}
     </div>
   </div>
 </section>

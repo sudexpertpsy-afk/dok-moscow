@@ -9,45 +9,37 @@
 <article class="lp-legal">
   <div class="lp-wrap">
     <h1>Тарифы</h1>
-    <p class="lp-section-lead">Цены для кабинета после закрытой беты. Оплата картой в кабинете; чек 54‑ФЗ на e-mail плательщика. Условия — в <a href="/offer">оферте</a>.</p>
+    <p class="lp-section-lead">{% if content_slots.tariffs_note %}{{ content_slots.tariffs_note }}{% else %}Цены для кабинета после закрытой беты. Оплата картой в кабинете; чек 54‑ФЗ на e-mail плательщика. Условия — в <a href="/offer">оферте</a>.{% endif %}</p>
 
     <div class="lp-tariffs">
-      <article>
-        <h3>Гость</h3>
-        <p class="lp-price">0&nbsp;₽</p>
-        <ul>
-          <li>до 3 документов в месяц;</li>
-          <li>1 пользователь;</li>
-          <li>водяной знак на PDF.</li>
-        </ul>
-      </article>
-      <article>
-        <h3>Специалист</h3>
-        <p class="lp-price">990&nbsp;₽/мес</p>
-        <p>или 9&nbsp;900&nbsp;₽/год (−2 месяца)</p>
-        <ul>
-          <li>полный кабинет без водяного знака;</li>
-          <li>1 пользователь;</li>
-          <li>журналы, шаблоны, DaData.</li>
-        </ul>
-      </article>
-      <article>
-        <h3>Организация</h3>
-        <p class="lp-price">2&nbsp;490&nbsp;₽/мес</p>
-        <p>или 24&nbsp;900&nbsp;₽/год (−2 месяца)</p>
-        <ul>
-          <li>до 5 пользователей по приглашениям;</li>
-          <li>свои шаблоны организации;</li>
-          <li>приоритет для команд СРО и учреждений.</li>
-        </ul>
-      </article>
+      {% for t in public_tariffs %}
+        <article>
+          <h3>{{ t.name }}</h3>
+          <p class="lp-price">{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'month') }}{% endif %}</p>
+          {% if t.code.value != 'guest' %}<p>или {{ tariff_price_label(t, 'year') }}</p>{% endif %}
+          <ul>
+            {% for feature in tariff_features(t) %}
+              <li>{{ feature }}{% if not feature.endswith('.') %};{% endif %}</li>
+            {% endfor %}
+          </ul>
+        </article>
+      {% endfor %}
     </div>
 
     <h2>Как оплатить</h2>
     <p>В кабинете: раздел «Тариф и оплата» → выбор тарифа и периода → e-mail для чека → оплата на стороне Т‑Кассы. После успешной оплаты подписка продлевается автоматически на выбранный период.</p>
 
     <h2>Бета</h2>
-    <p>Пилотные организации получают доступ по приглашению на период беты. После окончания беты нужна оплата выбранного тарифа.</p>
+    {% if content_slots.faq %}
+      {{ content_slots.faq }}
+    {% else %}
+      <p>Пилотные организации получают доступ по приглашению на период беты. После окончания беты нужна оплата выбранного тарифа.</p>
+    {% endif %}
+
+    {% if content_slots.contacts %}
+      <h2>Контакты</h2>
+      {{ content_slots.contacts }}
+    {% endif %}
 
     <p><a class="lp-btn" href="/#apply">Запросить доступ</a>
        <a class="lp-btn lp-btn-ghost" href="{{ app_base_url }}/cabinet/billing/">Тариф в кабинете</a></p>

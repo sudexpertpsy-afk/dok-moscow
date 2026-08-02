@@ -42,23 +42,29 @@
           {% if not terminal_ready %}
           <p class="muted">Приём карт ещё не настроен администратором сервиса. После настройки Т-Кассы здесь появится оплата.</p>
           {% endif %}
-          <form method="post" action="/cabinet/billing/pay" hx-boost="false">
+          <form id="pay-form" method="post" action="/cabinet/billing/pay" hx-boost="false">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <label for="tariff_code">Тариф</label>
-            <select id="tariff_code" name="tariff_code" required>
+            <select id="tariff_code" name="tariff_code" required
+              hx-get="/cabinet/billing/promo-preview" hx-trigger="change" hx-target="#promo-preview" hx-include="#pay-form">
               {% for t in tariffs if t.code.value != 'guest' %}
               <option value="{{ t.code.value }}"
                 {% if snap.limits.tariff_code == t.code %}selected{% endif %}>
-                {{ t.name }} — {{ '%.0f'|format(t.price_month_kop / 100) }} ₽/мес
-                или {{ '%.0f'|format(t.price_year_kop / 100) }} ₽/год
+                {{ t.name }} — {{ tariff_price_label(t, 'month') }}
+                или {{ tariff_price_label(t, 'year') }}
               </option>
               {% endfor %}
             </select>
             <label for="period">Период</label>
-            <select id="period" name="period">
+            <select id="period" name="period"
+              hx-get="/cabinet/billing/promo-preview" hx-trigger="change" hx-target="#promo-preview" hx-include="#pay-form">
               <option value="month">Месяц</option>
               <option value="year">Год (−2 месяца)</option>
             </select>
+            <label for="promo_code">Промокод</label>
+            <input id="promo_code" name="promo_code" value="" autocomplete="off"
+              hx-get="/cabinet/billing/promo-preview" hx-trigger="keyup changed delay:350ms" hx-target="#promo-preview" hx-include="#pay-form">
+            <div id="promo-preview" aria-live="polite"><p class="muted">К оплате будет сумма выбранного тарифа.</p></div>
             <label for="receipt_email">E-mail для чека</label>
             <input id="receipt_email" name="receipt_email" type="email" value="{{ receipt_email_default or user.email }}">
             {% if recurrents_enabled %}
@@ -85,7 +91,12 @@
           {% for p in payments %}
           <tr>
             <td class="muted">{{ p.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
-            <td>{{ '%.2f'|format(p.amount_kop / 100) }} ₽</td>
+            <td>
+              {{ '%.2f'|format(p.amount_kop / 100) }} ₽
+              {% if p.discount_kop %}
+                <br><span class="muted">скидка {{ '%.2f'|format(p.discount_kop / 100) }} ₽</span>
+              {% endif %}
+            </td>
             <td>{{ p.purpose }}</td>
             <td>
               {% if p.status.value == 'confirmed' %}<span class="badge ok">{{ p.status.value }}</span>

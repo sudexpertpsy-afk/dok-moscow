@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Контент — Единое окно{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+<section class="panel">
+  <h1>Единое окно → Контент</h1>
+  <p class="muted">Пустой опубликованный слот не подменяет шаблонный fallback. Разрешён ограниченный Markdown: жирный, курсив, списки и ссылки.</p>
+  <form method="get" action="/admin/cms/content" style="max-width:24rem;margin-top:1rem">
+    <label for="key">Слот</label>
+    <select id="key" name="key" onchange="this.form.submit()">
+      {% for key in slot_keys %}
+        <option value="{{ key }}" {% if key == selected_key %}selected{% endif %}>{{ key }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  <form method="post" action="/admin/cms/content/publish" hx-boost="false" class="stack" style="margin-top:1rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="key" value="{{ selected_key }}">
+    <label for="title">Заголовок в админке</label>
+    <input id="title" name="title" value="{{ current.title if current else selected_key }}">
+    <label for="body_md">Markdown</label>
+    <textarea id="body_md" name="body_md" rows="10" hx-post="/admin/cms/content/preview" hx-trigger="keyup changed delay:400ms" hx-target="#cms-preview">{{ current.body_md if current else '' }}</textarea>
+    <label for="status">Статус</label>
+    <select id="status" name="status">
+      <option value="draft" {% if not current or current.status == 'draft' %}selected{% endif %}>Черновик</option>
+      <option value="published" {% if current and current.status == 'published' %}selected{% endif %}>Опубликовано</option>
+    </select>
+    <div class="actions">
+      <button type="submit">Publish / сохранить</button>
+      <a class="btn secondary" href="/">Открыть лендинг</a>
+    </div>
+  </form>
+</section>
+
+<section class="panel" style="margin-top:1rem">
+  <h2>Preview</h2>
+  <div id="cms-preview" class="zk-body">{{ preview }}</div>
+</section>
+
+<section class="panel" style="margin-top:1rem">
+  <h2>Последние версии</h2>
+  <table class="table">
+    <thead><tr><th>Версия</th><th>Дата</th><th>Статус</th><th></th></tr></thead>
+    <tbody>
+      {% for v in versions %}
+      <tr>
+        <td>{{ v.version }}</td>
+        <td class="muted">{{ v.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+        <td>{{ v.status }}</td>
+        <td>
+          <form method="post" action="/admin/cms/content/{{ selected_key }}/rollback/{{ v.version }}" class="inline-form" hx-boost="false">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="secondary">Rollback</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">Версий пока нет</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% include "admin/_layout_end.html" %}
+{% endblock %}

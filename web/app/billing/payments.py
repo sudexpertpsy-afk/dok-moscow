@@ -36,6 +36,7 @@ from app.models import (
 from app.services.audit import record_event
 from app.services.billing import transition_subscription
 from app.services.billing_mail import notify_payment_success
+from app.services.cms import apply_promo_to_payment, validate_promo_code
 
 log = logging.getLogger("dok.billing")
 
@@ -89,19 +90,32 @@ def create_card_payment(
     amount_kop: int,
     email: str,
     auto_renew: bool = False,
+    promo_code: str | None = None,
 ) -> tuple[Payment, str]:
     purpose = f"Подписка Док.Москва, тариф {tariff.name}, период {'год' if period == SubscriptionPeriod.year else 'месяц'}"
+    promo = validate_promo_code(
+        db,
+        code=promo_code,
+        tariff=tariff,
+        period=period,
+        base_amount_kop=int(amount_kop),
+    )
+    if not promo.ok:
+        raise TBankError(promo.message)
     pay = Payment(
         id=uuid.uuid4(),
         org_id=org_id,
         subscription_id=subscription.id,
-        amount_kop=int(amount_kop),
+        amount_kop=promo.final_amount_kop,
+        amount_base_kop=promo.base_amount_kop,
+        discount_kop=promo.discount_kop,
         purpose=purpose,
         status=PaymentStatus.created,
         source=PaymentSource.card,
         raw_events=[],
     )
     db.add(pay)
+    apply_promo_to_payment(db, pay, promo)
     db.flush()
 
     app_settings = get_settings()
@@ -151,10 +165,16 @@ def create_card_payment(
                 "Taxation": taxation,
                 "Tax": vat,
                 "Name": purpose[:128],
+                "BaseAmount": promo.base_amount_kop,
+                "Discount": promo.discount_kop,
                 "Amount": pay.amount_kop,
                 "PaymentObject": "service",
                 "PaymentMethod": "full_prepayment",
             },
+            "promo": {
+                "code": promo.code,
+                "discount_kop": promo.discount_kop,
+            } if promo.code else None,
             "response": {
                 k: resp.get(k)
                 for k in ("PaymentId", "Status", "PaymentURL", "OrderId", "Success", "ErrorCode")
