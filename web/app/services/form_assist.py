@@ -70,9 +70,37 @@ DADATA_FIELDS = {
 }
 
 
-def field_meta(var: str) -> dict[str, Any]:
+def field_meta(var: str, *, org_field: Any | None = None) -> dict[str, Any]:
+    """Метаданные поля формы. org_field — строка OrgField или None."""
+    if org_field is not None:
+        from app.services.org_fields import meta_from_org_field
+
+        return meta_from_org_field(org_field)
+
     ensure_core_on_path()
     from docfiller_core import labels, utils
+    from docfiller_core.system_fields import get_standard_field
+
+    std = get_standard_field(var)
+    if std:
+        ftype = std.get("type") or "string"
+        return {
+            "name": var,
+            "label": std.get("label") or labels.подпись(var),
+            "hint": std.get("hint") or labels.подсказка(var) or "",
+            "multiline": ftype == "multiline" or utils.is_multiline_field(var),
+            "is_date": ftype == "date" or utils.is_date_field(var),
+            "is_number": ftype == "counter" or var in NUMBER_FIELD_KEYS,
+            "is_money": ftype == "money",
+            "is_checkbox": ftype == "checkbox",
+            "is_select": ftype == "select",
+            "options": list(std.get("options") or []),
+            "required": bool(std.get("required")),
+            "org_field": False,
+            "history": var in HISTORY_FIELDS,
+            "dadata": DADATA_FIELDS.get(var),
+            "counter_key": NUMBER_FIELD_KEYS.get(var),
+        }
 
     return {
         "name": var,
@@ -81,8 +109,15 @@ def field_meta(var: str) -> dict[str, Any]:
         "multiline": utils.is_multiline_field(var),
         "is_date": utils.is_date_field(var),
         "is_number": var in NUMBER_FIELD_KEYS,
+        "is_money": False,
+        "is_checkbox": False,
+        "is_select": False,
+        "options": [],
+        "required": False,
+        "org_field": False,
         "history": var in HISTORY_FIELDS,
         "dadata": DADATA_FIELDS.get(var),
+        "counter_key": NUMBER_FIELD_KEYS.get(var),
     }
 
 
@@ -102,10 +137,18 @@ def prefill_dates(variables: list[str], values: dict[str, str] | None = None) ->
     return out
 
 
-def peek_numbers_for(db: Session, org_id: int, variables: list[str]) -> dict[str, str]:
+def peek_numbers_for(
+    db: Session,
+    org_id: int,
+    variables: list[str],
+    *,
+    field_metas: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, str]:
     out: dict[str, str] = {}
     for var in variables:
         key = NUMBER_FIELD_KEYS.get(var)
+        if not key and field_metas:
+            key = (field_metas.get(var) or {}).get("counter_key")
         if key:
             out[var] = peek_number(db, org_id, key)
     return out
@@ -252,7 +295,27 @@ def enrich_form_context(
     values: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Значения + meta + peek для шаблона формы."""
+    from app.services.org_fields import org_field_map
+
+    org_map = org_field_map(db, org_id)
+    metas = {v: field_meta(v, org_field=org_map.get(v)) for v in variables}
     vals = prefill_dates(variables, values)
-    peeks = peek_numbers_for(db, org_id, variables)
-    metas = {v: field_meta(v) for v in variables}
-    return {"values": vals, "field_meta": metas, "number_peeks": peeks}
+    # значения по умолчанию из словаря организации
+    for v in variables:
+        meta = metas[v]
+        if not str(vals.get(v) or "").strip():
+            of = org_map.get(v)
+            if of is not None and of.default_value:
+                vals[v] = of.default_value
+            elif meta.get("is_checkbox") and meta.get("required"):
+                vals[v] = ""
+    peeks = peek_numbers_for(db, org_id, variables, field_metas=metas)
+    standard_vars = [v for v in variables if not metas[v].get("org_field")]
+    org_vars = [v for v in variables if metas[v].get("org_field")]
+    return {
+        "values": vals,
+        "field_meta": metas,
+        "number_peeks": peeks,
+        "standard_vars": standard_vars,
+        "org_vars": org_vars,
+    }

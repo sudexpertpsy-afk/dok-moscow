@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Поля шаблонов — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "cabinet/_layout_start.html" %}
+{% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+
+<section class="panel">
+  <h1>Поля организации</h1>
+  <p class="muted">Словарь плейсхолдеров для всех своих DOCX. Создавать и править подписи может любой сотрудник; удаление — только если поле не используется ни в одном шаблоне. Переименование запрещено (создайте новое поле).</p>
+  <p><a href="/cabinet/templates/">← К списку шаблонов</a></p>
+</section>
+
+<section class="panel" style="margin-top:1rem">
+  <h2>Добавить поле</h2>
+  <form method="post" action="/cabinet/templates/fields/create" class="grid-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Имя плейсхолдера
+      <input name="name" required maxlength="64" pattern="[а-яёa-z][а-яёa-z0-9_]{1,63}" placeholder="срок_гарантии" class="mono">
+    </label>
+    <label>Подпись
+      <input name="label" maxlength="255" placeholder="Срок гарантии">
+    </label>
+    <label>Тип
+      <select name="field_type">
+        {% for value, label in field_type_labels.items() %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="checkbox-inline" style="align-self:end">
+      <input type="checkbox" name="required" value="1"> Обязательное
+    </label>
+    <label>По умолчанию
+      <input name="default" maxlength="2000">
+    </label>
+    <label>Подсказка
+      <input name="hint" maxlength="500">
+    </label>
+    <label style="grid-column:1/-1">Варианты для «выбора» (через запятую или с новой строки)
+      <textarea name="options" rows="2"></textarea>
+    </label>
+    <div class="actions" style="grid-column:1/-1"><button type="submit">Добавить</button></div>
+  </form>
+</section>
+
+<section class="panel" style="margin-top:1rem">
+  <h2>Словарь ({{ fields|length }})</h2>
+  {% for f in fields %}
+  <form method="post" action="/cabinet/templates/fields/{{ f.id }}/update" class="panel" style="margin-top:0.75rem; padding:0.75rem 1rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:baseline">
+      <strong class="mono">{{ '{{ ' ~ f.name ~ ' }}' }}</strong>
+      <span class="muted">{{ f.type_label }}</span>
+      {% if f.used_in %}
+      <span class="muted">используется: {{ f.used_in|join(', ') }}</span>
+      {% else %}
+      <span class="muted">не используется в шаблонах</span>
+      {% endif %}
+    </div>
+    <div class="grid-2" style="margin-top:0.5rem">
+      <label>Подпись<input name="label" value="{{ f.label }}" required maxlength="255"></label>
+      <label>Тип
+        <select name="field_type">
+          {% for value, label in field_type_labels.items() %}
+          <option value="{{ value }}" {% if value == f.type %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="checkbox-inline">
+        <input type="checkbox" name="required" value="1" {% if f.required %}checked{% endif %}> Обязательное
+      </label>
+      <label>По умолчанию<input name="default" value="{{ f.default }}" maxlength="2000"></label>
+      <label>Подсказка<input name="hint" value="{{ f.hint }}" maxlength="500"></label>
+      <label>Варианты<textarea name="options" rows="2">{{ f.options|join('\n') }}</textarea></label>
+    </div>
+    <div class="actions" style="margin-top:0.5rem">
+      <button type="submit" class="secondary">Сохранить</button>
+    </div>
+  </form>
+  <form method="post" action="/cabinet/templates/fields/{{ f.id }}/delete"
+        onsubmit="return confirm('Удалить поле «{{ f.name }}»?');" style="margin:0.35rem 0 1rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="danger" {% if f.used_in %}disabled title="Сначала уберите из шаблонов"{% endif %}>Удалить</button>
+  </form>
+  {% else %}
+  <p class="muted">Словарь пуст.</p>
+  {% endfor %}
+</section>
+
+{% include "cabinet/_fields_reference.html" %}
+{% include "cabinet/_layout_end.html" %}
+{% endblock %}

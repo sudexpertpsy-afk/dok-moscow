@@ -105,6 +105,8 @@ def document_form(
             values=assist["values"],
             field_meta=assist["field_meta"],
             number_peeks=assist["number_peeks"],
+            standard_vars=assist["standard_vars"],
+            org_vars=assist["org_vars"],
             normative_links=normative_links,
         ),
     )
@@ -130,9 +132,42 @@ async def document_generate(
 
     assert_can_generate(db, org_id)
 
+    from app.services.form_assist import enrich_form_context
+    from app.services.org_fields import org_field_map
+
+    org_map = org_field_map(db, org.id)
+    assist_meta = enrich_form_context(db, org.id, variables, {})
+    field_meta = assist_meta["field_meta"]
+
     context: dict = {}
     for var in variables:
-        context[var] = str(form.get(var) or "").strip()
+        meta = field_meta.get(var) or {}
+        if meta.get("is_checkbox"):
+            context[var] = "да" if form.get(var) else ""
+        else:
+            context[var] = str(form.get(var) or "").strip()
+        of = org_map.get(var)
+        if of is not None and of.required and not str(context[var] or "").strip():
+            assist = enrich_form_context(db, org.id, variables, context)
+            return templates.TemplateResponse(
+                request=request,
+                name="cabinet/document_form.html",
+                context=_page(
+                    request,
+                    user,
+                    org,
+                    db,
+                    template_name=template_name,
+                    variables=variables,
+                    values=assist["values"],
+                    field_meta=assist["field_meta"],
+                    number_peeks=assist["number_peeks"],
+                    standard_vars=assist["standard_vars"],
+                    org_vars=assist["org_vars"],
+                    flash_error=f"Заполните обязательное поле «{of.label}»",
+                ),
+                status_code=400,
+            )
 
     number = None
     for field, key in _NUMBER_FIELDS.items():
@@ -146,6 +181,18 @@ async def document_generate(
             else:
                 number = number or raw
 
+    for var in variables:
+        meta = field_meta.get(var) or {}
+        key = meta.get("counter_key")
+        if not key or var in _NUMBER_FIELDS:
+            continue
+        raw = context.get(var) or ""
+        if not raw or str(raw).lower() in {"auto", "авто", "+"}:
+            _, formatted = allocate_number(db, org_id, key, prefix="")
+            context[var] = formatted
+            if number is None:
+                number = formatted
+
     try:
         doc = generate_docx(
             db=db,
@@ -156,12 +203,22 @@ async def document_generate(
             number=number,
         )
     except Exception as exc:
+        assist = enrich_form_context(db, org.id, variables, context)
         return templates.TemplateResponse(
             request=request,
             name="cabinet/document_form.html",
-            context=_page(request, user, org, db, template_name=template_name,
+            context=_page(
+                request,
+                user,
+                org,
+                db,
+                template_name=template_name,
                 variables=variables,
-                values=context,
+                values=assist["values"],
+                field_meta=assist["field_meta"],
+                number_peeks=assist["number_peeks"],
+                standard_vars=assist["standard_vars"],
+                org_vars=assist["org_vars"],
                 flash_error=f"Ошибка генерации: {exc}",
             ),
             status_code=400,

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Системные поля — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+{% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+
+<section class="panel">
+  <h1>Системный реестр полей</h1>
+  <p class="muted">Те же типы и редактор, что у «Полей организации», но запись идёт в манифест встроенных шаблонов (подписи/типы стандартных плейсхолдеров).</p>
+  <p><a href="/admin/templates">← К каталогу шаблонов</a></p>
+</section>
+
+<section class="panel" style="margin-top:1rem">
+  <h2>Добавить / обновить поле</h2>
+  <form method="post" action="/admin/templates/fields/upsert" class="grid-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Имя<input name="name" required maxlength="64" class="mono" placeholder="сумма"></label>
+    <label>Подпись<input name="label" required maxlength="255"></label>
+    <label>Тип
+      <select name="field_type">
+        {% for value, label in field_type_labels.items() %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="checkbox-inline" style="align-self:end">
+      <input type="checkbox" name="required" value="1"> Обязательное
+    </label>
+    <label>По умолчанию<input name="default" maxlength="2000"></label>
+    <label>Подсказка<input name="hint" maxlength="500"></label>
+    <label style="grid-column:1/-1">Варианты<textarea name="options" rows="2"></textarea></label>
+    <div class="actions" style="grid-column:1/-1"><button type="submit">Сохранить в реестр</button></div>
+  </form>
+</section>
+
+<section class="panel" style="margin-top:1rem">
+  <h2>Реестр ({{ fields|length }})</h2>
+  <table class="table">
+    <thead><tr><th>Имя</th><th>Подпись</th><th>Тип</th><th></th></tr></thead>
+    <tbody>
+      {% for f in fields %}
+      <tr>
+        <td class="mono">{{ f.name }}</td>
+        <td>{{ f.label }}</td>
+        <td class="muted">{{ field_type_labels.get(f.type, f.type) }}</td>
+        <td>
+          <form method="post" action="/admin/templates/fields/delete" style="display:inline"
+                onsubmit="return confirm('Удалить «{{ f.name }}» из системного реестра?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="name" value="{{ f.name }}">
+            <button type="submit" class="danger">Удалить</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% include "admin/_layout_end.html" %}
+{% endblock %}

@@ -9,9 +9,18 @@
       {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
       <form method="post" action="/cabinet/documents/new/{{ template_name }}" class="doc-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        {% for var in variables %}
+        {% set std = standard_vars if standard_vars is defined else variables %}
+        {% set orgv = org_vars if org_vars is defined else [] %}
+        {% for var in std %}
           {{ field_input(var, values, field_meta, number_peeks, 'f') }}
         {% endfor %}
+        {% if orgv %}
+        <h2 class="form-section-title" style="margin-top:1.25rem">Поля организации</h2>
+        <p class="muted">Пользовательские поля из словаря «Мои шаблоны → Поля».</p>
+        {% for var in orgv %}
+          {{ field_input(var, values, field_meta, number_peeks, 'f') }}
+        {% endfor %}
+        {% endif %}
         <div class="actions">
           <button type="submit">Сгенерировать DOCX</button>
           <a class="btn secondary" href="/cabinet/documents/">К списку</a>

@@ -8,6 +8,7 @@
     <section class="panel">
       <h1>Мои шаблоны</h1>
       <p class="muted">Загрузите свои .docx с переменными Шаблонера. Они появятся в «Документах» и (при выборе роли) в мастере «Комплект».</p>
+      <p><a href="/cabinet/templates/fields">Поля организации</a> — словарь своих плейсхолдеров (доступен всем сотрудникам).</p>
       {% if not allowed %}
       <div class="alert alert-error" style="margin-top:1rem">{{ deny_reason }}
         <div style="margin-top:0.5rem"><a href="/cabinet/billing/">Тариф и оплата</a></div>
@@ -35,7 +36,9 @@
       </section>
       <section class="panel">
         <h2>Как подготовить</h2>
-        <p class="muted">В DOCX используйте поля Jinja/Шаблонера: <span class="mono">{{ '{{ номер_договора }}' }}</span>, <span class="mono">{{ '{{ дата_договора }}' }}</span> и т.п. Имя файла станет названием в кабинете (подчёркивания → пробелы).</p>
+        <p class="muted">В DOCX используйте поля: <span class="mono">{{ '{{ номер_договора }}' }}</span>, <span class="mono">{{ '{{ дата_договора }}' }}</span> и фильтры (<span class="mono">| руб</span>, <span class="mono">| прописью</span>). Конструкции <span class="mono">{{ '{%' }} … {{ '%}' }}</span> и макросы VBA запрещены.</p>
+        <p class="muted">Нужно своё поле? Впишите <span class="mono">{{ '{{ имя_поля }}' }}</span> в DOCX (строчные буквы и «_», без точек) — при загрузке сервис покажет список «Новые» и попросит задать подпись и тип. Либо заранее создайте поле в разделе <a href="/cabinet/templates/fields">Поля</a>.</p>
+        <p class="muted">После сохранения заполняйте документ через <a href="/cabinet/documents/">Документы</a> → «Заполнить»: свои поля будут в блоке «Поля организации». Пошаговая инструкция — в <a href="/cabinet/help#custom-fields">Как пользоваться</a>.</p>
         <p class="muted">Общие шаблоны сервиса по-прежнему доступны всем; ваши хранятся только в вашей организации.</p>
       </section>
     </div>
@@ -95,6 +98,8 @@
         </tbody>
       </table>
     </section>
+
+    {% include "cabinet/_fields_reference.html" %}
     {% endif %}
   {% include "cabinet/_layout_end.html" %}
 {% endblock %}
