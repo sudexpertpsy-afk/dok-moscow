@@ -18,12 +18,14 @@
   <noscript>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   </noscript>
-  {# W-31: критические правила выше сгиба — полный CSS следом #}
+  {# W-31 / W-37: критические правила выше сгиба — полный CSS следом #}
   <style>
-    :root{--ink:#14201c;--bg:#f3f6f2;--accent:#1f6b4a}
-    body.lp{margin:0;font-family:Manrope,system-ui,sans-serif;color:var(--ink);background:linear-gradient(160deg,#e8f0ea,#f7faf7 45%,#eef3ef)}
-    .lp-nav{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.25rem;gap:1rem}
-    .lp-nav-brand{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:1.35rem;text-decoration:none;color:var(--ink)}
+    :root{--lp-ink:#10241f;--lp-paper:#f2ebe1;--lp-accent:#0d6e5c;--lp-night:#0b1815;--lp-night-2:#143029}
+    body.lp{margin:0;font-family:Manrope,system-ui,sans-serif;color:var(--lp-ink);background:var(--lp-paper)}
+    .lp-nav{display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.25rem;gap:1rem}
+    .lp-nav-brand{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:1.35rem;text-decoration:none;color:#f4efe6}
+    .lp-hero{min-height:100vh;display:grid;background:linear-gradient(145deg,var(--lp-night),var(--lp-night-2) 55%,#1a4036);color:#f4efe6}
+    .lp-headline{font-family:Fraunces,Georgia,serif;font-size:clamp(2rem,5vw,3.5rem);line-height:1.1;margin:0}
     .skip{position:absolute;left:-9999px}.skip:focus{left:1rem;top:1rem;z-index:9;background:#fff;padding:.5rem}
   </style>
   <link rel="stylesheet" href="{{ static_url('landing.css') }}">
@@ -85,9 +87,11 @@
   <header class="lp-nav">
     <a class="lp-nav-brand" href="/">{{ app_name }}</a>
     <nav class="lp-nav-links" aria-label="Разделы">
+      <a href="/#how">Как это работает</a>
+      <a href="/#features">Возможности</a>
       <a href="/#samples">Примеры</a>
-      <a href="/zakon/">Законодательство</a>
       <a href="/tariffs">Тарифы</a>
+      <a href="/#faq">FAQ</a>
       <a href="/#apply">Доступ</a>
       <a class="lp-nav-login" href="{{ app_base_url }}/login">Войти</a>
     </nav>

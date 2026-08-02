@@ -30,6 +30,14 @@ REPO = Path(__file__).resolve().parents[1]
 CORE = REPO / "core"
 TEMPLATES = CORE / "Шаблоны"
 OUT_DIR = REPO / "web" / "app" / "static" / "samples"
+IMG_DIR = REPO / "web" / "app" / "static" / "img"
+
+# PDF лендинга → WebP-миниатюра первой страницы (W-37)
+THUMBS: tuple[tuple[str, str], ...] = (
+    ("dogovor-fl.pdf", "sample-dogovor.webp"),
+    ("schet.pdf", "sample-schet.webp"),
+    ("akt.pdf", "sample-akt.webp"),
+)
 
 sys.path.insert(0, str(CORE))
 from docfiller_core.filler import fill_template, list_template_variables  # noqa: E402
@@ -213,7 +221,55 @@ def apply_sample_watermark(pdf_path: Path) -> None:
     tmp.replace(pdf_path)
 
 
-def generate(gotenberg_url: str, out_dir: Path) -> None:
+def render_thumbs(samples_dir: Path, img_dir: Path) -> None:
+    """Первая страница PDF → WebP ~480px по ширине (для карточек лендинга)."""
+    import shutil
+    import subprocess
+
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise SystemExit(
+            "Нужен Pillow: pip install pillow. Для pdftoppm — poppler-utils."
+        ) from exc
+
+    if not shutil.which("pdftoppm"):
+        raise SystemExit("Нет pdftoppm (apt install poppler-utils)")
+
+    img_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="dok-thumbs-") as tmp:
+        tmp_path = Path(tmp)
+        for pdf_name, webp_name in THUMBS:
+            pdf_path = samples_dir / pdf_name
+            if not pdf_path.is_file():
+                raise SystemExit(f"Нет PDF для миниатюры: {pdf_path}")
+            prefix = tmp_path / pdf_path.stem
+            subprocess.run(
+                [
+                    "pdftoppm",
+                    "-png",
+                    "-r",
+                    "120",
+                    "-f",
+                    "1",
+                    "-l",
+                    "1",
+                    str(pdf_path),
+                    str(prefix),
+                ],
+                check=True,
+            )
+            png = prefix.parent / f"{prefix.name}-1.png"
+            if not png.is_file():
+                raise SystemExit(f"pdftoppm не создал {png}")
+            im = Image.open(png).convert("RGB")
+            im.thumbnail((480, 960), Image.Resampling.LANCZOS)
+            out = img_dir / webp_name
+            im.save(out, "WEBP", quality=82, method=4)
+            print(f"  thumb {out} ({im.size[0]}×{im.size[1]})")
+
+
+def generate(gotenberg_url: str, out_dir: Path, thumbs: bool = True) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="dok-samples-") as tmp:
         tmp_path = Path(tmp)
@@ -230,6 +286,9 @@ def generate(gotenberg_url: str, out_dir: Path) -> None:
             apply_sample_watermark(pdf_out)
             pages = len(PdfReader(str(pdf_out)).pages)
             print(f"  OK {pdf_out} ({pages} стр., {pdf_out.stat().st_size} байт)")
+    if thumbs:
+        print("→ миниатюры WebP")
+        render_thumbs(out_dir, IMG_DIR)
 
 
 def main() -> None:
@@ -245,10 +304,23 @@ def main() -> None:
         default=OUT_DIR,
         help=f"Каталог образцов (по умолчанию {OUT_DIR})",
     )
+    parser.add_argument(
+        "--thumbs-only",
+        action="store_true",
+        help="Только пересобрать WebP-миниатюры из уже готовых PDF",
+    )
+    parser.add_argument(
+        "--no-thumbs",
+        action="store_true",
+        help="Не генерировать WebP-миниатюры после PDF",
+    )
     args = parser.parse_args()
     if not TEMPLATES.is_dir():
         raise SystemExit(f"Нет каталога шаблонов: {TEMPLATES}")
-    generate(args.gotenberg_url, args.out_dir)
+    if args.thumbs_only:
+        render_thumbs(args.out_dir, IMG_DIR)
+    else:
+        generate(args.gotenberg_url, args.out_dir, thumbs=not args.no_thumbs)
     print("Готово. Образцы готовы к выкладке на лендинг (#samples).")
 
 

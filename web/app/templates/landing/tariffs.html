@@ -1,29 +1,100 @@
 {% extends "landing/base.html" %}
 {% block title %}Тарифы — {{ app_name }}{% endblock %}
-{% block meta_description %}Тарифы Док.Москва: Гость, Специалист и Организация. Оплата месяц или год.{% endblock %}
+{% block meta_description %}Тарифы Док.Москва: Гость, Специалист и Организация. Оплата месяц или год. Сравнение функций кабинета.{% endblock %}
 {% block canonical %}{{ public_base_url }}/tariffs{% endblock %}
 {% block og_title %}Тарифы — {{ app_name }}{% endblock %}
 {% block og_url %}{{ public_base_url }}/tariffs{% endblock %}
 
 {% block content %}
-<article class="lp-legal">
+<article class="lp-legal lp-tariffs-page">
   <div class="lp-wrap">
     <h1>Тарифы</h1>
     <p class="lp-section-lead">{% if content_slots.tariffs_note %}{{ content_slots.tariffs_note }}{% else %}Цены для кабинета после закрытой беты. Оплата картой в кабинете; чек 54‑ФЗ на e-mail плательщика. Условия — в <a href="/offer">оферте</a>.{% endif %}</p>
 
+    <div class="lp-period" role="group" aria-label="Период оплаты">
+      <button type="button" class="lp-period-btn is-active" data-period="month">Месяц</button>
+      <button type="button" class="lp-period-btn" data-period="year">Год <span class="lp-period-hint">−2 месяца</span></button>
+    </div>
+
     <div class="lp-tariffs">
       {% for t in public_tariffs %}
-        <article>
+        <article class="lp-tariff-card{% if t.code.value == 'specialist' %} is-featured{% endif %}">
+          {% if t.code.value == 'specialist' %}<p class="lp-badge">Популярный</p>{% endif %}
           <h3>{{ t.name }}</h3>
-          <p class="lp-price">{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'month') }}{% endif %}</p>
-          {% if t.code.value != 'guest' %}<p>или {{ tariff_price_label(t, 'year') }}</p>{% endif %}
-          <ul>
+          <p class="lp-price"
+             data-month="{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'month') }}{% endif %}"
+             data-year="{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'year') }}{% endif %}">
+            {% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'month') }}{% endif %}
+          </p>
+          {% if t.code.value != 'guest' %}
+            <p class="lp-price-alt">или {{ tariff_price_label(t, 'year') }}</p>
+          {% endif %}
+          <ul class="lp-check">
             {% for feature in tariff_features(t) %}
-              <li>{{ feature }}{% if not feature.endswith('.') %};{% endif %}</li>
+              <li>{{ feature }}</li>
             {% endfor %}
           </ul>
+          <a class="lp-btn{% if t.code.value != 'specialist' %} lp-btn-outline{% endif %}" href="/#apply">Запросить доступ</a>
         </article>
       {% endfor %}
+    </div>
+
+    <h2>Сравнение функций</h2>
+    <div class="lp-compare-wrap">
+      <table class="lp-compare">
+        <thead>
+          <tr>
+            <th scope="col">Возможность</th>
+            <th scope="col">Гость</th>
+            <th scope="col">Специалист</th>
+            <th scope="col">Организация</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Комплекты документов</th>
+            <td>до 3 / мес</td>
+            <td>без лимита</td>
+            <td>без лимита</td>
+          </tr>
+          <tr>
+            <th scope="row">Картотека</th>
+            <td>✓</td>
+            <td>✓</td>
+            <td>✓</td>
+          </tr>
+          <tr>
+            <th scope="row">ЕГРЮЛ-проверка</th>
+            <td>ограниченно</td>
+            <td>✓</td>
+            <td>✓</td>
+          </tr>
+          <tr>
+            <th scope="row">Календарь сроков</th>
+            <td>—</td>
+            <td>✓</td>
+            <td>✓</td>
+          </tr>
+          <tr>
+            <th scope="row">Свои шаблоны</th>
+            <td>—</td>
+            <td>—</td>
+            <td>✓</td>
+          </tr>
+          <tr>
+            <th scope="row">Пользователи</th>
+            <td>1</td>
+            <td>1</td>
+            <td>до 5</td>
+          </tr>
+          <tr>
+            <th scope="row">Поддержка</th>
+            <td>база знаний</td>
+            <td>e-mail</td>
+            <td>приоритет</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <h2>Как оплатить</h2>
@@ -41,8 +112,27 @@
       {{ content_slots.contacts }}
     {% endif %}
 
-    <p><a class="lp-btn" href="/#apply">Запросить доступ</a>
-       <a class="lp-btn lp-btn-ghost" href="{{ app_base_url }}/cabinet/billing/">Тариф в кабинете</a></p>
+    <p class="lp-cta">
+      <a class="lp-btn" href="/#apply">Запросить доступ</a>
+      <a class="lp-btn lp-btn-ghost-ink" href="{{ app_base_url }}/cabinet/billing/">Тариф в кабинете</a>
+    </p>
   </div>
 </article>
+<script>
+(function () {
+  var root = document.querySelector(".lp-tariffs-page");
+  if (!root) return;
+  var buttons = root.querySelectorAll(".lp-period-btn");
+  var prices = root.querySelectorAll(".lp-price[data-month]");
+  buttons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var period = btn.getAttribute("data-period");
+      buttons.forEach(function (b) { b.classList.toggle("is-active", b === btn); });
+      prices.forEach(function (el) {
+        el.textContent = el.getAttribute("data-" + period) || el.textContent;
+      });
+    });
+  });
+})();
+</script>
 {% endblock %}

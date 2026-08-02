@@ -15,11 +15,88 @@ def test_landing_home(app):
     r = client.get("/")
     assert r.status_code == 200
     assert "Док.Москва" in r.text
-    assert "Кабинет экспертной организации" in r.text
+    assert "Комплект документов экспертизы" in r.text
     assert 'name="csrf_token"' in r.text
     assert "application/ld+json" in r.text
     assert "/privacy" in r.text
     assert "/static/samples/dogovor-fl.pdf" in r.text
+    assert "/static/img/hero-app.webp" in r.text
+    assert "/static/img/sample-dogovor.webp" in r.text
+    assert 'id="how"' in r.text
+    assert 'id="features"' in r.text
+    assert 'id="faq"' in r.text
+    assert "Запросить ранний доступ" in r.text
+    assert "Популярный" in r.text
+
+
+def test_landing_tariffs_comparison(app):
+    client, _ = app
+    r = client.get("/tariffs")
+    assert r.status_code == 200
+    assert "Сравнение функций" in r.text
+    assert "ЕГРЮЛ-проверка" in r.text
+    assert "lp-tariff-card" in r.text
+
+
+def test_landing_assets_present(app):
+    client, _ = app
+    for path in (
+        "/static/img/hero-app.webp",
+        "/static/img/how-step1.webp",
+        "/static/img/how-step2.webp",
+        "/static/img/how-step3.webp",
+        "/static/img/sample-dogovor.webp",
+        "/static/img/sample-schet.webp",
+        "/static/img/sample-akt.webp",
+    ):
+        r = client.get(path)
+        assert r.status_code == 200, path
+        assert r.content[:4] == b"RIFF", path
+
+
+def test_w37_scope_non_landing_templates_untouched():
+    """W-37: diff вне landing/* шаблонов и публичной статики лендинга = 0."""
+    import subprocess
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[2]
+    out = subprocess.check_output(
+        ["git", "diff", "--name-only", "main...HEAD"],
+        cwd=repo,
+        text=True,
+    )
+    allowed_prefixes = (
+        "web/app/templates/landing/",
+        "web/app/static/landing.css",
+        "web/app/static/img/",
+        "web/tests/test_landing.py",
+        "scripts/make_samples.py",
+        "docs/",
+    )
+    # Пока ветка пуста относительно себя — сравниваем с рабочей копией
+    dirty = subprocess.check_output(
+        ["git", "status", "--porcelain"],
+        cwd=repo,
+        text=True,
+    )
+    paths: set[str] = set()
+    for line in out.splitlines():
+        if line.strip():
+            paths.add(line.strip())
+    for line in dirty.splitlines():
+        # " M path" / "?? path"
+        parts = line.strip().split(maxsplit=1)
+        if len(parts) == 2:
+            paths.add(parts[1])
+    for path in sorted(paths):
+        if path.startswith(allowed_prefixes) or path in allowed_prefixes:
+            continue
+        # hash манифесты статики после смены CSS — допустимы
+        if path.startswith("web/app/static/") and (
+            path.endswith(".css") or "manifest" in path or "hashes" in path
+        ):
+            continue
+        raise AssertionError(f"W-37 вне scope: {path}")
 
 
 def test_privacy_and_contacts(app):

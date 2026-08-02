@@ -1,81 +1,280 @@
 {% extends "landing/base.html" %}
-{% block title %}{{ app_name }} — кабинет экспертной организации{% endblock %}
-{% block og_title %}{{ app_name }} — кабинет экспертной организации{% endblock %}
+{% block title %}{{ app_name }} — комплект документов экспертизы{% endblock %}
+{% block og_title %}{{ app_name }} — комплект документов экспертизы{% endblock %}
+{% block og_description %}Договор на экспертизу, счёт, акт и ПКО — комплект документов экспертизы за минуты. Реквизиты из ЕГРЮЛ, сроки под контролем.{% endblock %}
 
 {% block content %}
 <section class="lp-hero" aria-label="Главный экран">
-  <div class="lp-hero-visual" aria-hidden="true">
-    <svg class="lp-hero-art" viewBox="0 0 960 720" role="img">
-      <defs>
-        <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#f3ebe0"/>
-          <stop offset="100%" stop-color="#e2d4c2"/>
-        </linearGradient>
-        <linearGradient id="inkfade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#1a3d36" stop-opacity="0.9"/>
-          <stop offset="100%" stop-color="#1a3d36" stop-opacity="0.15"/>
-        </linearGradient>
-      </defs>
-      <rect class="sheet sheet-a" x="180" y="80" width="420" height="560" rx="8" fill="url(#paper)"/>
-      <rect class="sheet sheet-b" x="320" y="120" width="420" height="560" rx="8" fill="url(#paper)"/>
-      <rect class="sheet sheet-c" x="260" y="60" width="420" height="560" rx="8" fill="url(#paper)"/>
-      <g class="lines" fill="none" stroke="url(#inkfade)" stroke-width="3">
-        <path d="M310 150 h300"/>
-        <path d="M310 190 h260"/>
-        <path d="M310 230 h280"/>
-        <path d="M310 290 h300"/>
-        <path d="M310 330 h240"/>
-        <path d="M310 370 h270"/>
-        <path d="M310 430 h300"/>
-        <path d="M310 470 h220"/>
-        <path d="M310 510 h260"/>
-      </g>
-      <circle class="seal" cx="620" cy="520" r="48" fill="none" stroke="#0f7a66" stroke-width="4"/>
-      <circle class="seal" cx="620" cy="520" r="34" fill="none" stroke="#0f7a66" stroke-width="2" stroke-dasharray="4 6"/>
-    </svg>
-  </div>
   <div class="lp-hero-copy">
     <p class="lp-brand">{{ app_name }}</p>
-    <h1 class="lp-headline">{% if content_slots.hero_headline %}{{ content_slots.hero_headline }}{% else %}Кабинет экспертной организации{% endif %}</h1>
-    <p class="lp-sub">{% if content_slots.hero_sub %}{{ content_slots.hero_sub }}{% else %}Договоры, счета и акты по проверенным шаблонам Шаблонера — в браузере, с картотекой и подсказками ЕГРЮЛ.{% endif %}</p>
+    <h1 class="lp-headline">{% if content_slots.hero_headline %}{{ content_slots.hero_headline }}{% else %}Комплект документов экспертизы — за 5 минут вместо часа{% endif %}</h1>
+    <p class="lp-sub">{% if content_slots.hero_sub %}{{ content_slots.hero_sub }}{% else %}Договор, счёт, акт и кассовый ордер по шаблонам, выверенным практикующей судебно-экспертной организацией. Реквизиты заказчика — из ЕГРЮЛ по одному ИНН. Сроки договоров — под контролем.{% endif %}</p>
     <div class="lp-cta">
       <a class="lp-btn" href="#apply">Запросить ранний доступ</a>
-      <a class="lp-btn lp-btn-ghost" href="{{ app_base_url }}/login">Войти в кабинет</a>
+      <a class="lp-btn lp-btn-ghost" href="#samples">Примеры документов ↓</a>
+    </div>
+    <p class="lp-trust">Сделано экспертами ООО «УСЭ» (лицензия ЛО-77-01-017900) · Данные хранятся в России · 152-ФЗ</p>
+  </div>
+  <div class="lp-hero-visual" aria-hidden="true">
+    <figure class="lp-browser">
+      <div class="lp-browser-bar"><span></span><span></span><span></span></div>
+      <img
+        class="lp-hero-shot"
+        src="/static/img/hero-app.webp"
+        alt=""
+        width="1100"
+        height="700"
+        fetchpriority="high"
+        decoding="async">
+    </figure>
+  </div>
+</section>
+
+<section class="lp-section" id="pain" aria-labelledby="pain-title">
+  <div class="lp-wrap">
+    <h2 id="pain-title">Знакомо?</h2>
+    <p class="lp-section-lead">Типичные сбои бумажной рутины судебного эксперта — до того, как документы попадают в суд.</p>
+    <div class="lp-cards lp-cards-3">
+      <article class="lp-card">
+        <h3>Копирование реквизитов</h3>
+        <p>Новый договор — снова копирование реквизитов из прошлогоднего файла и страх пропустить чужую фамилию в тексте.</p>
+      </article>
+      <article class="lp-card">
+        <h3>Опечатка в суде</h3>
+        <p>Опечатка в ИНН или номере договора всплывает уже в суде.</p>
+      </article>
+      <article class="lp-card">
+        <h3>Просроченный срок</h3>
+        <p>Срок договора истёк, акт не подписан — заметили через месяц.</p>
+      </article>
+    </div>
+    <p class="lp-section-foot">Док.Москва закрывает это системно — ниже как.</p>
+  </div>
+</section>
+
+<section class="lp-section lp-section-alt" id="how" aria-labelledby="how-title">
+  <div class="lp-wrap">
+    <h2 id="how-title">Как это работает</h2>
+    <p class="lp-section-lead">Три шага от ИНН заказчика до готового комплекта документов экспертизы.</p>
+    <ol class="lp-steps">
+      <li>
+        <div class="lp-step-copy">
+          <span class="lp-step-n">1</span>
+          <h3>ИНН → карточка из ЕГРЮЛ</h3>
+          <p>Введите ИНН — карточка заказчика заполнится из ЕГРЮЛ сама.</p>
+        </div>
+        <figure class="lp-browser lp-browser-sm">
+          <div class="lp-browser-bar"><span></span><span></span><span></span></div>
+          <img src="/static/img/how-step1.webp" alt="Шаг 1: ввод ИНН и карточка заказчика из ЕГРЮЛ" width="900" height="580" loading="lazy" decoding="async">
+        </figure>
+      </li>
+      <li>
+        <div class="lp-step-copy">
+          <span class="lp-step-n">2</span>
+          <h3>Состав комплекта</h3>
+          <p>Отметьте состав комплекта — договор, счёт, акт, ПКО.</p>
+        </div>
+        <figure class="lp-browser lp-browser-sm">
+          <div class="lp-browser-bar"><span></span><span></span><span></span></div>
+          <img src="/static/img/how-step2.webp" alt="Шаг 2: мастер комплекта документов экспертизы" width="900" height="580" loading="lazy" decoding="async">
+        </figure>
+      </li>
+      <li>
+        <div class="lp-step-copy">
+          <span class="lp-step-n">3</span>
+          <h3>Скачивание</h3>
+          <p>Скачайте DOCX или весь комплект одним PDF — с вашей нумерацией.</p>
+        </div>
+        <figure class="lp-browser lp-browser-sm">
+          <div class="lp-browser-bar"><span></span><span></span><span></span></div>
+          <img src="/static/img/how-step3.webp" alt="Шаг 3: скачивание DOCX и PDF комплекта" width="900" height="580" loading="lazy" decoding="async">
+        </figure>
+      </li>
+    </ol>
+    <p class="lp-section-foot">Средний комплект — 4 документа за 5 минут.</p>
+  </div>
+</section>
+
+<section class="lp-section" id="features" aria-labelledby="features-title">
+  <div class="lp-wrap">
+    <h2 id="features-title">Возможности</h2>
+    <p class="lp-section-lead">Кабинет закрывает документы судебного эксперта от карточки клиента до журнала и сроков.</p>
+    <div class="lp-cards lp-cards-3">
+      <article class="lp-card lp-card-icon">
+        <svg class="lp-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6V3zm9 0v3h3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 11h6M9 15h4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        <h3>Комплекты документов</h3>
+        <p>Договор + счёт + акт + ПКО одной формой; нумерация и журнал — автоматически.</p>
+      </article>
+      <article class="lp-card lp-card-icon">
+        <svg class="lp-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 19c.8-2.6 2.8-4 5-4s4.2 1.4 5 4M16 8h4M18 6v4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        <h3>Картотека и ЕГРЮЛ</h3>
+        <p>Повторный клиент — два клика; статус юрлица (ликвидация/банкротство) виден до договора.</p>
+      </article>
+      <article class="lp-card lp-card-icon">
+        <svg class="lp-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 3v4M16 3v4M4 10h16" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        <h3>Календарь сроков</h3>
+        <p>Истечения договоров и неподписанные акты — на главном экране, а не в памяти.</p>
+      </article>
+      <article class="lp-card lp-card-icon">
+        <svg class="lp-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V5h9l5 5v9H5z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M14 5v5h5M8 13h8M8 16h5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        <h3>Нормативная база</h3>
+        <p>73‑ФЗ, «экспертные» статьи кодексов и приказы — в актуальных редакциях, с уведомлениями об изменениях.</p>
+      </article>
+      <article class="lp-card lp-card-icon">
+        <svg class="lp-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 8v4l2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        <h3>Проверка контрагента</h3>
+        <p>Полная карточка из ЕГРЮЛ с руководителем — должная осмотрительность с журналом проверок.</p>
+      </article>
+      <article class="lp-card lp-card-icon">
+        <svg class="lp-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12H4V7zm3-3h10v3H7V4z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 12h8M8 15h5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        <h3>Свои шаблоны</h3>
+        <p>Тариф «Организация»: загрузите фирменные DOCX — сервис заполняет их как родные.</p>
+      </article>
+    </div>
+    <div class="lp-cta lp-cta-center">
+      <a class="lp-btn" href="#apply">Запросить ранний доступ</a>
     </div>
   </div>
 </section>
 
-<section class="lp-section" id="samples">
+<section class="lp-section lp-section-alt" id="audience" aria-labelledby="audience-title">
   <div class="lp-wrap">
-    <h2>Примеры документов</h2>
+    <h2 id="audience-title">Для кого</h2>
+    <p class="lp-section-lead">Сервис собран вокруг практики судебной экспертизы и смежных договоров на обучение.</p>
+    <div class="lp-cards lp-cards-3">
+      <article class="lp-card">
+        <h3>Частный эксперт</h3>
+        <p>Вся бумажная рутина практики — в одном кабинете.</p>
+      </article>
+      <article class="lp-card">
+        <h3>Экспертная организация</h3>
+        <p>До 5 сотрудников, общая картотека, свои шаблоны и реестры.</p>
+      </article>
+      <article class="lp-card">
+        <h3>Учебный центр ДПО</h3>
+        <p>Договоры на обучение и комплекты к ним.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="lp-strip" id="stats" aria-label="Цифры">
+  <div class="lp-wrap lp-strip-inner">
+    <p>26 шаблонов · комплект за ~5 минут · реквизиты из ЕГРЮЛ без ручного ввода · документы в DOCX и PDF</p>
+  </div>
+</section>
+
+<section class="lp-section" id="samples" aria-labelledby="samples-title">
+  <div class="lp-wrap">
+    <h2 id="samples-title">Примеры документов</h2>
     <p class="lp-section-lead">Обезличенные PDF из настоящих шаблонов сервиса (с водяным знаком «ОБРАЗЕЦ»). Так выглядит результат генерации в кабинете.</p>
-    <ul class="lp-samples">
-      <li>{% if content_slots.feature_1 %}{{ content_slots.feature_1 }}{% else %}<a href="/static/samples/dogovor-fl.pdf">Договор (ФЛ)</a>{% endif %}</li>
-      <li>{% if content_slots.feature_2 %}{{ content_slots.feature_2 }}{% else %}<a href="/static/samples/schet.pdf">Счёт</a>{% endif %}</li>
-      <li>{% if content_slots.feature_3 %}{{ content_slots.feature_3 }}{% else %}<a href="/static/samples/akt.pdf">Акт</a>{% endif %}</li>
+    <div class="lp-sample-grid">
+      <article class="lp-sample-card">
+        <a class="lp-sample-thumb" href="/static/samples/dogovor-fl.pdf" target="_blank" rel="noopener">
+          <img src="/static/img/sample-dogovor.webp" alt="Миниатюра договора на экспертизу" width="480" height="679" loading="lazy" decoding="async">
+        </a>
+        <h3>Договор на экспертизу (ФЛ)</h3>
+        <a class="lp-btn lp-btn-small" href="/static/samples/dogovor-fl.pdf" target="_blank" rel="noopener">Открыть PDF</a>
+      </article>
+      <article class="lp-sample-card">
+        <a class="lp-sample-thumb" href="/static/samples/schet.pdf" target="_blank" rel="noopener">
+          <img src="/static/img/sample-schet.webp" alt="Миниатюра счёта" width="480" height="679" loading="lazy" decoding="async">
+        </a>
+        <h3>Счёт</h3>
+        <a class="lp-btn lp-btn-small" href="/static/samples/schet.pdf" target="_blank" rel="noopener">Открыть PDF</a>
+      </article>
+      <article class="lp-sample-card">
+        <a class="lp-sample-thumb" href="/static/samples/akt.pdf" target="_blank" rel="noopener">
+          <img src="/static/img/sample-akt.webp" alt="Миниатюра акта" width="480" height="679" loading="lazy" decoding="async">
+        </a>
+        <h3>Акт</h3>
+        <a class="lp-btn lp-btn-small" href="/static/samples/akt.pdf" target="_blank" rel="noopener">Открыть PDF</a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="lp-section lp-section-alt" id="trust" aria-labelledby="trust-title">
+  <div class="lp-wrap">
+    <h2 id="trust-title">Доверие и безопасность</h2>
+    <ul class="lp-trust-row">
+      <li>Сервер в РФ</li>
+      <li>Шифрованные резервные копии ежедневно</li>
+      <li>152‑ФЗ, политика ПДн</li>
+      <li>Двухфакторный вход и Яндекс&nbsp;ID</li>
     </ul>
   </div>
 </section>
 
-<section class="lp-section lp-section-alt" id="pricing">
+<section class="lp-section" id="pricing" aria-labelledby="pricing-title">
   <div class="lp-wrap">
-    <h2>Тарифы</h2>
+    <h2 id="pricing-title">Тарифы</h2>
     <p class="lp-section-lead">{% if content_slots.tariffs_note %}{{ content_slots.tariffs_note }}{% else %}Закрытая бета по приглашениям. После пилота — оплата картой через Т‑Кассу. Подробности на <a href="/tariffs">странице тарифов</a>.{% endif %}</p>
+    <div class="lp-period" role="group" aria-label="Период оплаты">
+      <button type="button" class="lp-period-btn is-active" data-period="month">Месяц</button>
+      <button type="button" class="lp-period-btn" data-period="year">Год <span class="lp-period-hint">−2 месяца</span></button>
+    </div>
     <div class="lp-tariffs">
       {% for t in public_tariffs %}
-        <article>
+        <article class="lp-tariff-card{% if t.code.value == 'specialist' %} is-featured{% endif %}">
+          {% if t.code.value == 'specialist' %}<p class="lp-badge">Популярный</p>{% endif %}
           <h3>{{ t.name }}</h3>
-          <p class="lp-price">{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'month') }}{% endif %}</p>
-          <p>{{ tariff_blurb(t) }}{% if t.code.value != 'guest' %} Год — {{ format_price_rub(t.price_year_kop) }}.{% endif %}</p>
+          <p class="lp-price"
+             data-month="{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'month') }}{% endif %}"
+             data-year="{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'year') }}{% endif %}">
+            {% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'month') }}{% endif %}
+          </p>
+          <ul class="lp-check">
+            {% for feature in tariff_features(t) %}
+              <li>{{ feature }}</li>
+            {% endfor %}
+          </ul>
+          <a class="lp-btn{% if t.code.value != 'specialist' %} lp-btn-outline{% endif %}" href="#apply">Запросить доступ</a>
         </article>
       {% endfor %}
     </div>
   </div>
 </section>
 
-<section class="lp-section" id="apply">
+<section class="lp-section lp-section-alt" id="faq" aria-labelledby="faq-title">
+  <div class="lp-wrap lp-faq-wrap">
+    <h2 id="faq-title">Частые вопросы</h2>
+    {% if content_slots.faq %}
+      <div class="lp-faq-cms">{{ content_slots.faq }}</div>
+    {% else %}
+      <div class="lp-faq">
+        <details>
+          <summary>Чем это лучше Word-шаблонов на моём компьютере?</summary>
+          <p>Реквизиты подтягиваются из ЕГРЮЛ, нумерация и журналы ведутся автоматически, сроки договоров видны на дашборде. Комплект документов экспертизы собирается одной формой, а не копированием между файлами.</p>
+        </details>
+        <details>
+          <summary>Мои данные и данные моих клиентов — где они хранятся?</summary>
+          <p>На сервере в России. Обработка персональных данных — по 152‑ФЗ; подробности в <a href="/privacy">политике ПДн</a>.</p>
+        </details>
+        <details>
+          <summary>Можно ли загрузить собственные шаблоны?</summary>
+          <p>Да, на тарифе «Организация»: загружаете фирменные DOCX — сервис заполняет их теми же полями, что и встроенные шаблоны.</p>
+        </details>
+        <details>
+          <summary>Что будет с документами, если я перестану платить?</summary>
+          <p>Ничего не теряется: просмотр и скачивание уже созданных документов остаются доступны.</p>
+        </details>
+        <details>
+          <summary>Подходит ли сервис не судебным экспертам?</summary>
+          <p>Ядро — договор на экспертизу и смежные комплекты. Учебным центрам ДПО удобны договоры на обучение; другим практикам — если хватает шаблонов и картотеки.</p>
+        </details>
+        <details>
+          <summary>Как попасть в бету?</summary>
+          <p>Оставьте заявку в форме ниже — откроем доступ по мере запуска. Первые подписчики беты получают особые условия.</p>
+        </details>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="lp-section lp-final" id="apply" aria-labelledby="apply-title">
   <div class="lp-wrap lp-apply">
-    <h2>Ранний доступ</h2>
+    <h2 id="apply-title">Первые 20 подписчиков беты — 50% навсегда</h2>
     <p class="lp-section-lead">Оставьте e-mail и профиль — откроем доступ по мере запуска беты.</p>
 
     {% if flash_error %}<div class="lp-alert lp-alert-error" role="alert">{{ flash_error }}</div>{% endif %}
@@ -105,4 +304,22 @@
     </form>
   </div>
 </section>
+
+<script>
+(function () {
+  var root = document.getElementById("pricing");
+  if (!root) return;
+  var buttons = root.querySelectorAll(".lp-period-btn");
+  var prices = root.querySelectorAll(".lp-price[data-month]");
+  buttons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var period = btn.getAttribute("data-period");
+      buttons.forEach(function (b) { b.classList.toggle("is-active", b === btn); });
+      prices.forEach(function (el) {
+        el.textContent = el.getAttribute("data-" + period) || el.textContent;
+      });
+    });
+  });
+})();
+</script>
 {% endblock %}
