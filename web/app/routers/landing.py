@@ -40,10 +40,13 @@ PROFILES = (
 
 
 def _public_ctx(request: Request, db: Session | None = None, **extra):
+    from app.services.analytics import get_analytics_public
+
     settings = get_settings()
     public_tariffs = []
     content_slots = {}
     announcement = None
+    analytics_public = get_analytics_public(db)
     if db is not None:
         public_tariffs = list_public_tariffs(db)
         content_slots = get_content_slots(db)
@@ -57,7 +60,7 @@ def _public_ctx(request: Request, db: Session | None = None, **extra):
         "app_name": settings.app_name,
         "public_base_url": settings.public_base_url.rstrip("/"),
         "app_base_url": settings.app_base_url.rstrip("/"),
-        "yandex_metrika_id": settings.yandex_metrika_id.strip(),
+        "analytics_public": analytics_public,
         "profiles": PROFILES,
         "flash_error": None,
         "flash_ok": None,

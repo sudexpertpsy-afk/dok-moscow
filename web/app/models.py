@@ -769,6 +769,50 @@ class PaymentSettings(Base):
     )
 
 
+class AnalyticsSettings(Base):
+    """Singleton аналитики и подтверждения сайта (W-40), строка id=1."""
+
+    __tablename__ = "analytics_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    yandex_metrika_id: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    yandex_metrika_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    yandex_metrika_webvisor: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    yandex_metrika_clickmap: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    yandex_metrika_track_forms: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    ga4_measurement_id: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    ga4_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    yandex_webmaster_code: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    yandex_webmaster_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    google_site_verification: Mapped[str] = mapped_column(
+        String(128), nullable=False, default=""
+    )
+    google_site_verification_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+    updated_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
 class ContentBlock(Base):
     """Публичные CMS-слоты лендинга (W-36)."""
 

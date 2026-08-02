@@ -96,3 +96,57 @@ def session_user_snapshot(request: Request) -> dict[str, Any] | None:
         "org_id": request.session.get("org_id"),
         "role": request.session.get("role"),
     }
+
+
+def build_content_security_policy(
+    *,
+    metrika: bool = False,
+    webvisor: bool = False,
+    ga4: bool = False,
+) -> str:
+    """CSP в одном месте (W-40): домены счётчиков только если они включены."""
+    script = ["'self'", "'unsafe-inline'"]
+    img = ["'self'", "data:"]
+    connect = ["'self'"]
+    frame: list[str] = []
+    style = ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"]
+    font = ["'self'", "https://fonts.gstatic.com"]
+
+    if metrika:
+        script.append("https://mc.yandex.ru")
+        img.append("https://mc.yandex.ru")
+        connect.append("https://mc.yandex.ru")
+        frame.append("https://mc.yandex.ru")
+        if webvisor:
+            script.append("https://mc.webvisor.org")
+            connect.append("https://mc.webvisor.org")
+            frame.append("https://mc.webvisor.org")
+
+    if ga4:
+        script.append("https://www.googletagmanager.com")
+        script.append("https://www.google-analytics.com")
+        connect.append("https://www.googletagmanager.com")
+        connect.append("https://www.google-analytics.com")
+        img.append("https://www.google-analytics.com")
+        img.append("https://www.googletagmanager.com")
+
+    parts = [
+        "default-src 'self'",
+        f"style-src {' '.join(style)}",
+        f"font-src {' '.join(font)}",
+        f"script-src {' '.join(script)}",
+        f"img-src {' '.join(img)}",
+        f"connect-src {' '.join(connect)}",
+    ]
+    if frame:
+        parts.append(f"frame-src {' '.join(frame)}")
+    else:
+        parts.append("frame-src 'none'")
+    parts.extend(
+        [
+            "frame-ancestors 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+        ]
+    )
+    return "; ".join(parts)

@@ -201,23 +201,20 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
+        from app.security import build_content_security_policy
+        from app.services.analytics import get_analytics_public
+
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-        # Яндекс.Метрика (скрипт + пиксель) — только при заданном ID на лендинге
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-            "font-src 'self' https://fonts.gstatic.com; "
-            "script-src 'self' https://mc.yandex.ru 'unsafe-inline'; "
-            "img-src 'self' data: https://mc.yandex.ru; "
-            "connect-src 'self' https://mc.yandex.ru; "
-            "frame-src https://mc.yandex.ru; "
-            "frame-ancestors 'none'; "
-            "base-uri 'self'; "
-            "form-action 'self'"
+        # W-40: домены счётчиков только при включённых ID (политика в security.py)
+        analytics = get_analytics_public()
+        response.headers["Content-Security-Policy"] = build_content_security_policy(
+            metrika=analytics.metrika_active,
+            webvisor=analytics.webvisor_active,
+            ga4=analytics.ga4_active,
         )
         return response
 
@@ -289,12 +286,17 @@ def create_app() -> FastAPI:
             404: "Страница не найдена",
             500: "Внутренняя ошибка сервера",
         }
+        analytics_public = None
+        if surface == "public":
+            from app.services.analytics import get_analytics_public
+
+            analytics_public = get_analytics_public()
         return {
             "request": request,
             "app_name": s.app_name,
             "public_base_url": s.public_base_url.rstrip("/"),
             "app_base_url": s.app_base_url.rstrip("/"),
-            "yandex_metrika_id": (s.yandex_metrika_id or "").strip(),
+            "analytics_public": analytics_public,
             "csrf_token": csrf,
             "status_code": status_code,
             "detail": detail if isinstance(detail, str) and detail else titles.get(status_code, "Ошибка"),

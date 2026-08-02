@@ -309,7 +309,7 @@ def test_admin_cms_pages_render(app):
     client, _dbmod = app
     assert login(client, "admin@dok.moscow", "AdminPass123!").status_code == 303
     for path, marker in (
-        ("/admin/cms/", "Единое окно"),
+        ("/admin/cms/", "Аналитика и подтверждение сайта"),
         ("/admin/cms/tariffs", "UPDATE_TARIFFS"),
         ("/admin/cms/content", "Markdown"),
         ("/admin/cms/promos", "Промокоды"),

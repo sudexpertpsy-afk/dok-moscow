@@ -5,6 +5,8 @@
 <section class="panel">
   <h1>Единое окно</h1>
   <p class="muted">Публичные тарифы, тексты лендинга, промокоды и объявления.</p>
+  {% if flash_ok %}<p class="ok">{{ flash_ok }}</p>{% endif %}
+  {% if flash_error %}<p class="error">{{ flash_error }}</p>{% endif %}
   <div class="stat-row" style="margin-top:1rem">
     <a class="stat" href="/admin/cms/tariffs"><span class="n">{{ tariffs_count }}</span><span class="l">Тарифы</span></a>
     <a class="stat" href="/admin/cms/content"><span class="n">{{ content_count }}</span><span class="l">Контент-слоты</span></a>
@@ -17,6 +19,99 @@
     <a class="btn secondary" href="/admin/cms/promos">Промокоды</a>
     <a class="btn secondary" href="/admin/cms/announcements">Объявления</a>
   </div>
+</section>
+
+<section class="panel" id="analytics" style="margin-top:1rem">
+  <h2>Аналитика и подтверждение сайта</h2>
+  <p class="muted">Счётчики только на публичном хосте (лендинг, тарифы, /zakon/, юр. страницы). В кабинете и админке — никогда. Только идентификаторы, без произвольного HTML/JS.</p>
+
+  <form method="post" action="/admin/cms/analytics" hx-boost="false" style="margin-top:1rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <fieldset style="border:1px solid var(--border,#d8d2c8);border-radius:8px;padding:1rem;margin:0 0 1rem">
+      <legend>
+        Яндекс.Метрика
+        <span class="badge {% if analytics.yandex_metrika_enabled %}ok{% else %}muted{% endif %}">
+          {% if analytics.yandex_metrika_enabled %}включён{% else %}выключен{% endif %}
+        </span>
+      </legend>
+      <p class="muted field-hint">Номер счётчика: только цифры, 6–10 знаков. <a href="https://metrika.yandex.ru/" target="_blank" rel="noopener">metrika.yandex.ru</a></p>
+      <label style="display:flex;gap:0.5rem;align-items:center;margin:0.5rem 0">
+        <input type="checkbox" name="yandex_metrika_enabled" value="1" style="width:auto" {% if analytics.yandex_metrika_enabled %}checked{% endif %}>
+        Включено
+      </label>
+      <label for="yandex_metrika_id">Номер счётчика</label>
+      <input id="yandex_metrika_id" name="yandex_metrika_id" inputmode="numeric" autocomplete="off"
+             pattern="[0-9]{6,10}" maxlength="10" value="{{ analytics.yandex_metrika_id or '' }}">
+      <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:0.75rem">
+        <label style="display:flex;gap:0.4rem;align-items:center">
+          <input type="checkbox" name="yandex_metrika_webvisor" value="1" style="width:auto" {% if analytics.yandex_metrika_webvisor %}checked{% endif %}> Вебвизор
+        </label>
+        <label style="display:flex;gap:0.4rem;align-items:center">
+          <input type="checkbox" name="yandex_metrika_clickmap" value="1" style="width:auto" {% if analytics.yandex_metrika_clickmap %}checked{% endif %}> Карта кликов
+        </label>
+        <label style="display:flex;gap:0.4rem;align-items:center">
+          <input type="checkbox" name="yandex_metrika_track_forms" value="1" style="width:auto" {% if analytics.yandex_metrika_track_forms %}checked{% endif %}> Отслеживание форм
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset style="border:1px solid var(--border,#d8d2c8);border-radius:8px;padding:1rem;margin:0 0 1rem">
+      <legend>
+        Google Analytics 4
+        <span class="badge {% if analytics.ga4_enabled %}ok{% else %}muted{% endif %}">
+          {% if analytics.ga4_enabled %}включён{% else %}выключен{% endif %}
+        </span>
+      </legend>
+      <p class="muted field-hint">Measurement ID вида <span class="mono">G-XXXXXXXX</span>. <a href="https://analytics.google.com/" target="_blank" rel="noopener">analytics.google.com</a></p>
+      <label style="display:flex;gap:0.5rem;align-items:center;margin:0.5rem 0">
+        <input type="checkbox" name="ga4_enabled" value="1" style="width:auto" {% if analytics.ga4_enabled %}checked{% endif %}>
+        Включено
+      </label>
+      <label for="ga4_measurement_id">Measurement ID</label>
+      <input id="ga4_measurement_id" name="ga4_measurement_id" autocomplete="off" maxlength="32"
+             pattern="G-[A-Za-z0-9]{6,12}" value="{{ analytics.ga4_measurement_id or '' }}">
+    </fieldset>
+
+    <fieldset style="border:1px solid var(--border,#d8d2c8);border-radius:8px;padding:1rem;margin:0 0 1rem">
+      <legend>
+        Яндекс.Вебмастер
+        <span class="badge {% if analytics.yandex_webmaster_enabled %}ok{% else %}muted{% endif %}">
+          {% if analytics.yandex_webmaster_enabled %}включён{% else %}выключен{% endif %}
+        </span>
+      </legend>
+      <p class="muted field-hint">Meta <span class="mono">yandex-verification</span>, hex 16–64. <a href="https://webmaster.yandex.ru/" target="_blank" rel="noopener">webmaster.yandex.ru</a></p>
+      <label style="display:flex;gap:0.5rem;align-items:center;margin:0.5rem 0">
+        <input type="checkbox" name="yandex_webmaster_enabled" value="1" style="width:auto" {% if analytics.yandex_webmaster_enabled %}checked{% endif %}>
+        Включено
+      </label>
+      <label for="yandex_webmaster_code">Код подтверждения</label>
+      <input id="yandex_webmaster_code" name="yandex_webmaster_code" autocomplete="off" maxlength="64"
+             pattern="[a-fA-F0-9]{16,64}" value="{{ analytics.yandex_webmaster_code or '' }}">
+    </fieldset>
+
+    <fieldset style="border:1px solid var(--border,#d8d2c8);border-radius:8px;padding:1rem;margin:0 0 1rem">
+      <legend>
+        Google Search Console
+        <span class="badge {% if analytics.google_site_verification_enabled %}ok{% else %}muted{% endif %}">
+          {% if analytics.google_site_verification_enabled %}включён{% else %}выключен{% endif %}
+        </span>
+      </legend>
+      <p class="muted field-hint">Meta <span class="mono">google-site-verification</span>. <a href="https://search.google.com/search-console" target="_blank" rel="noopener">search.google.com/search-console</a></p>
+      <label style="display:flex;gap:0.5rem;align-items:center;margin:0.5rem 0">
+        <input type="checkbox" name="google_site_verification_enabled" value="1" style="width:auto" {% if analytics.google_site_verification_enabled %}checked{% endif %}>
+        Включено
+      </label>
+      <label for="google_site_verification">Код подтверждения</label>
+      <input id="google_site_verification" name="google_site_verification" autocomplete="off" maxlength="100"
+             pattern="[A-Za-z0-9_-]{20,100}" value="{{ analytics.google_site_verification or '' }}">
+    </fieldset>
+
+    <div class="actions">
+      <button type="submit">Сохранить</button>
+      <a class="btn secondary" href="view-source:{{ public_base_url }}/" target="_blank" rel="noopener">Проверить на сайте</a>
+    </div>
+  </form>
 </section>
 {% include "admin/_layout_end.html" %}
 {% endblock %}

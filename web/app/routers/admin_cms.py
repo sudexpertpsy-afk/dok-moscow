@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, require_csrf, require_service_admin
 from app.models import (
@@ -22,6 +23,11 @@ from app.models import (
 )
 from app.routers.admin import _ctx
 from app.routers.admin_server import _require_totp
+from app.services.analytics import (
+    AnalyticsValidationError,
+    ensure_analytics_settings,
+    save_analytics_settings,
+)
 from app.services.cms import (
     CONTENT_SLOT_KEYS,
     format_price_rub,
@@ -57,6 +63,8 @@ def cms_home(
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
 ):
+    analytics = ensure_analytics_settings(db)
+    db.commit()
     return templates.TemplateResponse(
         request=request,
         name="admin/cms_index.html",
@@ -68,10 +76,32 @@ def cms_home(
             content_count=db.scalar(select(func.count()).select_from(ContentBlock)) or 0,
             promos_count=db.scalar(select(func.count()).select_from(PromoCode)) or 0,
             announcements_count=db.scalar(select(func.count()).select_from(Announcement)) or 0,
+            analytics=analytics,
+            public_base_url=get_settings().public_base_url.rstrip("/"),
             flash_ok=request.query_params.get("ok"),
             flash_error=request.query_params.get("err"),
         ),
     )
+
+
+@router.post("/analytics")
+async def cms_analytics_save(
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    form = _to_dict(await request.form())
+    try:
+        save_analytics_settings(db, user_id=user.id, form=form)
+        db.commit()
+    except AnalyticsValidationError as exc:
+        db.rollback()
+        return _redirect("/admin/cms/", err=str(exc))
+    except Exception:
+        db.rollback()
+        return _redirect("/admin/cms/", err="Не удалось сохранить настройки аналитики")
+    return _redirect("/admin/cms/", ok="Настройки аналитики сохранены")
 
 
 @router.get("/tariffs", response_class=HTMLResponse)

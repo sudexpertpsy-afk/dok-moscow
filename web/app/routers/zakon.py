@@ -36,6 +36,8 @@ PAGE_SIZE = 20
 
 
 def _ctx(request: Request, **extra):
+    from app.services.analytics import get_analytics_public
+
     settings = get_settings()
     data = {
         "request": request,
@@ -43,7 +45,7 @@ def _ctx(request: Request, **extra):
         "app_name": settings.app_name,
         "public_base_url": settings.public_base_url.rstrip("/"),
         "app_base_url": settings.app_base_url.rstrip("/"),
-        "yandex_metrika_id": (settings.yandex_metrika_id or "").strip(),
+        "analytics_public": get_analytics_public(),
         "disclaimer": DISCLAIMER,
         "category_label": CATEGORY_LABEL,
         "article_anchor": article_anchor,

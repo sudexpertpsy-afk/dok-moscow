@@ -49,6 +49,9 @@ def app(tmp_path):
     os.environ["APP_BASE_URL"] = "https://app.dok.moscow"
     os.environ["YANDEX_REDIRECT_URI"] = "https://app.dok.moscow/auth/yandex/callback"
     get_settings.cache_clear()
+    from app.services.analytics import invalidate_analytics_cache
+
+    invalidate_analytics_cache()
 
     # пересоздать engine на новый файл
     from app import db as dbmod
@@ -58,6 +61,7 @@ def app(tmp_path):
     # Схема в тестах — явно здесь (T1: lifespan не вызывает create_all без DB_AUTO_CREATE).
     Base.metadata.drop_all(bind=dbmod.engine)
     Base.metadata.create_all(bind=dbmod.engine)
+    invalidate_analytics_cache()
 
     application = create_app()
     # TestClient triggers lifespan/startup (bootstrap admin/billing/legal)
