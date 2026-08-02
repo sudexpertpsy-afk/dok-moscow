@@ -82,7 +82,15 @@ def published_for(act: LegalAct):
 
 def archived_versions(act: LegalAct) -> list:
     rows = [v for v in (act.versions or []) if v.status == ActVersionStatus.archived]
-    rows.sort(key=lambda v: (v.revision_date or v.created_at), reverse=True)
+
+    def _sort_key(v):
+        # revision_date — date; created_at — datetime; нельзя смешивать в одном сравнении
+        if v.revision_date is not None:
+            return (1, v.revision_date.isoformat())
+        ts = v.created_at
+        return (0, ts.isoformat() if ts is not None else "")
+
+    rows.sort(key=_sort_key, reverse=True)
     return rows
 
 
