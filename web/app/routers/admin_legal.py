@@ -24,6 +24,7 @@ from app.services.legal_admin import (
     get_act_admin,
     list_acts_admin,
     manual_upload,
+    publish_all_drafts,
     update_act_settings,
 )
 from app.services.legal_bootstrap import (
@@ -63,6 +64,7 @@ def legal_list(
     flash_ok = request.query_params.get("ok")
     flash_error = request.query_params.get("error")
     need = acts_needing_fill(db)
+    draft_count = sum(1 for r in rows if r.draft is not None)
     return templates.TemplateResponse(
         request=request,
         name="admin/legal_list.html",
@@ -72,6 +74,7 @@ def legal_list(
             "legal",
             rows=rows,
             need_fill_count=len(need),
+            draft_count=draft_count,
             health_label={k.value: v for k, v in HEALTH_LABEL.items()},
             flash_ok={
                 "published": "Редакция опубликована",
@@ -81,6 +84,8 @@ def legal_list(
                 "created": "Акт добавлен",
                 "bootstrap": request.query_params.get("msg") or "Наполнение запущено",
                 "pulled": "Текст подтянут в черновик",
+                "batch_publish": request.query_params.get("msg")
+                or "Черновики опубликованы",
             }.get(flash_ok or "", flash_ok),
             flash_error=flash_error,
         ),
@@ -118,6 +123,43 @@ def legal_bootstrap_batch(
         safe="",
     )
     return RedirectResponse(f"/admin/legal/?ok=bootstrap&msg={msg}", status_code=303)
+
+
+@router.post("/publish-drafts")
+def legal_publish_all_drafts(
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+    only_new: str = Form(""),
+):
+    """Пакетная публикация черновиков (осознанное действие админа)."""
+    report = publish_all_drafts(
+        db,
+        user_id=user.id,
+        only_without_published=only_new in ("1", "on", "true"),
+    )
+    record_event(
+        db,
+        type="legal_batch_publish",
+        org_id=None,
+        user_id=user.id,
+        details={
+            "ok": report.ok_count,
+            "fail": report.fail_count,
+            "skip": report.skip_count,
+            "published": [
+                {"slug": i.slug, "version_id": i.version_id}
+                for i in report.items
+                if i.ok
+            ],
+        },
+    )
+    db.commit()
+    msg = quote(
+        f"Опубликовано: {report.ok_count}; пропусков: {report.skip_count}; ошибок: {report.fail_count}",
+        safe="",
+    )
+    return RedirectResponse(f"/admin/legal/?ok=batch_publish&msg={msg}", status_code=303)
 
 
 @router.get("/new", response_class=HTMLResponse)

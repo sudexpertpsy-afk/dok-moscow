@@ -483,6 +483,7 @@ ROUTE_EXCEPTION_NOTES: dict[str, str] = {
     "/admin/templates/role": "POST",
     "/admin/legal/new": "форма нового акта НПА",
     "/admin/legal/bootstrap": "POST пакетное наполнение из ИПС",
+    "/admin/legal/publish-drafts": "POST пакетная публикация черновиков",
     "/admin/legal/{act_id}": "карточка акта",
     "/admin/legal/{act_id}/publish/{version_id}": "POST публикация редакции",
     "/admin/legal/{act_id}/reject/{version_id}": "POST отклонение черновика",

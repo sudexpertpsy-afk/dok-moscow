@@ -18,6 +18,14 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="secondary">Наполнить из ИПС</button>
       </form>
+      {% if draft_count %}
+      <form method="post" action="/admin/legal/publish-drafts" hx-boost="false"
+            onsubmit="return confirm('Опубликовать все непустые черновики ({{ draft_count }}) на /zakon? Это действие владельца — откат только новой редакцией.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="only_new" value="1">
+        <button type="submit">Опубликовать черновики ({{ draft_count }})</button>
+      </form>
+      {% endif %}
       <a class="btn" href="/admin/legal/new">Добавить акт</a>
     </div>
   </div>

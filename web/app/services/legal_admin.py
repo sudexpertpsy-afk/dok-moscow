@@ -146,6 +146,97 @@ def do_publish(db: Session, version_id: int, user_id: int) -> ActVersion:
     return publish_version(db, version, reviewed_by_user_id=user_id)
 
 
+@dataclass
+class PublishBatchItem:
+    act_id: int
+    slug: str
+    version_id: int | None = None
+    ok: bool = False
+    skipped: str | None = None
+    error: str | None = None
+
+
+@dataclass
+class PublishBatchReport:
+    items: list[PublishBatchItem]
+
+    @property
+    def ok_count(self) -> int:
+        return sum(1 for i in self.items if i.ok)
+
+    @property
+    def skip_count(self) -> int:
+        return sum(1 for i in self.items if i.skipped)
+
+    @property
+    def fail_count(self) -> int:
+        return sum(1 for i in self.items if i.error)
+
+
+def publish_all_drafts(
+    db: Session,
+    *,
+    user_id: int | None,
+    min_body_chars: int = 40,
+    only_without_published: bool = False,
+) -> PublishBatchReport:
+    """Опубликовать последний непустой черновик по каждому акту (пакетно).
+
+    Осознанное действие владельца/админа: не автомат мониторинга.
+    """
+    acts = db.scalars(select(LegalAct).order_by(LegalAct.sort_order, LegalAct.id)).all()
+    items: list[PublishBatchItem] = []
+    for act in acts:
+        if only_without_published and published_version(db, act.id) is not None:
+            items.append(
+                PublishBatchItem(
+                    act_id=act.id, slug=act.slug, skipped="уже есть published"
+                )
+            )
+            continue
+        draft = db.scalar(
+            select(ActVersion)
+            .where(
+                ActVersion.act_id == act.id,
+                ActVersion.status == ActVersionStatus.draft,
+            )
+            .order_by(ActVersion.id.desc())
+        )
+        if draft is None:
+            continue
+        body = (draft.body_html or "").strip()
+        # убрать теги для оценки длины
+        plain = re.sub(r"<[^>]+>", " ", body)
+        plain = re.sub(r"\s+", " ", plain).strip()
+        if len(plain) < min_body_chars:
+            items.append(
+                PublishBatchItem(
+                    act_id=act.id,
+                    slug=act.slug,
+                    version_id=draft.id,
+                    skipped=f"пустой/короткий текст ({len(plain)} симв.)",
+                )
+            )
+            continue
+        try:
+            publish_version(db, draft, reviewed_by_user_id=user_id)
+            items.append(
+                PublishBatchItem(
+                    act_id=act.id, slug=act.slug, version_id=draft.id, ok=True
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 — пакетный отчёт
+            items.append(
+                PublishBatchItem(
+                    act_id=act.id,
+                    slug=act.slug,
+                    version_id=draft.id,
+                    error=str(exc),
+                )
+            )
+    return PublishBatchReport(items=items)
+
+
 def do_reject(db: Session, version_id: int, user_id: int) -> ActVersion:
     version = db.get(ActVersion, version_id)
     if version is None:

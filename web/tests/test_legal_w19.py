@@ -95,6 +95,68 @@ def test_draft_not_on_public_until_publish(app):
         db.close()
 
 
+def test_batch_publish_drafts(app):
+    client, dbmod = app
+    _seed_act(dbmod)
+    db = dbmod.SessionLocal()
+    try:
+        ensure_legal_registry(db)
+        acts = list(
+            db.scalars(select(LegalAct).where(LegalAct.status == LegalActStatus.active)).all()
+        )
+        full = next(a for a in acts if a.slug == "73-fz-sudebno-ekspertnaya-deyatelnost")
+        other = next(a for a in acts if a.id != full.id)
+        for act in (full, other):
+            create_draft_version(
+                db,
+                act_id=act.id,
+                body_html=f"<p>Пакетная публикация текста для {act.slug} — достаточно символов.</p>",
+                change_basis="batch-test",
+                text_origin="ips_bootstrap",
+            )
+        db.commit()
+        version_ids = [
+            v.id
+            for v in db.scalars(
+                select(ActVersion).where(ActVersion.status == ActVersionStatus.draft)
+            ).all()
+        ]
+        assert len(version_ids) >= 2
+    finally:
+        db.close()
+
+    assert login(client, "admin@dok.moscow", "AdminPass123!").status_code == 303
+    r = client.get("/admin/legal/")
+    assert r.status_code == 200
+    assert "Опубликовать черновики" in r.text
+
+    token = csrf_from(client, "/admin/legal/")
+    r = client.post(
+        "/admin/legal/publish-drafts",
+        data={"csrf_token": token, "only_new": "1"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "batch_publish" in r.headers["location"]
+
+    db = dbmod.SessionLocal()
+    try:
+        for vid in version_ids:
+            v = db.get(ActVersion, vid)
+            assert v is not None and v.status == ActVersionStatus.published
+        ev = db.scalar(
+            select(Event).where(Event.type == "legal_batch_publish").order_by(Event.id.desc())
+        )
+        assert ev is not None
+        assert ev.details["ok"] >= 2
+    finally:
+        db.close()
+
+    r = client.get("/zakon/73-fz-sudebno-ekspertnaya-deyatelnost")
+    assert r.status_code == 200
+    assert "Пакетная публикация" in r.text
+
+
 def test_reject_draft(app):
     client, dbmod = app
     act_id, _slug = _seed_act(dbmod)
