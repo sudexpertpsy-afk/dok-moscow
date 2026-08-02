@@ -19,6 +19,14 @@ from app.billing.payments import (
     period_delta,
     reconcile_payment,
 )
+from app.billing.settings_access import (
+    TAXATION_CODES,
+    VAT_CODES,
+    invalidate_payment_settings_cache,
+    normalize_taxation,
+    normalize_vat,
+    terminal_status,
+)
 from app.billing.tbank import TBankError
 from app.config import get_settings
 from app.db import get_db
@@ -55,6 +63,7 @@ def payment_settings_page(
     db: Session = Depends(get_db),
 ):
     row = db.get(PaymentSettings, 1)
+    status = terminal_status(db)
     return templates.TemplateResponse(
         request=request,
         name="admin/payment_settings.html",
@@ -64,6 +73,11 @@ def payment_settings_page(
             "paysettings",
             settings_row=row,
             password_set=bool(row and row.password_encrypted),
+            taxation_codes=sorted(TAXATION_CODES),
+            vat_codes=sorted(VAT_CODES),
+            taxation_value=status.taxation,
+            vat_value=status.vat_rate,
+            terminal_ready=status.ready,
         ),
     )
 
@@ -97,8 +111,8 @@ def payment_settings_save(
     except ValueError:
         row.mode = PaymentMode.test
     row.recurrents_enabled = bool(recurrents_enabled)
-    row.taxation = taxation.strip() or "usn_income"
-    row.vat_rate = vat_rate.strip() or "none"
+    row.taxation = normalize_taxation(taxation)
+    row.vat_rate = normalize_vat(vat_rate)
     row.default_receipt_email = default_receipt_email.strip() or None
     try:
         limit = int(str(party_check_daily_limit).strip() or "100")
@@ -118,6 +132,8 @@ def payment_settings_save(
             "terminal_set": bool(row.terminal_key),
             "password_updated": bool(password.strip()),
             "recurrents": row.recurrents_enabled,
+            "taxation": row.taxation,
+            "vat_rate": row.vat_rate,
             "party_check_daily_limit": row.party_check_daily_limit,
             "require_2fa_for_org_admins": row.require_2fa_for_org_admins,
             "yandex_login_enabled": row.yandex_login_enabled,
@@ -125,6 +141,7 @@ def payment_settings_save(
         commit=False,
     )
     db.commit()
+    invalidate_payment_settings_cache()
     return RedirectResponse("/admin/payment-settings?ok=1", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -139,8 +156,12 @@ def payment_settings_test(
     flash_ok = None
     flash_error = None
     try:
+        from app.billing.tbank import build_subscription_receipt
+
         client = load_tbank_client(db)
+        status_probe = terminal_status(db)
         try:
+            # Как в кабинете: Init с Receipt — ловит неверные Taxation/Tax до оплаты пользователем
             init = client.init(
                 amount_kop=1000,
                 order_id=f"probe-{uuid.uuid4()}",
@@ -148,6 +169,14 @@ def payment_settings_test(
                 notification_url=f"{get_settings().app_base_url.rstrip('/')}/billing/webhook",
                 success_url=f"{get_settings().app_base_url.rstrip('/')}/admin/payment-settings",
                 fail_url=f"{get_settings().app_base_url.rstrip('/')}/admin/payment-settings",
+                email=row.default_receipt_email or "probe@dok.moscow",
+                receipt=build_subscription_receipt(
+                    email=row.default_receipt_email or "probe@dok.moscow",
+                    taxation=status_probe.taxation,
+                    amount_kop=1000,
+                    description="Проверка подключения Док.Москва",
+                    vat=status_probe.vat_rate,
+                ),
             )
             pid = str(init.get("PaymentId") or "")
             if pid:
@@ -173,6 +202,7 @@ def payment_settings_test(
             user_id=user.id,
             details={"ok": False, "error": str(exc)},
         )
+    status_view = terminal_status(db)
     return templates.TemplateResponse(
         request=request,
         name="admin/payment_settings.html",
@@ -182,6 +212,11 @@ def payment_settings_test(
             "paysettings",
             settings_row=row,
             password_set=bool(row and row.password_encrypted),
+            taxation_codes=sorted(TAXATION_CODES),
+            vat_codes=sorted(VAT_CODES),
+            taxation_value=status_view.taxation,
+            vat_value=status_view.vat_rate,
+            terminal_ready=status_view.ready,
             flash_ok=flash_ok,
             flash_error=flash_error,
         ),

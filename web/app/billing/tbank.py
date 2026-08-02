@@ -98,11 +98,25 @@ class TBankClient:
         resp.raise_for_status()
         data = resp.json()
         if not data.get("Success"):
-            raise TBankError(
-                str(data.get("Message") or data.get("Details") or "Ошибка Т-Кассы"),
-                code=str(data.get("ErrorCode") or ""),
-                payload=data,
+            code = str(data.get("ErrorCode") or "")
+            message = str(data.get("Message") or "").strip()
+            details = str(data.get("Details") or "").strip()
+            log.error(
+                "T-Bank %s failed ErrorCode=%s Message=%s Details=%s OrderId=%s",
+                method,
+                code,
+                message,
+                details,
+                body.get("OrderId") or body.get("PaymentId"),
             )
+            parts = [p for p in (message, details) if p]
+            if not parts:
+                parts = ["Ошибка Т-Кассы"]
+            # Не оставляем голое «Неверные параметры» без Details
+            text = " — ".join(dict.fromkeys(parts))
+            if code and code not in text:
+                text = f"{text} (код {code})"
+            raise TBankError(text, code=code, payload=data)
         return data
 
     def init(
@@ -177,7 +191,7 @@ def build_subscription_receipt(
     item: dict[str, Any] = {
         "Name": (description or "Подписка Док.Москва")[:128],
         "Price": int(amount_kop),
-        "Quantity": 1.0,
+        "Quantity": 1,
         "Amount": int(amount_kop),
         "Tax": vat if vat else "none",
         "PaymentMethod": "full_prepayment",

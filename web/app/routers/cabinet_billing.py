@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
@@ -10,13 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.billing.payments import create_card_payment, reconcile_payment
+from app.billing.settings_access import terminal_status
 from app.billing.tbank import TBankError
 from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, require_csrf, require_org_user
 from app.models import (
     Payment,
-    PaymentSettings,
     PaymentStatus,
     SubscriptionPeriod,
     Tariff,
@@ -34,6 +35,8 @@ from app.services.cms import (
 )
 from app.services.limits import usage_snapshot
 from app.templating import templates
+
+log = logging.getLogger("dok.billing")
 
 router = APIRouter(prefix="/cabinet/billing", tags=["cabinet-billing"])
 
@@ -54,13 +57,23 @@ def _ctx(request: Request, user: CurrentUser, org, db, **extra):
     return base
 
 
-@router.get("/", response_class=HTMLResponse)
-def billing_page(
+def _org_email(org) -> str:
+    req = org.requisites or {}
+    block = req.get("организация") if isinstance(req, dict) else None
+    if isinstance(block, dict):
+        return (block.get("email") or "").strip()
+    return ""
+
+
+def _billing_view_context(
     request: Request,
-    user: CurrentUser = Depends(require_org_user),
-    db: Session = Depends(get_db),
+    user: CurrentUser,
+    org,
+    db: Session,
+    *,
+    flash_error: str | None = None,
+    receipt_email_default: str | None = None,
 ):
-    org = get_org_for_user(db, user)
     snap = usage_snapshot(db, org.id)
     sub = get_current_subscription(db, org.id)
     tariffs = db.scalars(
@@ -72,28 +85,36 @@ def billing_page(
         .order_by(Payment.created_at.desc())
         .limit(50)
     ).all()
-    pay_settings = db.get(PaymentSettings, 1)
-    error = request.query_params.get("error")
-    org_email = ""
-    req = org.requisites or {}
-    block = req.get("организация") if isinstance(req, dict) else None
-    if isinstance(block, dict):
-        org_email = (block.get("email") or "").strip()
+    status = terminal_status(db)
+    return _ctx(
+        request,
+        user,
+        org,
+        db,
+        snap=snap,
+        sub=sub,
+        tariffs=tariffs,
+        payments=payments,
+        recurrents_enabled=status.recurrents_enabled,
+        terminal_ready=status.ready,
+        payment_test_mode=status.test_mode and status.ready,
+        receipt_email_default=receipt_email_default or _org_email(org) or user.email,
+        tariff_price_label=tariff_price_label,
+        flash_error=flash_error or request.query_params.get("error"),
+    )
+
+
+@router.get("/", response_class=HTMLResponse)
+def billing_page(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    org = get_org_for_user(db, user)
     return templates.TemplateResponse(
         request=request,
         name="cabinet/billing.html",
-        context=_ctx(request, user, org, db, snap=snap,
-            sub=sub,
-            tariffs=tariffs,
-            payments=payments,
-            recurrents_enabled=bool(pay_settings and pay_settings.recurrents_enabled),
-            terminal_ready=bool(
-                pay_settings and pay_settings.terminal_key and pay_settings.password_encrypted
-            ),
-            receipt_email_default=org_email or user.email,
-            tariff_price_label=tariff_price_label,
-            flash_error=error,
-        ),
+        context=_billing_view_context(request, user, org, db),
     )
 
 
@@ -150,30 +171,29 @@ def billing_pay(
         code = TariffCode(tariff_code)
         per = SubscriptionPeriod(period)
     except ValueError as exc:
+        log.warning("billing_pay: bad tariff/period %r %r", tariff_code, period)
         raise HTTPException(status_code=400, detail="Неверный тариф или период") from exc
 
     tariff = get_tariff(db, code)
     if tariff is None or code == TariffCode.guest:
+        log.warning("billing_pay: unpaid tariff %s", tariff_code)
         raise HTTPException(status_code=400, detail="Этот тариф нельзя оплатить картой")
 
     amount = tariff_amount_kop(tariff, per)
     if amount <= 0:
+        log.warning("billing_pay: zero amount tariff=%s period=%s", code, per)
         raise HTTPException(status_code=400, detail="Нулевая сумма")
 
     sub = get_current_subscription(db, org.id)
     if sub is None:
+        log.warning("billing_pay: no subscription org=%s", org.id)
         raise HTTPException(status_code=400, detail="Нет подписки организации")
 
     # смена тарифа: обновляем tariff_id / period сразу при создании платежа
     sub.tariff_id = tariff.id
     sub.period = per
 
-    org_email = ""
-    req = org.requisites or {}
-    block = req.get("организация") if isinstance(req, dict) else None
-    if isinstance(block, dict):
-        org_email = (block.get("email") or "").strip()
-    email = (receipt_email or org_email or user.email).strip()
+    email = (receipt_email or _org_email(org) or user.email).strip()
     want_renew = bool(auto_renew)
     try:
         pay, url = create_card_payment(
@@ -190,21 +210,17 @@ def billing_pay(
         db.commit()
     except TBankError as exc:
         db.rollback()
-        snap = usage_snapshot(db, org.id)
+        log.error("billing_pay failed org=%s: %s", org.id, exc)
         return templates.TemplateResponse(
             request=request,
             name="cabinet/billing.html",
-            context=_ctx(request, user, org, db, snap=snap,
-                sub=get_current_subscription(db, org.id),
-                tariffs=db.scalars(select(Tariff).where(Tariff.is_active.is_(True))).all(),
-                payments=db.scalars(
-                    select(Payment).where(Payment.org_id == org.id).order_by(Payment.created_at.desc()).limit(50)
-                ).all(),
-                recurrents_enabled=False,
-                terminal_ready=False,
-                receipt_email_default=email,
-                tariff_price_label=tariff_price_label,
+            context=_billing_view_context(
+                request,
+                user,
+                org,
+                db,
                 flash_error=str(exc),
+                receipt_email_default=email,
             ),
             status_code=400,
         )
