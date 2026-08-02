@@ -104,7 +104,9 @@ def test_bootstrap_skips_without_source(app):
         # без сети: акты с источником упадут/skip; без ips_nd и eo — skip
         report = bootstrap_missing(db, only_without_published=True, limit=100)
         assert report.results
-        assert any(r.skipped == "нет ips_nd и eo_number" for r in report.results)
+        assert any(
+            (r.skipped or "").startswith("нет ips_nd") for r in report.results
+        )
     finally:
         db.close()
 

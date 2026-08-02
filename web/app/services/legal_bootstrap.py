@@ -25,9 +25,11 @@ from app.models import (
 from app.services.legal_registry import create_draft_version, published_version
 from app.services.legal_search import ingest_pdf_version, split_html_articles
 from app.services.sources.http_client import ThrottledClient
+from app.services.sources.html_page_loader import HtmlPageLoaderError, load_html_page
 from app.services.sources.ips_loader import IpsLoaderError, load_ips_document
 from app.services.sources.publication_api import PublicationClient
 from app.services.sources.diff_text import paragraph_diff
+from app.services.legal_registry import INITIAL_REGISTRY
 
 log = logging.getLogger("dok.legal.bootstrap")
 
@@ -296,6 +298,113 @@ def pull_publication_pdf_to_draft(
             client.close()
 
 
+def registry_row(slug: str) -> dict | None:
+    for row in INITIAL_REGISTRY:
+        if row.get("slug") == slug:
+            return row
+    return None
+
+
+def pull_seed_url_to_draft(
+    db: Session,
+    act: LegalAct,
+    *,
+    http: ThrottledClient | None = None,
+    user_id: int | None = None,
+    replace_draft: bool = False,
+    seed_url: str | None = None,
+) -> PullResult:
+    """Скачать HTML по seed_url из реестра → черновик."""
+    slug = act.slug
+    if act.mode == LegalActMode.card:
+        return PullResult(act.id, slug, ok=False, skipped="режим card — только ссылка")
+    if act.status != LegalActStatus.active:
+        return PullResult(act.id, slug, ok=False, skipped="акт не active")
+
+    row = registry_row(slug) or {}
+    url = (seed_url or row.get("seed_url") or "").strip()
+    if not url:
+        return PullResult(act.id, slug, ok=False, skipped="нет seed_url")
+
+    if has_pending_draft(db, act.id) and not replace_draft:
+        return PullResult(act.id, slug, ok=False, skipped="уже есть черновик")
+    if replace_draft:
+        _archive_pending_drafts(db, act.id)
+
+    try:
+        doc = load_html_page(url, http=http)
+        body_html = (doc.body_html or "").strip()
+        if len(body_html) < 80:
+            raise HtmlPageLoaderError("Пустой текст")
+    except HtmlPageLoaderError as exc:
+        return PullResult(act.id, slug, ok=False, error=str(exc))
+    except Exception as exc:
+        log.exception("seed_url pull failed act=%s", slug)
+        return PullResult(act.id, slug, ok=False, error=str(exc))
+
+    pub = published_version(db, act.id)
+    diff = paragraph_diff(pub.body_html, body_html) if pub else None
+    draft = create_draft_version(
+        db,
+        act_id=act.id,
+        body_html=body_html,
+        change_basis=(
+            f"Первичное наполнение / HTML seed_url; источник: {doc.source_url}"
+        ),
+        loaded_by_user_id=user_id,
+        diff_text=diff,
+        text_origin="seed_html",
+    )
+    n_frag = fill_fragments_from_html(db, act, body_html)
+    return PullResult(
+        act_id=act.id,
+        slug=slug,
+        ok=True,
+        draft_id=draft.id,
+        fragments_filled=n_frag,
+    )
+
+
+def pull_link_card_to_draft(
+    db: Session,
+    act: LegalAct,
+    *,
+    user_id: int | None = None,
+    replace_draft: bool = False,
+) -> PullResult:
+    """Черновик-карточка со ссылкой на первоисточник (когда полного текста нет в API)."""
+    slug = act.slug
+    if act.mode == LegalActMode.card:
+        return PullResult(act.id, slug, ok=False, skipped="режим card — только ссылка")
+    if has_pending_draft(db, act.id) and not replace_draft:
+        return PullResult(act.id, slug, ok=False, skipped="уже есть черновик")
+    if replace_draft:
+        _archive_pending_drafts(db, act.id)
+    src = act.source_url or "официальный первоисточник"
+    body = (
+        f"<p><strong>{_escape(act.title)}</strong></p>"
+        f"<p>{_escape(act.act_kind)}"
+        f"{(' № ' + _escape(act.number)) if act.number else ''}."
+        f"{(' Принят: ' + act.adopted_on.isoformat()) if act.adopted_on else ''}</p>"
+        f"<p>Полный текст в автоматических источниках (ИПС / publication API) "
+        f"недоступен — откройте первоисточник и при необходимости загрузите "
+        f"редакцию вручную в админке законодательства.</p>"
+        f"<p>Официальный источник: "
+        f'<a href="{_escape(src)}" rel="noopener noreferrer" target="_blank">'
+        f"{_escape(src)}</a>.</p>"
+        f"<p>{_escape(act.notes or '')}</p>"
+    )
+    draft = create_draft_version(
+        db,
+        act_id=act.id,
+        body_html=body,
+        change_basis="Карточка со ссылкой на первоисточник (нет полного текста в API)",
+        loaded_by_user_id=user_id,
+        text_origin="link_card",
+    )
+    return PullResult(act_id=act.id, slug=slug, ok=True, draft_id=draft.id)
+
+
 def pull_act_to_draft(
     db: Session,
     act: LegalAct,
@@ -304,7 +413,7 @@ def pull_act_to_draft(
     user_id: int | None = None,
     replace_draft: bool = False,
 ) -> PullResult:
-    """ИПС (предпочтительно) или PDF publication по eo_number."""
+    """ИПС → PDF publication → seed_url → карточка-ссылка."""
     if act.ips_nd:
         return pull_ips_to_draft(
             db,
@@ -321,8 +430,21 @@ def pull_act_to_draft(
             user_id=user_id,
             replace_draft=replace_draft,
         )
+    row = registry_row(act.slug) or {}
+    if row.get("seed_url"):
+        return pull_seed_url_to_draft(
+            db,
+            act,
+            http=http,
+            user_id=user_id,
+            replace_draft=replace_draft,
+        )
+    if row.get("seed_link_card"):
+        return pull_link_card_to_draft(
+            db, act, user_id=user_id, replace_draft=replace_draft
+        )
     return PullResult(
-        act.id, act.slug, ok=False, skipped="нет ips_nd и eo_number"
+        act.id, act.slug, ok=False, skipped="нет ips_nd, eo_number и seed_url"
     )
 
 
@@ -348,10 +470,19 @@ def bootstrap_missing(
         for act in acts:
             if len([r for r in report.results if r.ok]) >= limit:
                 break
-            if not act.ips_nd and not act.eo_number:
+            row = registry_row(act.slug) or {}
+            if (
+                not act.ips_nd
+                and not act.eo_number
+                and not row.get("seed_url")
+                and not row.get("seed_link_card")
+            ):
                 report.results.append(
                     PullResult(
-                        act.id, act.slug, ok=False, skipped="нет ips_nd и eo_number"
+                        act.id,
+                        act.slug,
+                        ok=False,
+                        skipped="нет ips_nd, eo_number и seed_url",
                     )
                 )
                 continue
