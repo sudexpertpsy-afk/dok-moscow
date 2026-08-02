@@ -72,19 +72,30 @@
         <input id="email" name="email" value="{{ values.email or '' }}">
 
         <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.2rem 0 0.4rem">Банк</h2>
-        <label for="bank_bik">БИК</label>
+        {% if dadata_enabled %}
+        <p class="muted" style="margin:0 0 0.6rem">БИК или название — из справочника; расчётный счёт укажите вручную.</p>
+        {% endif %}
+        <label for="bank_bik">БИК{% if dadata_enabled %} <span class="muted">(справочник)</span>{% endif %}</label>
         <input id="bank_bik" name="bank_bik" value="{{ values.bank_bik or '' }}"
+          autocomplete="off" inputmode="numeric"
           hx-get="/cabinet/counterparties/suggest/bank"
-          hx-trigger="keyup changed delay:300ms"
+          hx-trigger="keyup changed delay:250ms"
           hx-target="#bank-suggest"
           hx-include="[name='bank_bik']">
         <div id="bank-suggest" class="suggest-box"></div>
-        <label for="bank_name">Банк</label>
-        <input id="bank_name" name="bank_name" value="{{ values.bank_name or '' }}">
+        <label for="bank_name">Банк{% if dadata_enabled %} <span class="muted">(справочник)</span>{% endif %}</label>
+        <input id="bank_name" name="bank_name" value="{{ values.bank_name or '' }}"
+          autocomplete="off"
+          hx-get="/cabinet/counterparties/suggest/bank"
+          hx-trigger="keyup changed delay:300ms"
+          hx-target="#bank-suggest"
+          hx-include="[name='bank_name']">
+        <label for="bank_corr_account">Корр. счёт{% if dadata_enabled %} <span class="muted">(из справочника)</span>{% endif %}</label>
+        <input id="bank_corr_account" name="bank_corr_account" value="{{ values.bank_corr_account or '' }}"
+          autocomplete="off" inputmode="numeric">
         <label for="bank_account">Расчётный счёт</label>
-        <input id="bank_account" name="bank_account" value="{{ values.bank_account or '' }}">
-        <label for="bank_corr_account">Корр. счёт</label>
-        <input id="bank_corr_account" name="bank_corr_account" value="{{ values.bank_corr_account or '' }}">
+        <input id="bank_account" name="bank_account" value="{{ values.bank_account or '' }}"
+          autocomplete="off" inputmode="numeric">
 
         <label for="notes">Примечания</label>
         <textarea id="notes" name="notes" rows="2">{{ values.notes or '' }}</textarea>
@@ -129,6 +140,13 @@ function applyBank(btn) {
     if (el && v) el.value = v;
   }
   document.getElementById('bank-suggest').innerHTML = '';
+  const acc = document.getElementById('bank_account');
+  if (acc) acc.focus();
 }
+document.body.addEventListener('htmx:afterSwap', function (ev) {
+  if (!ev.target || ev.target.id !== 'bank-suggest') return;
+  const btn = ev.target.querySelector('[data-auto-apply="1"]');
+  if (btn) applyBank(btn);
+});
 </script>
 {% endblock %}

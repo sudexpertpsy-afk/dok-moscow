@@ -175,6 +175,19 @@ def test_settings_bank_save_and_invoice_fill(app, tmp_path, monkeypatch):
     assert r.status_code in (302, 303)
 
 
+def test_settings_bank_page_offers_directory(app):
+    client, dbmod = app
+    _seed(dbmod, email="bankdir@example.com")
+    assert login(client, "bankdir@example.com", "Passw0rd!").status_code == 303
+    r = client.get("/cabinet/settings/bank")
+    assert r.status_code == 200
+    assert "bank_bik" in r.text
+    assert "справочник" in r.text.lower() or "DaData" in r.text or "БИК" in r.text
+    assert 'name="account"' in r.text
+    # старые сырые ключи как подписи больше не показываем в label
+    assert ">расчётный_счёт<" not in r.text
+
+
 def test_invoice_blocked_when_bank_empty(app):
     client, dbmod = app
     _seed(dbmod, email="nobank@example.com")

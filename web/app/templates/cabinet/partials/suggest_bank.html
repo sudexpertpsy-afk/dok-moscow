@@ -1,6 +1,15 @@
+{% if items %}
 {% for i in range(items|length) %}
-<button type="button" data-json='{{ mapped[i]|tojson }}' onclick="applyBank(this)">
+<button type="button"
+        class="suggest-pick-bank"
+        data-json='{{ mapped[i]|tojson }}'
+        {% if auto_apply and loop.first %}data-auto-apply="1"{% endif %}
+        onclick="applyBank(this)">
   {{ items[i].value }}
   {% if mapped[i].bank_bik %}<span class="muted"> · БИК {{ mapped[i].bank_bik }}</span>{% endif %}
+  {% if mapped[i].bank_corr_account %}<span class="muted"> · к/с {{ mapped[i].bank_corr_account }}</span>{% endif %}
 </button>
 {% endfor %}
+{% else %}
+<p class="muted" style="margin:0.35rem 0">Ничего не найдено в справочнике банков</p>
+{% endif %}
