@@ -462,8 +462,10 @@ def publish_version(
     if version.status != ActVersionStatus.draft:
         raise ValueError("Можно публиковать только черновик")
     current = published_version(db, version.act_id)
+    # Сначала снять published (partial unique index), затем назначить новую.
     if current is not None and current.id != version.id:
         current.status = ActVersionStatus.archived
+        db.flush()
     version.status = ActVersionStatus.published
     version.reviewed_at = utcnow()
     version.reviewed_by_user_id = reviewed_by_user_id

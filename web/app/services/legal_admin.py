@@ -220,12 +220,14 @@ def publish_all_drafts(
             continue
         try:
             publish_version(db, draft, reviewed_by_user_id=user_id)
+            db.flush()
             items.append(
                 PublishBatchItem(
                     act_id=act.id, slug=act.slug, version_id=draft.id, ok=True
                 )
             )
         except Exception as exc:  # noqa: BLE001 — пакетный отчёт
+            db.rollback()
             items.append(
                 PublishBatchItem(
                     act_id=act.id,
