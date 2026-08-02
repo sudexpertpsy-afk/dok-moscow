@@ -39,10 +39,14 @@ from app.totp_2fa import (
 router = APIRouter(tags=["auth"])
 
 _settings = get_settings()
-login_limiter = LoginRateLimiter(_settings.login_rate_limit, _settings.login_rate_window_sec)
-reset_limiter = LoginRateLimiter(5, 60 * 60)
+login_limiter = LoginRateLimiter(
+    _settings.login_rate_limit, _settings.login_rate_window_sec, name="login"
+)
+reset_limiter = LoginRateLimiter(5, 60 * 60, name="password_reset")
 # W-24: 5 попыток / 15 минут на аккаунт (та же механика, что на входе)
-totp_limiter = LoginRateLimiter(_settings.login_rate_limit, _settings.login_rate_window_sec)
+totp_limiter = LoginRateLimiter(
+    _settings.login_rate_limit, _settings.login_rate_window_sec, name="totp"
+)
 
 
 def _render(request: Request, name: str, ctx: dict | None = None, status_code: int = 200):

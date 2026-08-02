@@ -18,7 +18,7 @@ from app.templating import templates
 router = APIRouter(tags=["landing"])
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-lead_limiter = LoginRateLimiter(limit=5, window_sec=60 * 60)
+lead_limiter = LoginRateLimiter(limit=5, window_sec=60 * 60, name="lead")
 
 PROFILES = (
     "Экспертная организация (СРО)",

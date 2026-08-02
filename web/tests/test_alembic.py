@@ -79,6 +79,8 @@ def test_alembic_upgrade_head_clean_db():
         "act_watch_log",
         "legal_search_docs",
         "party_checks",
+        "jobs",
+        "rate_limit_hits",
         "alembic_version",
     }
     assert expected.issubset(tables)

@@ -21,7 +21,7 @@ log = logging.getLogger("dok.billing.webhook")
 router = APIRouter(prefix="/billing", tags=["billing"])
 
 # Лимит вебхука: защита от флуда (банк тоже ретраит — запас большой)
-webhook_limiter = LoginRateLimiter(limit=120, window_sec=60)
+webhook_limiter = LoginRateLimiter(limit=120, window_sec=60, name="billing_webhook")
 
 
 @router.post("/webhook", response_class=PlainTextResponse)
