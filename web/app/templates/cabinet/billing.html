@@ -39,6 +39,11 @@
         </div>
         <div>
           <h2 style="font-family:var(--font-display);font-size:1.2rem;margin:0 0 0.5rem">Оплатить</h2>
+          {% if payment_test_mode %}
+          <div class="alert" role="status" style="background:#fff3cd;color:#664d03;border:1px solid #ffecb5;margin:0 0 0.85rem">
+            Тестовый режим: реальные деньги не списываются
+          </div>
+          {% endif %}
           {% if not terminal_ready %}
           <p class="muted">Приём карт ещё не настроен администратором сервиса. После настройки Т-Кассы здесь появится оплата.</p>
           {% endif %}

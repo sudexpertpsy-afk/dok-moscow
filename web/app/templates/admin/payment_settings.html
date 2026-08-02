@@ -27,11 +27,21 @@
       Рекуррентные платежи
     </label>
 
-    <label for="taxation">Система налогообложения (чек)</label>
-    <input id="taxation" name="taxation" value="{{ settings_row.taxation if settings_row else 'usn_income' }}">
+    <label for="taxation">Система налогообложения (чек, код Т-Кассы)</label>
+    <select id="taxation" name="taxation">
+      {% for code in taxation_codes %}
+      <option value="{{ code }}" {% if taxation_value == code %}selected{% endif %}>{{ code }}</option>
+      {% endfor %}
+    </select>
+    <p class="muted">Для УСН «доходы» — <code>usn_income</code>. Свободный текст («УСН 6%») ломает Init с чеком.</p>
 
-    <label for="vat_rate">Ставка НДС</label>
-    <input id="vat_rate" name="vat_rate" value="{{ settings_row.vat_rate if settings_row else 'none' }}">
+    <label for="vat_rate">Ставка НДС (код Т-Кассы)</label>
+    <select id="vat_rate" name="vat_rate">
+      {% for code in vat_codes %}
+      <option value="{{ code }}" {% if vat_value == code %}selected{% endif %}>{{ code }}</option>
+      {% endfor %}
+    </select>
+    <p class="muted">Без НДС — <code>none</code>.</p>
 
     <label for="default_receipt_email">E-mail для чеков по умолчанию</label>
     <input id="default_receipt_email" name="default_receipt_email" type="email"

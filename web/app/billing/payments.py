@@ -11,6 +11,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.billing.crypto import decrypt_secret
+from app.billing.settings_access import (
+    get_payment_settings,
+    is_terminal_configured,
+    terminal_status,
+)
 from app.billing.tbank import (
     TBankClient,
     TBankConfig,
@@ -23,7 +28,6 @@ from app.config import get_settings
 from app.models import (
     Organization,
     Payment,
-    PaymentSettings,
     PaymentSource,
     PaymentStatus,
     Subscription,
@@ -64,20 +68,35 @@ def period_delta(period: SubscriptionPeriod) -> timedelta:
 
 
 def load_tbank_client(db: Session) -> TBankClient:
-    settings_row = db.get(PaymentSettings, 1)
-    if settings_row is None or not settings_row.terminal_key or not settings_row.password_encrypted:
-        raise TBankError("Платёжная система не настроена (TerminalKey / пароль)")
-    password = decrypt_secret(settings_row.password_encrypted)
+    status = terminal_status(db)
+    if not status.ready:
+        detail = status.reason or "TerminalKey / пароль"
+        log.warning("load_tbank_client: not ready (%s)", detail)
+        raise TBankError(f"Платёжная система не настроена ({detail})")
+    row = get_payment_settings(db)
+    try:
+        password = decrypt_secret(row.password_encrypted or "")
+    except ValueError as exc:
+        log.error("load_tbank_client: decrypt failed: %s", exc)
+        raise TBankError(
+            "Не удалось расшифровать пароль терминала — сохраните пароль заново в админке"
+        ) from exc
     return TBankClient(
-        TBankConfig(terminal_key=settings_row.terminal_key, password=password)
+        TBankConfig(terminal_key=(row.terminal_key or "").strip(), password=password)
     )
 
 
 def get_terminal_password(db: Session) -> str:
-    row = db.get(PaymentSettings, 1)
-    if row is None or not row.password_encrypted:
+    row = get_payment_settings(db)
+    if not is_terminal_configured(row):
         raise TBankError("Пароль терминала не задан")
-    return decrypt_secret(row.password_encrypted)
+    try:
+        return decrypt_secret(row.password_encrypted or "")
+    except ValueError as exc:
+        log.error("get_terminal_password: decrypt failed: %s", exc)
+        raise TBankError(
+            "Не удалось расшифровать пароль терминала — сохраните пароль заново в админке"
+        ) from exc
 
 
 def create_card_payment(
@@ -119,9 +138,20 @@ def create_card_payment(
     db.flush()
 
     app_settings = get_settings()
-    pay_settings = db.get(PaymentSettings, 1)
-    taxation = (pay_settings.taxation if pay_settings else None) or "usn_income"
-    vat = (pay_settings.vat_rate if pay_settings else None) or "none"
+    status = terminal_status(db)
+    if not status.ready:
+        raise TBankError(
+            f"Платёжная система не настроена ({status.reason or 'TerminalKey / пароль'})"
+        )
+    if not (email or "").strip() or "@" not in email:
+        log.warning("create_card_payment: invalid receipt email %r", email)
+        raise TBankError("Укажите корректный e-mail для чека")
+    if int(pay.amount_kop) <= 0:
+        log.warning("create_card_payment: non-positive amount %s", pay.amount_kop)
+        raise TBankError("Сумма платежа должна быть больше нуля")
+
+    taxation = status.taxation
+    vat = status.vat_rate
     base = app_settings.app_base_url.rstrip("/")
     notification_url = f"{base}/billing/webhook"
     # На проде webhook может быть на dok.moscow — переопределение через PUBLIC
@@ -131,6 +161,22 @@ def create_card_payment(
     subscription.customer_key = customer_key
     if auto_renew:
         subscription.auto_renew = True
+
+    receipt = build_subscription_receipt(
+        email=email.strip(),
+        taxation=taxation,
+        amount_kop=pay.amount_kop,
+        description=purpose,
+        vat=vat,
+    )
+    log.info(
+        "create_card_payment Init order=%s amount=%s taxation=%s vat=%s test_mode=%s",
+        pay.id,
+        pay.amount_kop,
+        taxation,
+        vat,
+        status.test_mode,
+    )
 
     client = load_tbank_client(db)
     try:
@@ -142,16 +188,19 @@ def create_card_payment(
             success_url=f"{base}/cabinet/billing/success?order_id={pay.id}",
             fail_url=f"{base}/cabinet/billing/fail?order_id={pay.id}",
             customer_key=customer_key,
-            recurrent=bool(auto_renew and pay_settings and pay_settings.recurrents_enabled),
-            email=email,
-            receipt=build_subscription_receipt(
-                email=email,
-                taxation=taxation,
-                amount_kop=pay.amount_kop,
-                description=purpose,
-                vat=vat,
-            ),
+            recurrent=bool(auto_renew and status.recurrents_enabled),
+            email=email.strip(),
+            receipt=receipt,
         )
+    except TBankError as exc:
+        log.error(
+            "create_card_payment Init failed order=%s code=%s message=%s details=%s",
+            pay.id,
+            exc.code,
+            exc,
+            (exc.payload or {}).get("Details"),
+        )
+        raise
     finally:
         client.close()
 
