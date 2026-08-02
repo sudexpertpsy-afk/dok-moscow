@@ -14,8 +14,10 @@
     <div>
       <p class="muted" style="margin:0">Подписки</p>
       <p style="margin:0.2rem 0">Активных: <strong>{{ summary.active_subs }}</strong>
+        · подарочных: <strong>{{ summary.gift_subs }}</strong>
         · новых за месяц: {{ summary.new_subs }}</p>
-      <p>MRR: <strong>{{ '%.0f'|format(summary.mrr_kop / 100) }} ₽</strong></p>
+      <p>MRR: <strong>{{ '%.0f'|format(summary.mrr_kop / 100) }} ₽</strong>
+        <span class="muted">(без бета и подарочных)</span></p>
     </div>
   </div>
 

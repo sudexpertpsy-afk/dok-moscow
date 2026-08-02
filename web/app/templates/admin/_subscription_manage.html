@@ -1,0 +1,87 @@
+{# Общий блок «Управление подпиской» (карточка орг + dialog списка). #}
+{% set form_action = form_action or ('/admin/organizations/' ~ org.id ~ '/subscription') %}
+{% set form_id = form_id or ('sub-form-' ~ org.id) %}
+<form id="{{ form_id }}" method="post" action="{{ form_action }}" hx-boost="false" class="stack" style="gap:0.75rem;max-width:36rem"
+      onsubmit="return confirm('Применить изменение подписки для «{{ org.name }}»?');">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="confirm" value="YES">
+
+  {% if sub_info %}
+  <p class="muted" style="margin:0">Сейчас:
+    <strong>{{ sub_info.tariff_name }}</strong>
+    · {% if sub_info.ends_at %}до {{ sub_info.ends_at.strftime('%d.%m.%Y') }}{% else %}—{% endif %}
+    · <span class="badge {% if sub_info.badge == 'active' %}ok{% elif sub_info.badge == 'expiring' %}warn{% else %}danger{% endif %}">{{ sub_info.badge_label }}</span>
+    {% if sub_info.is_complimentary %}<span class="badge warn">подарок</span>{% endif %}
+    {% if sub_info.is_beta %}<span class="badge warn">бета</span>{% endif %}
+  </p>
+  {% endif %}
+
+  <fieldset style="border:1px solid var(--border,#ddd);border-radius:6px;padding:0.75rem">
+    <legend>Действие</legend>
+    <label style="display:inline-flex;gap:0.35rem;align-items:center;margin-right:1rem">
+      <input type="radio" name="action" value="apply" checked> Применить / продлить
+    </label>
+    <label style="display:inline-flex;gap:0.35rem;align-items:center">
+      <input type="radio" name="action" value="terminate"> Завершить подписку сейчас
+    </label>
+  </fieldset>
+
+  <div>
+    <label for="{{ form_id }}-tariff">Тариф</label>
+    <select id="{{ form_id }}-tariff" name="tariff_code" required>
+      {% for code, label in [('guest','Гость'),('specialist','Специалист'),('organization','Организация')] %}
+      <option value="{{ code }}" {% if sub and sub.tariff and sub.tariff.code.value == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <fieldset style="border:1px solid var(--border,#ddd);border-radius:6px;padding:0.75rem">
+    <legend>Срок</legend>
+    <label style="display:block;margin-bottom:0.5rem">
+      <input type="radio" name="term_mode" value="relative" checked>
+      Продлить на
+      <select name="months" style="width:auto;display:inline-block">
+        <option value="1">+1 месяц</option>
+        <option value="3">+3 месяца</option>
+        <option value="6">+6 месяцев</option>
+        <option value="12">+12 месяцев</option>
+      </select>
+      <span class="muted">от текущего окончания (если истекла — от сегодня)</span>
+    </label>
+    <label style="display:block">
+      <input type="radio" name="term_mode" value="absolute">
+      До даты
+      <input type="date" name="ends_on" style="width:auto;display:inline-block">
+    </label>
+  </fieldset>
+
+  <div>
+    <label for="{{ form_id }}-reason">Основание</label>
+    <select id="{{ form_id }}-reason" name="reason" required>
+      {% for value, label in reason_choices %}
+      <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label for="{{ form_id }}-comment">Комментарий / № п/п</label>
+    <input id="{{ form_id }}-comment" name="reason_comment" maxlength="255"
+           placeholder="Обязателен для «оплата по счёту» и «иное»">
+  </div>
+
+  <label style="display:flex;gap:0.5rem;align-items:center">
+    <input type="checkbox" name="notify" value="1">
+    Уведомить организацию письмом (тариф и новая дата окончания)
+  </label>
+
+  <div>
+    <label for="{{ form_id }}-totp">Код 2FA</label>
+    <input id="{{ form_id }}-totp" name="totp_code" inputmode="numeric" autocomplete="one-time-code"
+           placeholder="Нужен при сроке &gt; 12 мес. и при завершении">
+    <p class="muted" style="margin:0.25rem 0 0">Механика как в «Сервер» / Едином окне.</p>
+  </div>
+
+  <div class="actions">
+    <button type="submit">Применить</button>
+  </div>
+</form>

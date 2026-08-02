@@ -124,3 +124,33 @@ def notify_manual_extend(
         subject=f"[{settings.app_name}] Подписка продлена",
         body=body,
     )
+
+
+def notify_admin_subscription_change(
+    *,
+    to_addr: str,
+    org: Organization,
+    tariff_name: str,
+    ends_at: datetime | None,
+    terminated: bool = False,
+    settings: Settings | None = None,
+) -> bool:
+    """W-38: письмо организации о тарифе и сроке (без суммы)."""
+    settings = settings or get_settings()
+    if terminated:
+        body = (
+            f"Подписка организации «{org.name}» завершена администратором сервиса.\n\n"
+            f"Тариф на момент завершения: {tariff_name}\n"
+            f"Доступ к платным функциям ограничен.\n\n"
+            f"Кабинет: {settings.app_base_url.rstrip('/')}/cabinet/billing/\n"
+        )
+        subject = f"[{settings.app_name}] Подписка завершена"
+    else:
+        body = (
+            f"Подписка организации «{org.name}» обновлена администратором сервиса.\n\n"
+            f"Тариф: {tariff_name}\n"
+            f"Действует до: {_fmt_dt(ends_at)}\n\n"
+            f"Кабинет: {settings.app_base_url.rstrip('/')}/cabinet/billing/\n"
+        )
+        subject = f"[{settings.app_name}] Подписка обновлена"
+    return send_email(settings, to_addr=to_addr, subject=subject, body=body)

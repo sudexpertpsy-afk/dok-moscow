@@ -568,6 +568,8 @@ class Subscription(Base):
     customer_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     rebill_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     is_beta: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # W-38: админское «подарочное» продление — вне MRR/выручки
+    is_complimentary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

@@ -244,9 +244,11 @@ def _payments_summary(db: Session) -> dict:
         prev_start = start.replace(month=start.month - 1)
 
     def agg(a: datetime, b: datetime) -> dict:
+        # Выручка: только confirmed с ненулевой суммой (подарочные админ-продления без Payment)
         rows = db.scalars(
             select(Payment).where(
                 Payment.status == PaymentStatus.confirmed,
+                Payment.amount_kop > 0,
                 Payment.created_at >= a,
                 Payment.created_at < b,
             )
@@ -262,6 +264,13 @@ def _payments_summary(db: Session) -> dict:
             Subscription.ends_at > utcnow(),
         )
     ) or 0
+    gift_subs = db.scalar(
+        select(func.count()).select_from(Subscription).where(
+            Subscription.status.in_([SubscriptionStatus.active, SubscriptionStatus.trial]),
+            Subscription.ends_at > utcnow(),
+            Subscription.is_complimentary.is_(True),
+        )
+    ) or 0
     new_subs = db.scalar(
         select(func.count()).select_from(Subscription).where(
             Subscription.created_at >= start,
@@ -269,7 +278,7 @@ def _payments_summary(db: Session) -> dict:
             Subscription.is_beta.is_(False),
         )
     ) or 0
-    # MRR: сумма month-эквивалентов активных платных
+    # MRR: платные активные (не бета и не подарочные)
     mrr = 0
     for sub in db.scalars(
         select(Subscription)
@@ -278,6 +287,7 @@ def _payments_summary(db: Session) -> dict:
             Subscription.status.in_([SubscriptionStatus.active, SubscriptionStatus.trial]),
             Subscription.ends_at > utcnow(),
             Subscription.is_beta.is_(False),
+            Subscription.is_complimentary.is_(False),
         )
     ).all():
         t = sub.tariff
@@ -291,6 +301,7 @@ def _payments_summary(db: Session) -> dict:
         "prev_sum_kop": prev["sum_kop"],
         "prev_count": prev["count"],
         "active_subs": int(active_subs),
+        "gift_subs": int(gift_subs),
         "new_subs": int(new_subs),
         "mrr_kop": mrr,
     }
@@ -506,6 +517,7 @@ def manual_extend(
     except ValueError:
         sub.mark_active()
     sub.is_beta = False
+    sub.is_complimentary = False
     pay = Payment(
         id=uuid.uuid4(),
         org_id=org_id,

@@ -507,6 +507,7 @@ ROUTE_EXCEPTION_NOTES: dict[str, str] = {
     "/admin/organizations": "список; пункт в реестре без trailing",
     "/admin/organizations/{org_id}": "карточка орг",
     "/admin/organizations/{org_id}/rename": "POST",
+    "/admin/organizations/{org_id}/subscription": "POST W-38 управление подпиской",
     "/admin/users/{user_id}": "карточка пользователя",
     "/admin/users/{user_id}/toggle": "POST",
     "/admin/users/{user_id}/reset-2fa": "POST",

@@ -16,6 +16,38 @@
   </form>
 </section>
 
+<section class="panel" id="subscription" style="margin-top:1rem">
+  <h1>Управление подпиской</h1>
+  {% with form_id='detail-sub-' ~ org.id %}
+    {% include "admin/_subscription_manage.html" %}
+  {% endwith %}
+</section>
+
+<section class="panel" style="margin-top:1rem">
+  <h2 style="font-family:var(--font-display);font-size:1.15rem">История подписки</h2>
+  <table class="table">
+    <thead><tr><th>Когда</th><th>Событие</th><th>Детали</th></tr></thead>
+    <tbody>
+      {% for e in sub_history %}
+      <tr>
+        <td class="muted">{{ e.ts.strftime('%d.%m.%Y %H:%M') if e.ts else '—' }}</td>
+        <td class="mono">{{ e.type }}</td>
+        <td class="muted" style="font-size:0.9em">
+          {% set d = e.details or {} %}
+          {% if d.get('tariff_name') or d.get('tariff') %}тариф {{ d.get('tariff_name') or d.get('tariff') }} · {% endif %}
+          {% if d.get('ends_at') %}до {{ d.get('ends_at')[:10] }} · {% endif %}
+          {% if d.get('reason_label') or d.get('reason') %}{{ d.get('reason_label') or d.get('reason') }}{% endif %}
+          {% if d.get('comment') %} ({{ d.get('comment') }}){% endif %}
+          {% if d.get('basis') %}основание {{ d.get('basis') }}{% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" class="muted">Пока нет административных изменений</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
 <div class="grid-2" style="margin-top:1rem">
   <section class="panel">
     <h1>Пользователи</h1>

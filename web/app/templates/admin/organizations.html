@@ -15,29 +15,68 @@
   </section>
   <section class="panel">
     <h1>Подсказка</h1>
-    <p class="muted">После создания откройте карточку организации и выдайте приглашение пользователю. Реквизиты организация заполняет сама в кабинете.</p>
+    <p class="muted">После создания откройте карточку организации и выдайте приглашение пользователю. Реквизиты организация заполняет сама в кабинете. Подписку можно выдать или продлить без оплаты через «Подписка…».</p>
   </section>
 </div>
 
 <section class="panel" style="margin-top:1rem">
   <h1>Все организации</h1>
   <table class="table">
-    <thead><tr><th>ID</th><th>Название</th><th>Пользователи</th><th>Открытые инвайты</th><th>Создана</th></tr></thead>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Название</th>
+        <th>Подписка</th>
+        <th>Пользователи</th>
+        <th>Открытые инвайты</th>
+        <th>Создана</th>
+        <th></th>
+      </tr>
+    </thead>
     <tbody>
       {% for o in orgs %}
+      {% set info = sub_badges.get(o.id) %}
       <tr>
         <td>{{ o.id }}</td>
         <td><a href="/admin/organizations/{{ o.id }}">{{ o.name }}</a></td>
+        <td>
+          {% if info %}
+            <div><strong>{{ info.tariff_name }}</strong></div>
+            <div class="muted" style="font-size:0.9em">
+              {% if info.ends_at %}до {{ info.ends_at.strftime('%d.%m.%Y') }}{% else %}—{% endif %}
+              · <span class="badge {% if info.badge == 'active' %}ok{% elif info.badge == 'expiring' %}warn{% else %}danger{% endif %}">{{ info.badge_label }}</span>
+            </div>
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </td>
         <td>{{ org_stats.get(o.id, {}).get('users', 0) }}</td>
         <td>{{ org_stats.get(o.id, {}).get('open_invites', 0) }}</td>
         <td class="muted">{{ o.created_at }}</td>
+        <td>
+          <button type="button" class="btn secondary" style="font-size:0.85rem"
+                  onclick="document.getElementById('dlg-sub-{{ o.id }}').showModal()">Подписка…</button>
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="muted">Пока пусто</td></tr>
+      <tr><td colspan="7" class="muted">Пока пусто</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </section>
+
+{% for o in orgs %}
+<dialog id="dlg-sub-{{ o.id }}" style="max-width:40rem;width:92%;border:1px solid #ccc;border-radius:8px;padding:1.25rem">
+  <form method="dialog" style="float:right;margin:0">
+    <button type="submit" class="btn secondary" value="cancel">Закрыть</button>
+  </form>
+  <h2 style="font-family:var(--font-display);font-size:1.2rem;margin-top:0">Управление подпиской</h2>
+  <p class="muted">{{ o.name }} · ID {{ o.id }}</p>
+  {% with org=o, sub=subs.get(o.id), sub_info=sub_badges.get(o.id), form_id='list-sub-' ~ o.id %}
+    {% include "admin/_subscription_manage.html" %}
+  {% endwith %}
+</dialog>
+{% endfor %}
 
 {% include "admin/_layout_end.html" %}
 {% endblock %}

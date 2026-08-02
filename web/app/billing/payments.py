@@ -388,6 +388,7 @@ def _activate_subscription_for_payment(
         except ValueError:
             sub.mark_active()
     sub.is_beta = False
+    sub.is_complimentary = False
 
     rebill = payload.get("RebillId")
     if rebill:

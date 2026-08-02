@@ -124,17 +124,43 @@ def admin_home(
     )
 
 
+def _subscription_list_context(db: Session, orgs: list[Organization]) -> dict:
+    from app.services.admin_subscription import (
+        REASON_CHOICES,
+        org_subscription_map,
+        subscription_badge,
+    )
+
+    subs = org_subscription_map(db, [o.id for o in orgs])
+    badges = {oid: subscription_badge(sub) for oid, sub in subs.items()}
+    return {
+        "subs": subs,
+        "sub_badges": badges,
+        "reason_choices": REASON_CHOICES,
+    }
+
+
 @router.get("/organizations", response_class=HTMLResponse)
 def admin_organizations(
     request: Request,
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
 ):
-    orgs = db.scalars(select(Organization).order_by(Organization.id.desc())).all()
+    orgs = list(db.scalars(select(Organization).order_by(Organization.id.desc())).all())
+    extra = _subscription_list_context(db, orgs)
     return templates.TemplateResponse(
         request=request,
         name="admin/organizations.html",
-        context=_ctx(request, user, "orgs", orgs=orgs, org_stats=_org_stats(db)),
+        context=_ctx(
+            request,
+            user,
+            "orgs",
+            orgs=orgs,
+            org_stats=_org_stats(db),
+            flash_ok=request.query_params.get("ok"),
+            flash_error=request.query_params.get("err"),
+            **extra,
+        ),
     )
 
 
@@ -148,7 +174,8 @@ def create_organization(
 ):
     name = name.strip()
     if not name:
-        orgs = db.scalars(select(Organization).order_by(Organization.id.desc())).all()
+        orgs = list(db.scalars(select(Organization).order_by(Organization.id.desc())).all())
+        extra = _subscription_list_context(db, orgs)
         return templates.TemplateResponse(
             request=request,
             name="admin/organizations.html",
@@ -159,6 +186,7 @@ def create_organization(
                 orgs=orgs,
                 org_stats=_org_stats(db),
                 flash_error="Укажите название организации.",
+                **extra,
             ),
             status_code=400,
         )
@@ -179,6 +207,13 @@ def admin_organization_detail(
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
 ):
+    from app.services.admin_subscription import (
+        REASON_CHOICES,
+        subscription_badge,
+        subscription_history,
+    )
+    from app.services.billing import get_current_subscription
+
     org = db.get(Organization, org_id)
     if org is None:
         return RedirectResponse("/admin/organizations", status_code=status.HTTP_303_SEE_OTHER)
@@ -186,6 +221,7 @@ def admin_organization_detail(
     invites = db.scalars(
         select(Invite).where(Invite.org_id == org_id).order_by(Invite.id.desc()).limit(50)
     ).all()
+    sub = get_current_subscription(db, org_id)
     return templates.TemplateResponse(
         request=request,
         name="admin/organization_detail.html",
@@ -197,7 +233,143 @@ def admin_organization_detail(
             users=users,
             invites=invites,
             invite_ttl=get_settings().invite_ttl_hours,
+            sub=sub,
+            sub_info=subscription_badge(sub),
+            sub_history=subscription_history(db, org_id),
+            reason_choices=REASON_CHOICES,
+            flash_ok=request.query_params.get("ok"),
+            flash_error=request.query_params.get("err"),
         ),
+    )
+
+
+@router.post("/organizations/{org_id}/subscription", response_class=HTMLResponse)
+def admin_organization_subscription(
+    org_id: int,
+    request: Request,
+    action: str = Form("apply"),
+    tariff_code: str = Form("specialist"),
+    term_mode: str = Form("relative"),
+    months: str = Form("1"),
+    ends_on: str = Form(""),
+    reason: str = Form("other"),
+    reason_comment: str = Form(""),
+    notify: str = Form(""),
+    confirm: str = Form(""),
+    totp_code: str = Form(""),
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from datetime import date as date_cls
+    from urllib.parse import quote
+
+    from app.routers.admin_server import _require_totp
+    from app.services.admin_subscription import AdminSubscriptionError, apply_admin_subscription
+
+    org = db.get(Organization, org_id)
+    if org is None:
+        return RedirectResponse("/admin/organizations", status_code=status.HTTP_303_SEE_OTHER)
+
+    actor = db.get(User, user.id)
+    assert actor is not None
+
+    act = "terminate" if action.strip() == "terminate" else "apply"
+    months_i: int | None = None
+    ends_date = None
+    if act == "apply":
+        if term_mode == "relative":
+            try:
+                months_i = int(months)
+            except ValueError:
+                return RedirectResponse(
+                    f"/admin/organizations/{org_id}?err={quote('Некорректный срок')}",
+                    status_code=303,
+                )
+        elif ends_on.strip():
+            try:
+                ends_date = date_cls.fromisoformat(ends_on.strip())
+            except ValueError:
+                return RedirectResponse(
+                    f"/admin/organizations/{org_id}?err={quote('Некорректная дата')}",
+                    status_code=303,
+                )
+
+    totp_ok = False
+    if totp_code.strip() or act == "terminate" or (months_i is not None and months_i > 12):
+        err = _require_totp(db, user, totp_code)
+        if err and (act == "terminate" or (months_i is not None and months_i > 12)):
+            return RedirectResponse(
+                f"/admin/organizations/{org_id}?err={quote(err)}",
+                status_code=303,
+            )
+        if err is None:
+            totp_ok = True
+
+    try:
+        result = apply_admin_subscription(
+            db,
+            org=org,
+            actor=actor,
+            action=act,
+            tariff_code=tariff_code,
+            term_mode="absolute" if term_mode == "absolute" else "relative",
+            months=months_i,
+            ends_on=ends_date,
+            reason=reason,
+            reason_comment=reason_comment,
+            notify=bool(notify),
+            confirm=confirm,
+            totp_ok=totp_ok,
+        )
+    except AdminSubscriptionError as exc:
+        db.rollback()
+        msg = str(exc)
+        if "2FA" in msg and totp_code.strip():
+            err = _require_totp(db, user, totp_code)
+            if err:
+                return RedirectResponse(
+                    f"/admin/organizations/{org_id}?err={quote(err)}",
+                    status_code=303,
+                )
+            try:
+                result = apply_admin_subscription(
+                    db,
+                    org=org,
+                    actor=actor,
+                    action=act,
+                    tariff_code=tariff_code,
+                    term_mode="absolute" if term_mode == "absolute" else "relative",
+                    months=months_i,
+                    ends_on=ends_date,
+                    reason=reason,
+                    reason_comment=reason_comment,
+                    notify=bool(notify),
+                    confirm=confirm,
+                    totp_ok=True,
+                )
+            except AdminSubscriptionError as exc2:
+                db.rollback()
+                return RedirectResponse(
+                    f"/admin/organizations/{org_id}?err={quote(str(exc2))}",
+                    status_code=303,
+                )
+        else:
+            return RedirectResponse(
+                f"/admin/organizations/{org_id}?err={quote(msg)}",
+                status_code=303,
+            )
+
+    db.commit()
+    if act == "terminate":
+        ok = "Подписка завершена"
+    elif result.payment is not None:
+        ok = f"Подписка обновлена, платёж {result.payment.id}"
+    else:
+        ok = "Подписка обновлена"
+    return RedirectResponse(
+        f"/admin/organizations/{org_id}?ok={quote(ok)}#subscription",
+        status_code=303,
     )
 
 
