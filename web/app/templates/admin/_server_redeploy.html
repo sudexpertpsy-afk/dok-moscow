@@ -1,0 +1,5 @@
+<p class="muted">Статус: <strong>{{ state.status or 'idle' }}</strong>
+  {% if state.ref %} · ref={{ state.ref }}{% endif %}
+  {% if state.exit_code is not none %} · exit={{ state.exit_code }}{% endif %}
+</p>
+<pre class="mono" style="max-height:240px;overflow:auto;white-space:pre-wrap;background:rgba(0,0,0,.04);padding:0.75rem;border-radius:8px">{{ state.log_tail or '—' }}</pre>

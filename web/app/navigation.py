@@ -368,6 +368,15 @@ NAV_REGISTRY: tuple[NavItem, ...] = (
         area="admin",
         group="Администрирование",
     ),
+    _item(
+        "admin_server",
+        "Сервер",
+        "/admin/server/",
+        synonyms=("ops", "ops-agent", "бэкап", "деплой", "hostland", "vds"),
+        roles=frozenset({NavRole.service_admin}),
+        area="admin",
+        group="Администрирование",
+    ),
 )
 
 
@@ -490,6 +499,16 @@ ROUTE_EXCEPTION_NOTES: dict[str, str] = {
     "/admin/legal/{act_id}/pull-ips": "POST подтянуть текст из ИПС",
     "/admin/legal/{act_id}/upload": "POST ручная загрузка",
     "/admin/legal/{act_id}/settings": "POST настройки акта",
+    "/admin/server/status-fragment": "HTMX статус ops-agent",
+    "/admin/server/redeploy-fragment": "HTMX лог деплоя",
+    "/admin/server/agent-ping": "JSON health ops-agent",
+    "/admin/server/logs": "POST логи контейнера",
+    "/admin/server/restart": "POST restart (2FA)",
+    "/admin/server/redeploy": "POST redeploy (2FA)",
+    "/admin/server/backup": "POST внеплановый бэкап",
+    "/admin/server/backup/download": "скачать архив бэкапа",
+    "/admin/server/cert-renew": "POST reload Caddy",
+    "/admin/server/hostland": "POST ссылки Hostland / дата VDS",
 }
 
 ROUTE_EXCEPTIONS: frozenset[str] = frozenset(ROUTE_EXCEPTION_NOTES)

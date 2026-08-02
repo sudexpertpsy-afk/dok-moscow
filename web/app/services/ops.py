@@ -414,7 +414,7 @@ def maybe_send_weekly_digest(db: Session) -> None:
 
 
 def ops_loop_tick(db: Session) -> None:
-    """Тик из worker: heartbeat + алерты + дайджест."""
+    """Тик из worker: heartbeat + алерты + дайджест + напоминания VDS (W-34)."""
     write_marker("worker_heartbeat", pid=os.getpid())
     try:
         check_alerts(db)
@@ -424,3 +424,9 @@ def ops_loop_tick(db: Session) -> None:
         maybe_send_weekly_digest(db)
     except Exception:
         log.exception("weekly digest failed")
+    try:
+        from app.services.hostland import maybe_send_vds_reminders
+
+        maybe_send_vds_reminders(db)
+    except Exception:
+        log.exception("vds reminders failed")

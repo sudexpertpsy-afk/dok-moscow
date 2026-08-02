@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     # T1: create_all только по явному флагу (тесты/быстрый локальный sqlite).
     # Прод и docker: alembic upgrade head в entrypoint; DB_AUTO_CREATE не задавать.
     db_auto_create: bool = False
+    # W-34: ops-agent (внутренний контейнер; порт наружу не публикуем)
+    ops_agent_enabled: bool = False
+    ops_agent_url: str = "http://ops-agent:9100"
+    ops_agent_token: str = ""
+    # Hostland (мосты без API)
+    hostland_panel_url: str = "https://hostland.ru/"
+    hostland_pay_url: str = "https://hostland.ru/"
+    hostland_console_url: str = "https://hostland.ru/"
 
 
 @lru_cache

@@ -30,6 +30,7 @@ services:
       TEMPLATES_DIR: /app/core/Шаблоны
       BILLING_WORKER: "0"
       JOBS_INLINE: "0"
+      OPS_AGENT_URL: http://ops-agent:9100
     command:
       - "uvicorn"
       - "app.main:app"
@@ -53,6 +54,30 @@ services:
     networks: [dok]
     expose:
       - "8000"
+
+  ops-agent:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      FILES_ROOT: /srv/dok/files
+      OPS_REPO_ROOT: /srv/dok
+      BACKUP_DIR: ${BACKUP_DIR:-/var/backups/dok}
+      COMPOSE_PROJECT_NAME: dok
+    # без docker-entrypoint (не нужна БД/миграции)
+    entrypoint: ["python", "-m", "app.ops_agent"]
+    volumes:
+      - files:/srv/dok/files
+      - ../:/srv/dok
+      - ${BACKUP_DIR:-/var/backups/dok}:${BACKUP_DIR:-/var/backups/dok}
+      - /var/run/docker.sock:/var/run/docker.sock
+      - caddy_data:/data:ro
+    # Порт только во внутренней сети compose (без ports:)
+    expose:
+      - "9100"
+    restart: unless-stopped
+    networks: [dok]
 
   worker:
     build:

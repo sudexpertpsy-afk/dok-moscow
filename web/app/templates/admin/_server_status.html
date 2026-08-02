@@ -1,0 +1,30 @@
+{% if not configured %}
+<p class="muted">Ops-agent выключен (OPS_AGENT_ENABLED / токен).</p>
+{% elif status_error %}
+<p class="badge warn">{{ status_error }}</p>
+{% elif status %}
+<ul class="status-list">
+  <li><span><strong>Хост</strong> — <span class="muted">{{ status.hostname }} · uptime {{ status.uptime_sec }} с</span></span><span class="badge ok">ok</span></li>
+  <li><span><strong>CPU load</strong> — <span class="muted">{{ status.cpu_load }}</span></span><span class="badge ok">info</span></li>
+  <li><span><strong>RAM</strong> — <span class="muted">{% if status.memory %}{{ status.memory.used_pct }}% · свободно {{ status.memory.available_mb }} МБ{% else %}н/д{% endif %}</span></span><span class="badge ok">info</span></li>
+  <li><span><strong>Диск</strong> — <span class="muted">{% if status.disk %}{{ status.disk.used_pct }}% · свободно {{ status.disk.free_gb }} ГБ{% else %}н/д{% endif %}</span></span><span class="badge ok">info</span></li>
+  <li><span><strong>Git</strong> — <span class="muted">{% if status.git %}{{ status.git.branch }} @ {{ status.git.commit }}{% else %}н/д{% endif %}</span></span><span class="badge ok">info</span></li>
+  <li><span><strong>SSL возраст</strong> — <span class="muted">{% if status.ssl_cert_age_days is not none %}{{ status.ssl_cert_age_days }} дн.{% else %}н/д{% endif %}</span></span><span class="badge ok">info</span></li>
+</ul>
+{% if status.containers %}
+<table class="table" style="margin-top:0.75rem">
+  <thead><tr><th>Сервис</th><th>Статус</th><th>Образ</th></tr></thead>
+  <tbody>
+    {% for c in status.containers %}
+    <tr>
+      <td class="mono">{{ c.service or c.name or c.error }}</td>
+      <td>{{ c.status or '—' }}</td>
+      <td class="muted mono">{{ c.image or '' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% else %}
+<p class="muted">Нет данных.</p>
+{% endif %}

@@ -1001,3 +1001,25 @@ class RateLimitHit(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
     )
+
+
+class OpsJournalEntry(Base):
+    """Журнал действий раздела «Сервер» (W-34)."""
+
+    __tablename__ = "ops_journal"
+    __table_args__ = (
+        Index("ix_ops_journal_created", "created_at"),
+        Index("ix_ops_journal_action", "action"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    details: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
+    )

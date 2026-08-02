@@ -23,8 +23,8 @@ fi
 echo "→ git pull"
 git -C "$ROOT" pull --ff-only
 
-echo "→ docker compose build (app + worker + gotenberg с fonts-liberation)"
-docker compose --env-file .env build app worker gotenberg
+echo "→ docker compose build (app + worker + ops-agent + gotenberg с fonts-liberation)"
+docker compose --env-file .env build app worker ops-agent gotenberg
 
 echo "→ docker compose up -d"
 docker compose --env-file .env up -d --remove-orphans

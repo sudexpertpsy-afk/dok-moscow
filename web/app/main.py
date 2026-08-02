@@ -23,6 +23,7 @@ from app.routers import (
     admin,
     admin_billing,
     admin_legal,
+    admin_server,
     admin_templates,
     auth,
     billing,
@@ -243,6 +244,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router)
     app.include_router(admin_billing.router)
     app.include_router(admin_legal.router)
+    app.include_router(admin_server.router)
     app.include_router(admin_templates.router)
 
     def _error_context(request: Request, *, status_code: int, detail: str) -> dict:

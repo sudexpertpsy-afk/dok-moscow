@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Сервер — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+
+<section class="panel">
+  <h1>Сервер</h1>
+  <p class="muted">Управление через ops-agent (белый список). Порт агента наружу не открыт.</p>
+  {% if flash_error %}<p class="badge warn" style="margin-top:0.75rem">{{ flash_error }}</p>{% endif %}
+  {% if flash_ok %}<p class="badge ok" style="margin-top:0.75rem">{{ flash_ok }}</p>{% endif %}
+  {% if not enabled %}
+  <p class="badge warn" style="margin-top:1rem">OPS_AGENT_ENABLED=false — раздел в режиме просмотра настроек Hostland.</p>
+  {% elif not configured %}
+  <p class="badge warn" style="margin-top:1rem">Задайте OPS_AGENT_TOKEN (≥32 байт) в deploy/.env.</p>
+  {% endif %}
+</section>
+
+<section class="panel" style="margin-top:1.25rem"
+         hx-get="/admin/server/status-fragment"
+         hx-trigger="every 10s"
+         hx-swap="innerHTML"
+         id="ops-status">
+  <h2>Статус</h2>
+  {% include "admin/_server_status.html" %}
+</section>
+
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Логи</h2>
+  <form method="post" action="/admin/server/logs" class="stack" style="gap:0.5rem;max-width:36rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Сервис
+      <select name="service">
+        {% for s in ['app','worker','caddy','gotenberg','postgres'] %}
+        <option value="{{ s }}" {% if log_service==s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Хвост <input name="tail" value="200"></label>
+    <label>Фильтр уровня <input name="level" placeholder="error"></label>
+    <button type="submit" class="btn">Показать</button>
+  </form>
+  {% if log_text %}
+  <pre class="mono" style="margin-top:1rem;max-height:320px;overflow:auto;white-space:pre-wrap;background:rgba(0,0,0,.04);padding:0.75rem;border-radius:8px">{{ log_text }}</pre>
+  {% endif %}
+</section>
+
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Перезапуск контейнера</h2>
+  <p class="muted">Нужны 2FA и слово RESTART. Postgres недоступен.</p>
+  <form method="post" action="/admin/server/restart" class="stack" style="gap:0.5rem;max-width:36rem"
+        id="restart-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Сервис
+      <select name="service">
+        {% for s in ['app','worker','caddy','gotenberg'] %}
+        <option value="{{ s }}">{{ s }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Код 2FA <input name="totp_code" autocomplete="one-time-code"></label>
+    <label>Подтверждение <input name="confirm" placeholder="RESTART"></label>
+    <button type="submit" class="btn">Перезапустить</button>
+  </form>
+  <p class="muted" id="restart-poll" style="margin-top:0.75rem"></p>
+</section>
+
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Обновить сайт (redeploy)</h2>
+  <form method="post" action="/admin/server/redeploy" class="stack" style="gap:0.5rem;max-width:36rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Ветка / тег <input name="ref" value="{{ redeploy_ref or 'main' }}"></label>
+    <label>Код 2FA <input name="totp_code" autocomplete="one-time-code"></label>
+    <label>Подтверждение <input name="confirm" placeholder="REDEPLOY"></label>
+    <button type="submit" class="btn">Обновить сайт</button>
+  </form>
+  <div style="margin-top:1rem"
+       hx-get="/admin/server/redeploy-fragment"
+       hx-trigger="load, every 5s"
+       hx-swap="innerHTML">
+    {% include "admin/_server_redeploy.html" %}
+  </div>
+</section>
+
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Бэкап</h2>
+  <form method="post" action="/admin/server/backup" class="stack" style="gap:0.5rem;max-width:24rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Код 2FA <input name="totp_code" autocomplete="one-time-code"></label>
+    <button type="submit" class="btn">Бэкап сейчас</button>
+  </form>
+  {% if backups %}
+  <table class="table" style="margin-top:1rem">
+    <thead><tr><th>Файл</th><th>Размер</th><th>Дата</th><th></th></tr></thead>
+    <tbody>
+      {% for b in backups[:20] %}
+      <tr>
+        <td class="mono">{{ b.name }}</td>
+        <td class="mono">{{ b.size }}</td>
+        <td class="muted">{{ b.mtime }}</td>
+        <td><a href="/admin/server/backup/download?name={{ b.name|urlencode }}">Скачать</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted" style="margin-top:0.75rem">Список бэкапов пуст или агент недоступен.</p>
+  {% endif %}
+</section>
+
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Сертификат Caddy</h2>
+  <form method="post" action="/admin/server/cert-renew" class="stack" style="gap:0.5rem;max-width:24rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Код 2FA <input name="totp_code" autocomplete="one-time-code"></label>
+    <button type="submit" class="btn">Перевыпустить / reload</button>
+  </form>
+</section>
+
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Hostland</h2>
+  <p class="muted">Публичного API нет — ссылки и дата оплаты VDS. Напоминания за 14 и 3 дня.</p>
+  <form method="post" action="/admin/server/hostland" class="stack" style="gap:0.5rem;max-width:36rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Панель <input name="panel_url" value="{{ hostland.panel_url or '' }}"></label>
+    <label>Оплата VDS <input name="pay_url" value="{{ hostland.pay_url or '' }}"></label>
+    <label>Веб-консоль <input name="console_url" value="{{ hostland.console_url or '' }}"></label>
+    <label>Оплачено до (YYYY-MM-DD) <input name="vds_paid_until" value="{{ hostland.vds_paid_until or '' }}"></label>
+    <button type="submit" class="btn">Сохранить</button>
+  </form>
+  <p style="margin-top:0.75rem">
+    <a href="{{ hostland.panel_url }}" rel="noopener noreferrer" target="_blank">Панель</a> ·
+    <a href="{{ hostland.pay_url }}" rel="noopener noreferrer" target="_blank">Оплата</a> ·
+    <a href="{{ hostland.console_url }}" rel="noopener noreferrer" target="_blank">Консоль</a>
+  </p>
+</section>
+
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Журнал ops</h2>
+  {% if journal %}
+  <table class="table">
+    <thead><tr><th>Когда</th><th>Действие</th><th>OK</th><th>IP</th></tr></thead>
+    <tbody>
+      {% for j in journal %}
+      <tr>
+        <td class="muted">{{ j.created_at }}</td>
+        <td class="mono">{{ j.action }}</td>
+        <td>{% if j.ok %}<span class="badge ok">ok</span>{% else %}<span class="badge warn">fail</span>{% endif %}</td>
+        <td class="mono">{{ j.ip or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Пока пусто.</p>
+  {% endif %}
+</section>
+
+<script>
+(function () {
+  var form = document.getElementById('restart-form');
+  var out = document.getElementById('restart-poll');
+  if (!form || !out) return;
+  form.addEventListener('submit', function () {
+    out.textContent = 'Команда отправлена. Если перезапускается app — страница может кратко не отвечать; опрос агента…';
+    var n = 0;
+    var t = setInterval(function () {
+      n += 1;
+      fetch('/admin/server/agent-ping', {credentials: 'same-origin'})
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.ok) {
+            out.textContent = 'Агент отвечает · готово (попытка ' + n + ').';
+            if (n > 2) clearInterval(t);
+          } else {
+            out.textContent = 'Перезапуск… агент/приложение ещё не ответили (' + n + ').';
+          }
+        })
+        .catch(function () {
+          out.textContent = 'Перезапуск… нет ответа app (' + n + '). Обновите страницу через минуту.';
+        });
+      if (n > 40) clearInterval(t);
+    }, 3000);
+  });
+})();
+</script>
+
+{% include "admin/_layout_end.html" %}
+{% endblock %}
