@@ -185,8 +185,21 @@ def _resolve_ends_at(
     return add_months(base, months)
 
 
-def _extension_months_from_now(ends_at: datetime, now: datetime) -> float:
-    return (_aware(ends_at) - now).total_seconds() / (86400 * 30.4375)
+def _months_between(start: datetime, end: datetime) -> float:
+    return (_aware(end) - _aware(start)).total_seconds() / (86400 * 30.4375)
+
+
+def extension_requires_totp(
+    *,
+    term_mode: TermMode,
+    months: int | None,
+    ends_at: datetime,
+    base: datetime,
+) -> bool:
+    """TOTP нужен, если *добавляемый* срок > 12 мес. (не если итог уже далеко в будущем)."""
+    if term_mode == "relative":
+        return (months or 0) > 12
+    return _months_between(base, ends_at) > 12.01
 
 
 def apply_admin_subscription(
@@ -267,11 +280,18 @@ def apply_admin_subscription(
         raise AdminSubscriptionError("Тариф не найден")
 
     sub = _ensure_subscription(db, org, tariff)
+    base = _aware(sub.ends_at) if sub.is_current(now) else now
+    if base < now:
+        base = now
     ends_at = _resolve_ends_at(
         sub=sub, term_mode=term_mode, months=months, ends_on=ends_on, now=now
     )
-    if _extension_months_from_now(ends_at, now) > 12.01 and not totp_ok:
-        raise AdminSubscriptionError("Для срока больше 12 месяцев нужен код 2FA")
+    if extension_requires_totp(
+        term_mode=term_mode, months=months, ends_at=ends_at, base=base
+    ) and not totp_ok:
+        raise AdminSubscriptionError(
+            "Для продления больше чем на 12 месяцев нужен код 2FA"
+        )
 
     # идемпотентность оплаты по счёту — как W-13
     payment: Payment | None = None

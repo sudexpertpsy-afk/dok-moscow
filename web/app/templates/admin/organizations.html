@@ -54,8 +54,8 @@
         <td>{{ org_stats.get(o.id, {}).get('open_invites', 0) }}</td>
         <td class="muted">{{ o.created_at }}</td>
         <td>
-          <button type="button" class="btn secondary" style="font-size:0.85rem"
-                  onclick="document.getElementById('dlg-sub-{{ o.id }}').showModal()">Подписка…</button>
+          <button type="button" class="btn secondary sub-open-btn"
+                  data-dlg="dlg-sub-{{ o.id }}">Подписка…</button>
         </td>
       </tr>
       {% else %}
@@ -66,17 +66,41 @@
 </section>
 
 {% for o in orgs %}
-<dialog id="dlg-sub-{{ o.id }}" style="max-width:40rem;width:92%;border:1px solid #ccc;border-radius:8px;padding:1.25rem">
-  <form method="dialog" style="float:right;margin:0">
-    <button type="submit" class="btn secondary" value="cancel">Закрыть</button>
-  </form>
-  <h2 style="font-family:var(--font-display);font-size:1.2rem;margin-top:0">Управление подпиской</h2>
-  <p class="muted">{{ o.name }} · ID {{ o.id }}</p>
-  {% with org=o, sub=subs.get(o.id), sub_info=sub_badges.get(o.id), form_id='list-sub-' ~ o.id %}
+<dialog id="dlg-sub-{{ o.id }}" class="sub-dialog">
+  <div class="sub-dialog-head">
+    <div>
+      <h2 class="sub-dialog-title">Управление подпиской</h2>
+      <p class="muted sub-dialog-org">{{ o.name }} · ID {{ o.id }}</p>
+    </div>
+    <button type="button" class="sub-dialog-close" data-close="dlg-sub-{{ o.id }}" aria-label="Закрыть">×</button>
+  </div>
+  {% with org=o, sub=subs.get(o.id), sub_info=sub_badges.get(o.id), form_id='list-sub-' ~ o.id, return_to='/admin/organizations' %}
     {% include "admin/_subscription_manage.html" %}
   {% endwith %}
 </dialog>
 {% endfor %}
+
+<script>
+(function () {
+  document.querySelectorAll(".sub-open-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var dlg = document.getElementById(btn.getAttribute("data-dlg"));
+      if (dlg) dlg.showModal();
+    });
+  });
+  document.querySelectorAll(".sub-dialog-close").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var dlg = document.getElementById(btn.getAttribute("data-close"));
+      if (dlg) dlg.close();
+    });
+  });
+  document.querySelectorAll("dialog.sub-dialog").forEach(function (dlg) {
+    dlg.addEventListener("click", function (ev) {
+      if (ev.target === dlg) dlg.close();
+    });
+  });
+})();
+</script>
 
 {% include "admin/_layout_end.html" %}
 {% endblock %}

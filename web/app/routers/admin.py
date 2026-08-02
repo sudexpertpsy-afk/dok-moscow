@@ -243,6 +243,16 @@ def admin_organization_detail(
     )
 
 
+def _safe_admin_return(return_to: str, org_id: int) -> str:
+    """Разрешаем только относительные пути админки (после POST из dialog/карточки)."""
+    raw = (return_to or "").strip()
+    if raw.startswith("/admin/") and "://" not in raw and "\n" not in raw:
+        base = raw.split("?", 1)[0].split("#", 1)[0]
+        if base == "/admin/organizations" or base.startswith(f"/admin/organizations/{org_id}"):
+            return raw
+    return f"/admin/organizations/{org_id}#subscription"
+
+
 @router.post("/organizations/{org_id}/subscription", response_class=HTMLResponse)
 def admin_organization_subscription(
     org_id: int,
@@ -257,15 +267,33 @@ def admin_organization_subscription(
     notify: str = Form(""),
     confirm: str = Form(""),
     totp_code: str = Form(""),
+    return_to: str = Form(""),
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf),
 ):
     from datetime import date as date_cls
-    from urllib.parse import quote
+    from urllib.parse import quote, urlencode
 
     from app.routers.admin_server import _require_totp
     from app.services.admin_subscription import AdminSubscriptionError, apply_admin_subscription
+
+    dest = _safe_admin_return(return_to, org_id)
+
+    def _redir(*, ok: str | None = None, err: str | None = None) -> RedirectResponse:
+        q: dict[str, str] = {}
+        if ok:
+            q["ok"] = ok
+        if err:
+            q["err"] = err
+        path, frag = (dest.split("#", 1) + [""])[:2]
+        path_base, _, old_q = path.partition("?")
+        url = path_base
+        if q:
+            url += "?" + urlencode(q)
+        if frag:
+            url += "#" + frag
+        return RedirectResponse(url, status_code=303)
 
     org = db.get(Organization, org_id)
     if org is None:
@@ -282,27 +310,18 @@ def admin_organization_subscription(
             try:
                 months_i = int(months)
             except ValueError:
-                return RedirectResponse(
-                    f"/admin/organizations/{org_id}?err={quote('Некорректный срок')}",
-                    status_code=303,
-                )
+                return _redir(err="Некорректный срок")
         elif ends_on.strip():
             try:
                 ends_date = date_cls.fromisoformat(ends_on.strip())
             except ValueError:
-                return RedirectResponse(
-                    f"/admin/organizations/{org_id}?err={quote('Некорректная дата')}",
-                    status_code=303,
-                )
+                return _redir(err="Некорректная дата")
 
     totp_ok = False
     if totp_code.strip() or act == "terminate" or (months_i is not None and months_i > 12):
         err = _require_totp(db, user, totp_code)
         if err and (act == "terminate" or (months_i is not None and months_i > 12)):
-            return RedirectResponse(
-                f"/admin/organizations/{org_id}?err={quote(err)}",
-                status_code=303,
-            )
+            return _redir(err=err)
         if err is None:
             totp_ok = True
 
@@ -328,10 +347,7 @@ def admin_organization_subscription(
         if "2FA" in msg and totp_code.strip():
             err = _require_totp(db, user, totp_code)
             if err:
-                return RedirectResponse(
-                    f"/admin/organizations/{org_id}?err={quote(err)}",
-                    status_code=303,
-                )
+                return _redir(err=err)
             try:
                 result = apply_admin_subscription(
                     db,
@@ -350,15 +366,9 @@ def admin_organization_subscription(
                 )
             except AdminSubscriptionError as exc2:
                 db.rollback()
-                return RedirectResponse(
-                    f"/admin/organizations/{org_id}?err={quote(str(exc2))}",
-                    status_code=303,
-                )
+                return _redir(err=str(exc2))
         else:
-            return RedirectResponse(
-                f"/admin/organizations/{org_id}?err={quote(msg)}",
-                status_code=303,
-            )
+            return _redir(err=msg)
 
     db.commit()
     if act == "terminate":
@@ -367,10 +377,7 @@ def admin_organization_subscription(
         ok = f"Подписка обновлена, платёж {result.payment.id}"
     else:
         ok = "Подписка обновлена"
-    return RedirectResponse(
-        f"/admin/organizations/{org_id}?ok={quote(ok)}#subscription",
-        status_code=303,
-    )
+    return _redir(ok=ok)
 
 
 @router.post("/organizations/{org_id}/rename", response_class=HTMLResponse)

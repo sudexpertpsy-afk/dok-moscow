@@ -21,8 +21,9 @@ from app.models import (
     utcnow,
 )
 from app.routers.admin_billing import _payments_summary
-from app.services.admin_subscription import add_months
+from app.services.admin_subscription import add_months, extension_requires_totp
 from app.services.billing import ensure_beta_subscriptions, ensure_tariffs, get_current_subscription
+from datetime import timezone
 from app.totp_2fa import enable_totp, generate_totp_secret
 from conftest import csrf_from, login
 
@@ -270,6 +271,72 @@ def test_org_list_shows_subscription_column(app):
     assert "Подписка" in r.text
     assert "Подписка…" in r.text
     assert "Управление подпиской" in r.text
+    assert 'class="sub-dialog"' in r.text
+    assert 'name="return_to"' in r.text
+
+
+def test_totp_only_for_extension_length_not_remote_end():
+    """+1 мес. к подписке, которая и так далеко — без 2FA; абсолют >12 мес. — с 2FA."""
+    now = utcnow()
+    base = now + timedelta(days=400)  # уже > 12 мес. вперёд
+    ends_plus_1 = add_months(base, 1)
+    assert not extension_requires_totp(
+        term_mode="relative", months=1, ends_at=ends_plus_1, base=base
+    )
+    assert extension_requires_totp(
+        term_mode="relative", months=13, ends_at=add_months(base, 13), base=base
+    )
+    far = now.replace(tzinfo=now.tzinfo or timezone.utc) + timedelta(days=400)
+    assert extension_requires_totp(
+        term_mode="absolute", months=None, ends_at=far, base=now
+    )
+
+
+def test_dialog_extend_returns_to_list(app):
+    client, dbmod = app
+    assert login(client, "admin@dok.moscow", "AdminPass123!").status_code == 303
+    oid = _org(dbmod, 'OOO Quotes Org')
+    # длинный текущий срок — раньше ломал продление требованием 2FA
+    db = dbmod.SessionLocal()
+    try:
+        sub = get_current_subscription(db, oid)
+        sub.status = SubscriptionStatus.active
+        sub.is_beta = False
+        sub.ends_at = utcnow() + timedelta(days=400)
+        db.commit()
+        before = sub.ends_at
+    finally:
+        db.close()
+
+    token = csrf_from(client, "/admin/organizations")
+    r = client.post(
+        f"/admin/organizations/{oid}/subscription",
+        data={
+            "csrf_token": token,
+            "confirm": "YES",
+            "action": "apply",
+            "tariff_code": "organization",
+            "term_mode": "relative",
+            "months": "1",
+            "reason": "partner",
+            "reason_comment": "",
+            "return_to": "/admin/organizations",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    loc = r.headers.get("location", "")
+    assert loc.startswith("/admin/organizations?")
+    assert "ok=" in loc
+    assert f"/organizations/{oid}" not in loc.split("?")[0]
+
+    db = dbmod.SessionLocal()
+    try:
+        sub = get_current_subscription(db, oid)
+        assert sub.ends_at > before
+        assert sub.is_complimentary is True
+    finally:
+        db.close()
 
 
 def test_history_event_recorded(app):
