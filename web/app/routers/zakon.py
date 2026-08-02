@@ -61,7 +61,7 @@ def _parse_date(raw: str | None) -> date | None:
         return None
 
 
-@router.get("", include_in_schema=False)
+@router.api_route("", methods=["GET", "HEAD"], include_in_schema=False)
 def zakon_index_trailing_slash(request: Request):
     """Один 301 /zakon → /zakon/ с относительным Location (без http:// от Starlette)."""
     qs = request.url.query

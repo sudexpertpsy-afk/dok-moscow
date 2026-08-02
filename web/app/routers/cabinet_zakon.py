@@ -93,7 +93,7 @@ def _rewrite_search_hits(hits, groups_search):
             setattr(h, "cabinet_url", cz.cabinet_hit_url(act.slug, h.article_ref or ""))
 
 
-@router.get("", include_in_schema=False)
+@router.api_route("", methods=["GET", "HEAD"], include_in_schema=False)
 def cabinet_zakon_index_trailing_slash(request: Request):
     """Один 301 /cabinet/zakon → /cabinet/zakon/ (относительный Location)."""
     qs = request.url.query

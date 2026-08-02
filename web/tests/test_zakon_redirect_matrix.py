@@ -196,3 +196,11 @@ def test_query_preserved_on_slash_redirect(app):
     assert r.status_code == 301
     assert _loc(r).startswith("/zakon/?")
     assert "q=" in _loc(r)
+
+
+def test_head_zakon_slash_redirect(app):
+    """curl -sIL шлёт HEAD — редирект без слэша должен отвечать 301, не 405."""
+    client, _ = app
+    r = client.head("/zakon", headers={"Host": "dok.moscow"}, follow_redirects=False)
+    assert r.status_code == 301
+    assert _loc(r) == "/zakon/"
