@@ -170,10 +170,7 @@ def generate_docx(
 
 
 def absolute_file(doc: Document) -> Path:
-    path = Path(get_settings().files_root) / doc.file_path
-    # защита от traversal
-    root = Path(get_settings().files_root).resolve()
-    resolved = path.resolve()
-    if not str(resolved).startswith(str(root)):
-        raise FileNotFoundError("Недопустимый путь")
-    return resolved
+    """Абсолютный путь к файлу документа строго внутри FILES_ROOT/{org_id}."""
+    from app.services.safe_paths import resolve_under_org
+
+    return resolve_under_org(doc.org_id, doc.file_path)

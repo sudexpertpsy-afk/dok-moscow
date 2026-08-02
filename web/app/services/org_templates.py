@@ -9,7 +9,6 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
 from app.models import Contract, Document, TariffCode
 from app.services.billing import get_tariff_limits
 from app.services.docx_upload import (
@@ -34,9 +33,24 @@ class OrgTemplateError(Exception):
 
 
 def org_templates_dir(org_id: int) -> Path:
-    root = Path(get_settings().files_root) / str(org_id) / "templates"
+    from app.services.safe_paths import org_files_root, resolve_under
+
+    root = resolve_under(org_files_root(org_id), "templates")
     root.mkdir(parents=True, exist_ok=True)
     return root
+
+
+def resolve_org_template_file(org_id: int, name: str) -> Path:
+    """Путь к файлу шаблона строго внутри каталога templates организации."""
+    from app.services.safe_paths import resolve_under
+
+    safe = Path(name).name
+    if safe != name or not safe.endswith(".docx"):
+        raise OrgTemplateError("Некорректное имя шаблона")
+    path = resolve_under(org_templates_dir(org_id), safe)
+    if not path.is_file():
+        raise FileNotFoundError("Шаблон не найден")
+    return path
 
 
 def can_manage_org_templates(db: Session, org_id: int) -> tuple[bool, str | None]:
@@ -182,9 +196,11 @@ def save_org_upload(
     existing = [p for p in root.glob("*.docx") if not p.name.startswith("~$")]
     if len(existing) >= MAX_ORG_TEMPLATES:
         raise OrgTemplateError(f"Лимит своих шаблонов: {MAX_ORG_TEMPLATES}")
+    from app.services.safe_paths import resolve_under
+
     stem = _safe_stem(filename)
     name = f"{stem}.docx"
-    dest = root / name
+    dest = resolve_under(root, name)
     if dest.exists():
         raise OrgTemplateError(f"Шаблон «{name}» уже есть — переименуйте или удалите старый")
     dest.write_bytes(data)
@@ -206,16 +222,14 @@ def rename_org_template(
     old_name: str,
     new_title: str,
 ) -> str:
-    old = Path(old_name).name
-    if old != old_name or not old.endswith(".docx"):
-        raise OrgTemplateError("Некорректное имя шаблона")
-    src = org_templates_dir(org_id) / old
-    if not src.is_file():
-        raise FileNotFoundError("Шаблон не найден")
+    from app.services.safe_paths import resolve_under
+
+    src = resolve_org_template_file(org_id, old_name)
+    old = src.name
     new_name = f"{_safe_stem(new_title)}.docx"
     if new_name == old:
         return old
-    dest = org_templates_dir(org_id) / new_name
+    dest = resolve_under(org_templates_dir(org_id), new_name)
     if dest.exists():
         raise OrgTemplateError(f"Файл «{new_name}» уже существует")
     src.rename(dest)
@@ -236,12 +250,8 @@ def rename_org_template(
 
 
 def delete_org_template(*, org_id: int, name: str) -> None:
-    safe = Path(name).name
-    if safe != name or not safe.endswith(".docx"):
-        raise OrgTemplateError("Некорректное имя шаблона")
-    path = org_templates_dir(org_id) / safe
-    if not path.is_file():
-        raise FileNotFoundError("Шаблон не найден")
+    path = resolve_org_template_file(org_id, name)
+    safe = path.name
     path.unlink()
     reg = load_org_registry(org_id)
     for key in CONTRACT_TYPES:
@@ -250,10 +260,8 @@ def delete_org_template(*, org_id: int, name: str) -> None:
 
 
 def set_org_contract_role(*, org_id: int, name: str, contract_type: str) -> None:
-    safe = Path(name).name
-    path = org_templates_dir(org_id) / safe
-    if not path.is_file():
-        raise FileNotFoundError("Шаблон не найден")
+    path = resolve_org_template_file(org_id, name)
+    safe = path.name
     reg = load_org_registry(org_id)
     for ctype in CONTRACT_TYPES:
         reg["contracts"][ctype] = [x for x in reg["contracts"][ctype] if x != safe]

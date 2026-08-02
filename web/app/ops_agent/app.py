@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 import threading
@@ -34,7 +35,7 @@ def require_token(authorization: str | None = Header(default=None)) -> None:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Нужен Bearer token")
     got = authorization.split(" ", 1)[1].strip()
-    if not got or got != expected:
+    if not got or not hmac.compare_digest(got, expected):
         raise HTTPException(status_code=401, detail="Неверный token")
 
 

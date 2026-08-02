@@ -195,7 +195,10 @@ def document_download(
     db: Session = Depends(get_db),
 ):
     doc = get_document_for_org(db, require_org_id(user), doc_id)
-    path = absolute_file(doc)
+    try:
+        path = absolute_file(doc)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Файл не найден") from exc
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Файл не найден")
     return FileResponse(

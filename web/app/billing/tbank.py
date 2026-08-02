@@ -7,6 +7,7 @@ API base: https://securepay.tinkoff.ru/v2/
 from __future__ import annotations
 
 import hashlib
+import hmac
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -52,7 +53,8 @@ def verify_token(params: dict[str, Any], password: str) -> bool:
     received = params.get("Token")
     if not received or not isinstance(received, str):
         return False
-    return build_token(params, password) == received
+    expected = build_token(params, password)
+    return hmac.compare_digest(expected, received)
 
 
 @dataclass

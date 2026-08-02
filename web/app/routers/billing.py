@@ -35,7 +35,8 @@ async def tbank_webhook(request: Request, db: Session = Depends(get_db)):
         payload = await request.json()
     except Exception:
         webhook_limiter.register_failure(ip)
-        record_webhook_fail("bad_json")
+        log.warning("webhook rejected reason=bad_json ip=%s", ip)
+        record_webhook_fail("bad_json", ip=ip)
         record_event(
             db,
             type="billing_webhook_rejected",
@@ -46,7 +47,15 @@ async def tbank_webhook(request: Request, db: Session = Depends(get_db)):
         return PlainTextResponse("OK", status_code=200)
 
     if not isinstance(payload, dict):
-        record_webhook_fail("not_object")
+        log.warning("webhook rejected reason=not_object ip=%s", ip)
+        record_webhook_fail("not_object", ip=ip)
+        record_event(
+            db,
+            type="billing_webhook_rejected",
+            org_id=None,
+            user_id=None,
+            details={"reason": "not_object", "ip": ip},
+        )
         return PlainTextResponse("OK", status_code=200)
 
     try:
@@ -54,8 +63,8 @@ async def tbank_webhook(request: Request, db: Session = Depends(get_db)):
         db.commit()
     except TBankError as exc:
         webhook_limiter.register_failure(ip)
-        log.info("webhook rejected: %s", exc)
-        record_webhook_fail(str(exc))
+        log.warning("webhook rejected reason=%s ip=%s", exc, ip)
+        record_webhook_fail(str(exc), ip=ip)
         record_event(
             db,
             type="billing_webhook_rejected",
@@ -72,9 +81,9 @@ async def tbank_webhook(request: Request, db: Session = Depends(get_db)):
         # При неверном Token — тоже OK, чтобы не усиливать ретраи с неверным секретом.
         return PlainTextResponse("OK", status_code=200)
     except Exception:
-        log.exception("webhook processing error")
+        log.exception("webhook processing error ip=%s", ip)
         db.rollback()
-        record_webhook_fail("processing_error")
+        record_webhook_fail("processing_error", ip=ip)
         # 500 — банк повторит доставку
         return PlainTextResponse("ERROR", status_code=500)
 

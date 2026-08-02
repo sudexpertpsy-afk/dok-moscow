@@ -157,6 +157,7 @@ def cms_content(
 async def cms_content_preview(
     request: Request,
     user: CurrentUser = Depends(require_service_admin),
+    _: None = Depends(require_csrf),
 ):
     form = await request.form()
     return HTMLResponse(str(safe_markdown(str(form.get("body_md") or ""), inline=False)))

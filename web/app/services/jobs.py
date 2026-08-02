@@ -198,10 +198,16 @@ def _run_package_zip(db: Session, job: Job, payload: dict) -> dict[str, Any]:
 
 
 def job_download_path(job: Job) -> Path | None:
+    """Путь к результату job только внутри FILES_ROOT/{job.org_id} (F-01)."""
+    from app.services.safe_paths import resolve_under_org
+
     if job.status != JobStatus.succeeded or not job.result:
         return None
     path = job.result.get("file_path")
     if not path:
         return None
-    p = Path(path)
+    try:
+        p = resolve_under_org(job.org_id, path)
+    except FileNotFoundError:
+        return None
     return p if p.is_file() else None

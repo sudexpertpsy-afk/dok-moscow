@@ -286,13 +286,13 @@ def list_backups() -> dict[str, Any]:
 
 
 def resolve_backup_path(name: str) -> Path:
-    """Безопасный путь к файлу бэкапа внутри BACKUP_DIR."""
+    """Безопасный путь к файлу бэкапа внутри BACKUP_DIR (resolve + is_relative_to)."""
     raw = (name or "").strip().replace("\\", "/")
     if not raw or raw.startswith("/") or ".." in raw.split("/"):
         raise ValueError("Некорректное имя бэкапа")
-    path = (BACKUP_DIR / raw).resolve()
     root = BACKUP_DIR.resolve()
-    if not str(path).startswith(str(root) + os.sep) and path != root:
+    path = (root / raw).resolve()
+    if not path.is_relative_to(root):
         raise ValueError("Путь вне каталога бэкапов")
     if not path.is_file():
         raise FileNotFoundError("Файл не найден")

@@ -295,7 +295,21 @@ def check_alerts(db: Session) -> list[str]:
         _send_alert(
             key,
             f"[{app_name}] Ошибки вебхука Т-Кассы",
-            f"Подряд отказов: {streak}. Последняя причина: {fail.get('reason', '—')}\n",
+            f"Подряд отказов: {streak}. Последняя причина: {fail.get('reason', '—')}\n"
+            f"IP: {fail.get('last_ip') or '—'}\n",
+        )
+        fired.append(key)
+
+    hour_count = int(fail.get("hour_count") or 0)
+    window_start = float(fail.get("hour_window_start") or 0)
+    if hour_count > 10 and (time.time() - window_start) < 3600:
+        key = "webhook_fail_rate"
+        _send_alert(
+            key,
+            f"[{app_name}] Вебхук Т-Кассы: много отказов за час",
+            f"Отказов за текущий час: {hour_count} (порог >10).\n"
+            f"Последняя причина: {fail.get('reason', '—')}\n"
+            f"IP: {fail.get('last_ip') or '—'}\n",
         )
         fired.append(key)
 
@@ -325,13 +339,38 @@ def check_alerts(db: Session) -> list[str]:
 
 def record_webhook_ok() -> None:
     write_marker("webhook_ok")
-    write_marker("webhook_fail", streak=0)
+    # Сбрасываем только streak подряд; часовой счётчик отказов (F-05) сохраняем.
+    prev = read_marker("webhook_fail") or {}
+    write_marker(
+        "webhook_fail",
+        streak=0,
+        reason=prev.get("reason") or "",
+        hour_window_start=float(prev.get("hour_window_start") or 0) or None,
+        hour_count=int(prev.get("hour_count") or 0),
+        last_ip=prev.get("last_ip") or "",
+    )
 
 
-def record_webhook_fail(reason: str) -> None:
+def record_webhook_fail(reason: str, *, ip: str | None = None) -> None:
+    """Учёт отказа вебхука: streak подряд + счётчик за скользящий час (F-05)."""
     prev = read_marker("webhook_fail") or {}
     streak = int(prev.get("streak") or 0) + 1
-    write_marker("webhook_fail", streak=streak, reason=reason[:500])
+    now = time.time()
+    window_start = float(prev.get("hour_window_start") or 0)
+    hour_count = int(prev.get("hour_count") or 0)
+    if not window_start or (now - window_start) >= 3600:
+        window_start = now
+        hour_count = 1
+    else:
+        hour_count += 1
+    write_marker(
+        "webhook_fail",
+        streak=streak,
+        reason=reason[:500],
+        hour_window_start=window_start,
+        hour_count=hour_count,
+        last_ip=(ip or prev.get("last_ip") or "")[:64],
+    )
 
 
 def weekly_digest(db: Session) -> bool:
