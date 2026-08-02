@@ -72,6 +72,26 @@ input, select, textarea {
   background: #fff;
   color: var(--ink);
 }
+/* Чекбоксы/радио не растягивать на 100% — иначе подпись уезжает вправо (мастер комплекта step2). */
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+  max-width: none;
+  border-radius: 4px;
+  padding: 0;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+label.check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.45rem 0;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.95rem;
+}
 button, .btn {
   display: inline-flex;
   align-items: center;

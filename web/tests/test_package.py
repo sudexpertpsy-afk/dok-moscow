@@ -57,7 +57,14 @@ def _run_wizard(client, тип, contract, core_overrides=None, extras_force=None
     r = client.post("/cabinet/package/step1", data=data, follow_redirects=False)
     assert r.status_code == 303, r.text[:400]
 
-    # step2
+    # step2: чекбоксы сопутствующих не растянуты на 100% (layout)
+    step2 = client.get("/cabinet/package/step2")
+    assert step2.status_code == 200
+    assert "Сопутствующие" in step2.text or "Договор" in step2.text
+    if "Сопутствующие" in step2.text:
+        assert 'class="check-row"' in step2.text
+        assert 'type="checkbox"' in step2.text
+
     csrf = csrf_from(client, "/cabinet/package/step2")
     extras = extra_options(тип, contract, empty_requisites())
     data = {"csrf_token": csrf, "contract_template": contract, "action": "next"}
