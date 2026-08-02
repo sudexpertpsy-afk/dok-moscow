@@ -28,7 +28,7 @@ class ThrottledClient:
         *,
         min_interval: float = 1.0,
         cache_ttl: float = 300.0,
-        timeout: float = 40.0,
+        timeout: float = 120.0,  # полные кодексы ИПС (fulltext) бывают >1–4 МБ
         user_agent: str = DEFAULT_UA,
         transport: httpx.BaseTransport | None = None,
         clock=None,
