@@ -18,6 +18,7 @@ down_revision: str | None = "u1j2k3l4m5n6"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+# Как в models._STR_ENUM: VARCHAR + check на уровне приложения, без PG ENUM.
 _ORG_FIELD_TYPE = sa.Enum(
     "string",
     "multiline",
@@ -27,11 +28,13 @@ _ORG_FIELD_TYPE = sa.Enum(
     "select",
     "counter",
     name="org_field_type",
+    native_enum=False,
 )
 
 
 def upgrade() -> None:
-    _ORG_FIELD_TYPE.create(op.get_bind(), checkfirst=True)
+    # На случай частичного прогона предыдущей версии миграции (PG ENUM).
+    op.execute(sa.text("DROP TYPE IF EXISTS org_field_type"))
     op.create_table(
         "org_fields",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -72,4 +75,4 @@ def downgrade() -> None:
     op.drop_index("uq_org_fields_org_name", table_name="org_fields")
     op.drop_index("ix_org_fields_org_id", table_name="org_fields")
     op.drop_table("org_fields")
-    _ORG_FIELD_TYPE.drop(op.get_bind(), checkfirst=True)
+    op.execute(sa.text("DROP TYPE IF EXISTS org_field_type"))
