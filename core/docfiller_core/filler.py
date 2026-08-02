@@ -11,7 +11,7 @@ from xml.sax.saxutils import escape as xml_escape
 
 from docx import Document
 from docxtpl import DocxTemplate
-from jinja2 import Environment
+from jinja2.sandbox import SandboxedEnvironment
 from lxml import etree
 
 from . import filters
@@ -43,7 +43,7 @@ def _declensions_from_settings(settings):
 
 def list_template_variables(template_path, settings=None):
     """Вернуть отсортированный список переменных, найденных в шаблоне."""
-    env = Environment()
+    env = SandboxedEnvironment()
     if settings is None:
         settings = load_settings()
     filters.install(env, declensions=_declensions_from_settings(settings))
@@ -296,7 +296,8 @@ def fill_template(template_path, output_path, context, settings=None):
     context       — словарь {имя_переменной: значение}.
     settings      — словарь/объект настроек организации (веб); иначе load_settings().
     """
-    env = Environment()
+    # SandboxedEnvironment: org-загрузки DOCX не должны выполнять произвольный Python (P7).
+    env = SandboxedEnvironment()
     if settings is None:
         settings = load_settings()
     elif isinstance(settings, dict):

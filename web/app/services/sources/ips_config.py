@@ -13,6 +13,7 @@ IPS_BASE = os.environ.get("PRAVO_IPS_BASE", "http://pravo.gov.ru/proxy/ips").rst
 DOC_ITSELF_PATH = "/"
 DOC_ITSELF_QUERY = {
     "doc_itself": "",
+    "fulltext": "1",  # без fulltext ИПС отдаёт урезанный текст (без «хвоста» кодекса)
     "page": "1",
     "link_id": "0",
 }
