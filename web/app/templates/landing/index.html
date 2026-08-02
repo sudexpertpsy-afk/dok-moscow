@@ -103,17 +103,17 @@
       <article class="lp-card lp-card-icon">
         <svg class="lp-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6V3zm9 0v3h3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 11h6M9 15h4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
         <h3>Комплекты документов</h3>
-        <p>Договор + счёт + акт + ПКО одной формой; нумерация и журнал — автоматически.</p>
+        <p>{% if content_slots.feature_1 %}{{ content_slots.feature_1 }}{% else %}Договор + счёт + акт + ПКО одной формой; нумерация и журнал — автоматически.{% endif %}</p>
       </article>
       <article class="lp-card lp-card-icon">
         <svg class="lp-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 19c.8-2.6 2.8-4 5-4s4.2 1.4 5 4M16 8h4M18 6v4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
         <h3>Картотека и ЕГРЮЛ</h3>
-        <p>Повторный клиент — два клика; статус юрлица (ликвидация/банкротство) виден до договора.</p>
+        <p>{% if content_slots.feature_2 %}{{ content_slots.feature_2 }}{% else %}Повторный клиент — два клика; статус юрлица (ликвидация/банкротство) виден до договора.{% endif %}</p>
       </article>
       <article class="lp-card lp-card-icon">
         <svg class="lp-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 3v4M16 3v4M4 10h16" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
         <h3>Календарь сроков</h3>
-        <p>Истечения договоров и неподписанные акты — на главном экране, а не в памяти.</p>
+        <p>{% if content_slots.feature_3 %}{{ content_slots.feature_3 }}{% else %}Истечения договоров и неподписанные акты — на главном экране, а не в памяти.{% endif %}</p>
       </article>
       <article class="lp-card lp-card-icon">
         <svg class="lp-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V5h9l5 5v9H5z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M14 5v5h5M8 13h8M8 16h5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>

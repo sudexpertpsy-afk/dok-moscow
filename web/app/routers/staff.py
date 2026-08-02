@@ -119,7 +119,7 @@ def staff_invite(
             org=org,
             email=email,
             invited_by=actor,
-            app_base_url=str(request.base_url).rstrip("/"),
+            app_base_url=get_settings().app_base_url.rstrip("/"),
         )
     except HTTPException as exc:
         detail = str(exc.detail)

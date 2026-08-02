@@ -82,9 +82,10 @@ def _org_stats(db: Session) -> dict[int, dict]:
     }
 
 
-def _invite_link(request: Request, token: str) -> str:
+def _invite_link(_request: Request, token: str) -> str:
+    """Абсолютная ссылка инвайта — только APP_BASE_URL (не request.base_url / http)."""
     settings = get_settings()
-    base = (settings.app_base_url or str(request.base_url)).rstrip("/")
+    base = settings.app_base_url.rstrip("/")
     return f"{base}/invite/{token}"
 
 

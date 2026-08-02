@@ -209,25 +209,37 @@ def test_markdown_safety_no_raw_html():
 
 def test_content_fallback_for_empty_slot(app):
     client, dbmod = app
-    assert "Кабинет экспертной организации" in client.get("/").text
+    home = client.get("/").text
+    assert "Комплект документов экспертизы — за 5 минут вместо часа" in home
+    assert "нумерация и журнал" in home  # feature_1 fallback
     db = dbmod.SessionLocal()
     try:
         db.add(ContentBlock(key="hero_headline", title="Hero", body_md="", status="published"))
         db.commit()
     finally:
         db.close()
-    assert "Кабинет экспертной организации" in client.get("/").text
+    assert "Комплект документов экспертизы — за 5 минут вместо часа" in client.get("/").text
 
     db = dbmod.SessionLocal()
     try:
         row = db.get(ContentBlock, "hero_headline")
         row.body_md = "Новый **заголовок**"
         row.status = "published"
+        db.add(
+            ContentBlock(
+                key="feature_1",
+                title="F1",
+                body_md="Слот **feature_1** из Единого окна",
+                status="published",
+            )
+        )
         db.commit()
     finally:
         db.close()
     text = client.get("/").text
     assert "Новый <strong>заголовок</strong>" in text
+    assert "Слот <strong>feature_1</strong> из Единого окна" in text
+    assert "Договор + счёт + акт + ПКО одной формой" not in text  # feature_1 fallback
 
 
 def test_cache_purge_flag_sets_revalidate_header(monkeypatch):

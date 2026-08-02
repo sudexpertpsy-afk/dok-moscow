@@ -292,6 +292,9 @@ def test_legal_pages(app):
         r = client.get(path)
         assert r.status_code == 200, path
         assert needle in r.text
+    offer = client.get("/offer")
+    assert "Черновик" not in offer.text
+    assert "Редакция от 02.08.2026" in offer.text
     req = client.get("/requisites")
     assert "40702810610000259195" in req.text
     assert "post@use.moscow" in req.text
