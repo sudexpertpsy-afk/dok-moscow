@@ -204,3 +204,6 @@ def test_head_zakon_slash_redirect(app):
     r = client.head("/zakon", headers={"Host": "dok.moscow"}, follow_redirects=False)
     assert r.status_code == 301
     assert _loc(r) == "/zakon/"
+
+    r = client.head("/zakon/", headers={"Host": "dok.moscow"}, follow_redirects=False)
+    assert r.status_code == 200
