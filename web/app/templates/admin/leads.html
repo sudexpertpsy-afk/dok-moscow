@@ -72,7 +72,7 @@
               <div class="sub-dialog-head">
                 <div>
                   <h2 class="sub-dialog-title">Организация и приглашение</h2>
-                  <p class="sub-dialog-org muted">{{ L.email }}{% if L.profile %} · {{ L.profile }}{% endif %}</p>
+                  <p class="sub-dialog-org muted">{{ L.email }}{% if L.profile %} · {{ L.profile }}{% endif %}{% if L.inn %} · ИНН {{ L.inn }}{% endif %}</p>
                 </div>
                 <button type="button" class="sub-dialog-close" data-close-dialog aria-label="Закрыть">×</button>
               </div>

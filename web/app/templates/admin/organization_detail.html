@@ -9,7 +9,7 @@
   <p class="muted">ID {{ org.id }} · создана {{ org.created_at }}</p>
   {% if source_lead %}
   <p class="muted">Из заявки <a href="/admin/leads#lead-{{ source_lead.id }}">#{{ source_lead.id }}</a>
-    ({{ source_lead.email }}{% if source_lead.profile %} · {{ source_lead.profile }}{% endif %})</p>
+    ({{ source_lead.email }}{% if source_lead.profile %} · {{ source_lead.profile }}{% endif %}{% if source_lead.inn %} · ИНН {{ source_lead.inn }}{% endif %})</p>
   {% endif %}
   <form method="post" action="/admin/organizations/{{ org.id }}/rename" style="margin-top:1rem;max-width:28rem">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
