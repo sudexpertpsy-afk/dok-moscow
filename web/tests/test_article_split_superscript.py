@@ -39,6 +39,24 @@ def test_split_dot_and_middot_article_num():
     assert "ст. 55.2" in refs
 
 
+def test_split_ips_w9_span_superscript():
+    """Реальная разметка ИПС: 87<span class=\"W9\">1</span>."""
+    html = """
+    <p class="H">Статья 87. Дополнительная и повторная экспертизы</p>
+    <p>Текст 87.</p>
+    <p class="H">Статья 87<span class="W9" style="">1</span>. Консультация специалиста</p>
+    <p>1. Специалист даёт консультацию в устной или письменной форме.</p>
+    <p class="H">Статья 88. Оценка доказательств</p>
+    <p>Текст 88.</p>
+    """
+    parts = split_html_articles(html)
+    refs = [ref for ref, _, _ in parts if ref]
+    assert refs.count("ст. 87") == 1
+    assert "ст. 87.1" in refs
+    body_871 = next(b for r, _, b in parts if r == "ст. 87.1")
+    assert "консультацию" in body_871.casefold()
+
+
 def test_fill_apk_87_1_from_ips_style_html(app):
     _, dbmod = app
     db = dbmod.SessionLocal()
@@ -55,9 +73,9 @@ def test_fill_apk_87_1_from_ips_style_html(app):
         frag.body_html = ""
         db.flush()
         html = """
-        <p>Статья 87. Дополнительная и повторная экспертиза</p>
+        <p class="H">Статья 87. Дополнительная и повторная экспертиза</p>
         <p>Арбитражный суд может назначить.</p>
-        <p>Статья 87 1 . Консультация специалиста</p>
+        <p class="H">Статья 87<span class="W9" style="">1</span>. Консультация специалиста</p>
         <p>Специалист даёт консультацию в устной или письменной форме.</p>
         """
         n = fill_fragments_from_html(db, act, html)

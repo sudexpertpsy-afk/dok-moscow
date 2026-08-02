@@ -56,8 +56,17 @@ ARTICLE_SPLIT_RE = re.compile(
     r"(?P<num>\d+(?:[.\u00b7·]\d+|\s+\d(?!\d))?)[.\s:–—\-]*"
     r"(?P<title>[^\n<]{0,200})"
 )
+# ИПС: Статья 87<span class="W9">1</span> → Статья 87.1 (до разбиения)
+ARTICLE_SUP_SPAN_RE = re.compile(
+    r"(?is)((?:статья|ст\.)\s*\d+)\s*(?:<[^>]+>\s*)+(\d+)(?:\s*</[^>]+>)+"
+)
 HTML_TAG_RE = re.compile(r"<[^>]+>")
 WS_RE = re.compile(r"\s+")
+
+
+def normalize_article_superscript_markup(body_html: str) -> str:
+    """Свести HTML-надстрочный индекс статьи к виду «87.1»."""
+    return ARTICLE_SUP_SPAN_RE.sub(r"\1.\2", body_html or "")
 
 
 @dataclass
@@ -135,7 +144,7 @@ def parse_requisite_query(query: str) -> dict | None:
 
 def split_html_articles(body_html: str) -> list[tuple[str, str, str]]:
     """Разбить полный текст на статьи → (article_ref, heading, body_text)."""
-    plain_source = body_html or ""
+    plain_source = normalize_article_superscript_markup(body_html or "")
     matches = list(ARTICLE_SPLIT_RE.finditer(plain_source))
     if not matches:
         text_val = html_to_text(plain_source)
