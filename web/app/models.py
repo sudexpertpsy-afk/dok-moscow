@@ -45,6 +45,18 @@ class OrgRole(str, enum.Enum):
     org_member = "org_member"
 
 
+class OrgFieldType(str, enum.Enum):
+    """Типы пользовательских полей организации (W-41)."""
+
+    string = "string"
+    multiline = "multiline"
+    date = "date"
+    money = "money"
+    checkbox = "checkbox"
+    select = "select"
+    counter = "counter"
+
+
 class CounterpartyType(str, enum.Enum):
     fl = "fl"  # физлицо
     ul = "ul"  # юрлицо
@@ -180,6 +192,7 @@ class Organization(Base):
     contracts: Mapped[list[Contract]] = relationship(back_populates="organization")
     documents: Mapped[list[Document]] = relationship(back_populates="organization")
     counters: Mapped[list[Counter]] = relationship(back_populates="organization")
+    org_fields: Mapped[list["OrgField"]] = relationship(back_populates="organization")
     events: Mapped[list[Event]] = relationship(back_populates="organization")
     subscriptions: Mapped[list["Subscription"]] = relationship(back_populates="organization")
     payments: Mapped[list["Payment"]] = relationship(back_populates="organization")
@@ -437,6 +450,44 @@ class Counter(Base):
     suffix: Mapped[str] = mapped_column(String(64), nullable=False, default="")
 
     organization: Mapped[Organization] = relationship(back_populates="counters")
+
+
+class OrgField(Base):
+    """Словарь пользовательских полей организации (W-41)."""
+
+    __tablename__ = "org_fields"
+    __table_args__ = (
+        Index("uq_org_fields_org_name", "org_id", "name", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    label: Mapped[str] = mapped_column(String(255), nullable=False)
+    field_type: Mapped[OrgFieldType] = mapped_column(
+        Enum(OrgFieldType, name="org_field_type", **_STR_ENUM),
+        nullable=False,
+        default=OrgFieldType.string,
+    )
+    required: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    default_value: Mapped[str] = mapped_column(String(2000), nullable=False, default="")
+    hint: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    options: Mapped[list | None] = mapped_column(JsonType, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    organization: Mapped[Organization] = relationship(back_populates="org_fields")
+    created_by_user: Mapped[User | None] = relationship(
+        foreign_keys=[created_by_user_id],
+    )
 
 
 class Event(Base):

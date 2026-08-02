@@ -109,6 +109,16 @@ def save_upload(
         validate_docx_bytes(data)
     except DocxUploadError as exc:
         raise TemplateAdminError(str(exc)) from exc
+    ensure_core_on_path()
+    from docfiller_core.template_security import (
+        TemplateSecurityError,
+        assert_safe_docx_template,
+    )
+
+    try:
+        assert_safe_docx_template(data)
+    except TemplateSecurityError as exc:
+        raise TemplateAdminError(str(exc)) from exc
     stem = _safe_stem(filename)
     name = _docx_name(stem)
     dest = _root() / name
