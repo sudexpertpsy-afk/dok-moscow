@@ -65,6 +65,8 @@ DADATA_FIELDS = {
     "юр_адрес_заказчика": "address",
     "адрес_заявителя": "address",
     "адрес_субъекта": "address",
+    "бик_заказчика": "bank",
+    "банк_заказчика": "bank",
 }
 
 
@@ -148,6 +150,20 @@ def history_suggest(
     return out
 
 
+def _position_genitive(title: str) -> str:
+    """Родительный падеж должности из офлайн-словаря core (если есть)."""
+    ensure_core_on_path()
+    from docfiller_core.config import _POSITION_DECLENSIONS
+
+    key = (title or "").strip().casefold()
+    if not key:
+        return ""
+    for base, forms in _POSITION_DECLENSIONS.items():
+        if str(base).strip().casefold() == key and isinstance(forms, dict):
+            return str(forms.get("род") or "").strip()
+    return ""
+
+
 def linked_values(
     src: str,
     value: str,
@@ -199,6 +215,10 @@ def linked_values(
             short = ""
         if short:
             _put("фио_подписанта_кратко", short)
+    elif src == "должность_подписанта":
+        rod = _position_genitive(value)
+        if rod:
+            _put("должность_подписанта_род", rod)
     elif src in ("номер_договора", "дата_договора"):
         no = value if src == "номер_договора" else cur.get("номер_договора", "")
         dt = value if src == "дата_договора" else cur.get("дата_договора", "")

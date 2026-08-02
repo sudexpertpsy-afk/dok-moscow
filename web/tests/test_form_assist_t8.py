@@ -109,6 +109,9 @@ def test_linked_customer_passport_dates_and_signatory():
     out = linked_values("фио_подписанта", fio, only_empty=True)
     assert out["фио_подписанта_кратко"] == filters.initials_after(fio)
 
+    out = linked_values("должность_подписанта", "Генеральный директор", only_empty=True)
+    assert out["должность_подписанта_род"] == "Генерального директора"
+
     out = linked_values(
         "дата_договора",
         "01.02.2026",
@@ -130,6 +133,33 @@ def test_linked_customer_passport_dates_and_signatory():
 
     out = linked_values("дата_счёта", "05.02.2026", only_empty=True)
     assert out["дата_акта"] == "05.02.2026"
+
+
+def test_linked_api_passes_current(app):
+    import json
+
+    client, dbmod = app
+    _org_user(dbmod, "linkcur@example.com")
+    assert login(client, "linkcur@example.com", "Passw0rd!").status_code == 303
+    current = json.dumps(
+        {"паспорт_эксперта": "1111 222222", "адрес_эксперта": "Казань"},
+        ensure_ascii=False,
+    )
+    r = client.get(
+        "/cabinet/form-assist/linked",
+        params={
+            "src": "фио_эксперта",
+            "value": "Петров Пётр Петрович",
+            "targets": "фио_субъекта,паспорт_субъекта,адрес_субъекта",
+            "only_empty": 1,
+            "current": current,
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["фио_субъекта"] == "Петров Пётр Петрович"
+    assert body["паспорт_субъекта"] == "1111 222222"
+    assert body["адрес_субъекта"] == "Казань"
 
 
 def test_history_suggest_org_isolation(app):

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from typing import Any
+
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session
@@ -18,6 +21,19 @@ from app.services.form_assist import (
 from app.templating import templates
 
 router = APIRouter(prefix="/cabinet/form-assist", tags=["form-assist"])
+
+
+def _parse_current(raw: str) -> dict[str, str] | None:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    try:
+        data: Any = json.loads(text)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return {str(k): str(v or "") for k, v in data.items()}
 
 
 @router.get("/suggest", response_class=HTMLResponse)
@@ -47,6 +63,7 @@ def linked_recalc(
     value: str = Query(""),
     targets: str = Query(""),
     only_empty: int = Query(1),
+    current: str = Query(""),
 ):
     """JSON: пересчёт связанных полей."""
     tgt = [t.strip() for t in (targets or "").split(",") if t.strip()]
@@ -54,6 +71,7 @@ def linked_recalc(
         src.strip(),
         value,
         targets=tgt or None,
+        current=_parse_current(current),
         only_empty=bool(only_empty),
     )
     return JSONResponse(result)

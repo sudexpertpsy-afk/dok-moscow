@@ -564,6 +564,18 @@ main[tabindex="-1"]:focus-visible {
 }
 .zk-toc ol { margin: 0.5rem 0 0; padding-left: 1.2rem; }
 .zk-frag { margin: 1.75rem 0; scroll-margin-top: 5rem; }
+/* ИПС: надстрочные индексы статей (ст. 87¹) и сноски */
+.zk-body .W9,
+.zk-frag .W9,
+.zk-body sup.W9 {
+  font-size: 0.75em;
+  vertical-align: super;
+  line-height: 0;
+}
+.zk-body .WB,
+.zk-frag .WB {
+  font-weight: 600;
+}
 .zk-archive { margin-top: 2.5rem; }
 .zk-disclaimer {
   margin-top: 2rem;

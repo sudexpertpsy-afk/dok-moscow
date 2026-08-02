@@ -27,8 +27,6 @@
       })
       .join(",");
     if (!targets) return;
-    var onlyEmpty = 1;
-    // Если цель с auto=1 — можно перезаписать; иначе only_empty на сервере
     var url =
       "/cabinet/form-assist/linked?src=" +
       encodeURIComponent(src) +
@@ -36,7 +34,9 @@
       encodeURIComponent(srcEl.value || "") +
       "&targets=" +
       encodeURIComponent(targets) +
-      "&only_empty=0";
+      "&only_empty=0" +
+      "&current=" +
+      encodeURIComponent(JSON.stringify(currentValues(form)));
     fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } })
       .then(function (r) {
         return r.json();
@@ -111,11 +111,56 @@
     });
   }
 
+  function dadataPath(kind) {
+    if (kind === "party") return "/cabinet/counterparties/suggest/party";
+    if (kind === "address") return "/cabinet/counterparties/suggest/address";
+    if (kind === "bank") return "/cabinet/counterparties/suggest/bank";
+    return "";
+  }
+
+  function applyPartyFields(form, data, el) {
+    var map = [
+      ["название_заказчика", data.name],
+      ["инн_заказчика", data.inn],
+      ["кпп_заказчика", data.kpp],
+      ["огрн_заказчика", data.ogrn],
+      ["юр_адрес_заказчика", data.address],
+      ["фио_подписанта", data.manager || data.fio],
+    ];
+    map.forEach(function (pair) {
+      var f = fieldByName(pair[0], form);
+      if (f && pair[1]) f.value = pair[1];
+    });
+    if (el.name === "инн_заказчика" && data.inn) el.value = data.inn;
+    if (el.name === "название_заказчика" && data.name) el.value = data.name;
+    var nameEl = fieldByName("название_заказчика", form);
+    if (nameEl && nameEl.hasAttribute("data-linked-src")) applyLinked(form, nameEl);
+  }
+
+  function applyBankFields(form, data, el) {
+    var map = [
+      ["бик_заказчика", data.bank_bik || data.bic],
+      ["банк_заказчика", data.bank_name || data.value],
+      ["к_с_заказчика", data.bank_corr_account || data.correspondent_account],
+    ];
+    map.forEach(function (pair) {
+      var f = fieldByName(pair[0], form);
+      if (f && pair[1]) f.value = pair[1];
+    });
+    if (el.name === "бик_заказчика" && (data.bank_bik || data.bic)) {
+      el.value = data.bank_bik || data.bic;
+    }
+    if (el.name === "банк_заказчика" && (data.bank_name || data.value)) {
+      el.value = data.bank_name || data.value;
+    }
+  }
+
   function bindDadata(form) {
     qsa("[data-dadata]", form).forEach(function (el) {
       var kind = el.getAttribute("data-dadata");
       var box = qs('[data-suggest-for="' + el.name + '"]', el.closest(".field-block"));
-      if (!box || !kind) return;
+      var path = dadataPath(kind);
+      if (!box || !path) return;
       var timer = null;
       function load() {
         var q = (el.value || "").trim();
@@ -123,10 +168,6 @@
           box.innerHTML = "";
           return;
         }
-        var path =
-          kind === "party"
-            ? "/cabinet/counterparties/suggest/party"
-            : "/cabinet/counterparties/suggest/address";
         fetch(path + "?q=" + encodeURIComponent(q), {
           credentials: "same-origin",
           headers: { "HX-Request": "true" },
@@ -136,34 +177,34 @@
           })
           .then(function (html) {
             box.innerHTML = html || "";
-            // adapt party/address buttons
             qsa("button", box).forEach(function (btn) {
-              btn.addEventListener("click", function (ev) {
-                ev.preventDefault();
-                try {
-                  if (kind === "party" && btn.hasAttribute("data-json")) {
-                    var data = JSON.parse(btn.getAttribute("data-json") || "{}");
-                    var map = [
-                      ["название_заказчика", data.name],
-                      ["инн_заказчика", data.inn],
-                      ["кпп_заказчика", data.kpp],
-                      ["огрн_заказчика", data.ogrn],
-                      ["юр_адрес_заказчика", data.address],
-                      ["фио_подписанта", data.manager || data.fio],
-                    ];
-                    map.forEach(function (pair) {
-                      var f = fieldByName(pair[0], form);
-                      if (f && pair[1]) f.value = pair[1];
-                    });
-                    if (el.name === "инн_заказчика" && data.inn) el.value = data.inn;
-                    if (el.name === "название_заказчика" && data.name) el.value = data.name;
-                  } else if (kind === "address") {
-                    var addr = btn.getAttribute("data-value") || "";
-                    if (addr) el.value = addr;
-                  }
-                } catch (e) {}
-                box.innerHTML = "";
-              });
+              btn.addEventListener(
+                "click",
+                function (ev) {
+                  ev.preventDefault();
+                  ev.stopImmediatePropagation();
+                  try {
+                    if (kind === "party" && btn.hasAttribute("data-json")) {
+                      applyPartyFields(
+                        form,
+                        JSON.parse(btn.getAttribute("data-json") || "{}"),
+                        el
+                      );
+                    } else if (kind === "bank" && btn.hasAttribute("data-json")) {
+                      applyBankFields(
+                        form,
+                        JSON.parse(btn.getAttribute("data-json") || "{}"),
+                        el
+                      );
+                    } else if (kind === "address") {
+                      var addr = btn.getAttribute("data-value") || "";
+                      if (addr) el.value = addr;
+                    }
+                  } catch (e) {}
+                  box.innerHTML = "";
+                },
+                true
+              );
             });
           })
           .catch(function () {});
