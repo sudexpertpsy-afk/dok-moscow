@@ -44,7 +44,7 @@
             Тестовый режим: реальные деньги не списываются
           </div>
           {% endif %}
-          {% if not terminal_ready %}
+          {% if not terminal_ready and not flash_error %}
           <p class="muted">Приём карт ещё не настроен администратором сервиса. После настройки Т-Кассы здесь появится оплата.</p>
           {% endif %}
           <form id="pay-form" method="post" action="/cabinet/billing/pay" hx-boost="false">
@@ -79,7 +79,8 @@
             </label>
             {% endif %}
             <div class="actions">
-              <button type="submit" {% if not terminal_ready %}disabled{% endif %}>Перейти к оплате</button>
+              {# Кнопку не блокируем: disabled мешал тестовой оплате при ложном «не настроен» после ошибки Init. #}
+              <button type="submit"{% if not terminal_ready %} title="Терминал может быть ещё не настроен — сервер проверит при отправке"{% endif %}>Перейти к оплате</button>
             </div>
           </form>
         </div>

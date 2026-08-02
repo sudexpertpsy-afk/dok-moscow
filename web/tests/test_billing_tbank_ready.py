@@ -186,8 +186,12 @@ def test_pay_error_keeps_terminal_ready_and_shows_details(app):
             },
             follow_redirects=False,
         )
-    assert r.status_code == 400
-    assert "taxation" in r.text.lower() or "Неверные параметры" in r.text
+    assert r.status_code == 303
+    assert "/cabinet/billing/?error=" in r.headers.get("location", "")
+    page = client.get(r.headers["location"])
+    assert page.status_code == 200
+    assert "taxation" in page.text.lower() or "Неверные параметры" in page.text
     # после ошибки форма оплаты не должна притворяться «не настроена»
-    assert "Приём карт ещё не настроен" not in r.text
-    assert "Тестовый режим: реальные деньги не списываются" in r.text
+    assert "Приём карт ещё не настроен" not in page.text
+    assert "Тестовый режим: реальные деньги не списываются" in page.text
+    assert 'type="submit" disabled' not in page.text

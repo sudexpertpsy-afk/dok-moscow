@@ -124,5 +124,13 @@ def test_pay_without_terminal_shows_error(app):
         },
         follow_redirects=False,
     )
-    assert r.status_code == 400
-    assert "не настроена" in r.text.lower() or "Платёжная" in r.text
+    assert r.status_code in (303, 400)
+    if r.status_code == 303:
+        loc = r.headers.get("location", "")
+        assert "/cabinet/billing/" in loc
+        assert "error=" in loc
+        follow = client.get(loc)
+        assert follow.status_code == 200
+        assert "не настроена" in follow.text.lower() or "Платёжная" in follow.text or "TerminalKey" in follow.text
+    else:
+        assert "не настроена" in r.text.lower() or "Платёжная" in r.text

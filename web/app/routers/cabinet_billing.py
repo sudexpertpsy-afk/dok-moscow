@@ -211,18 +211,13 @@ def billing_pay(
     except TBankError as exc:
         db.rollback()
         log.error("billing_pay failed org=%s: %s", org.id, exc)
-        return templates.TemplateResponse(
-            request=request,
-            name="cabinet/billing.html",
-            context=_billing_view_context(
-                request,
-                user,
-                org,
-                db,
-                flash_error=str(exc),
-                receipt_email_default=email,
-            ),
-            status_code=400,
+        # 303 на GET с текстом ошибки — чтобы не залипать на POST-ответе
+        # со старым «кнопка disabled / не настроен» в истории браузера.
+        from urllib.parse import quote
+
+        return RedirectResponse(
+            f"/cabinet/billing/?error={quote(str(exc)[:500])}",
+            status_code=status.HTTP_303_SEE_OTHER,
         )
 
     if not url:
