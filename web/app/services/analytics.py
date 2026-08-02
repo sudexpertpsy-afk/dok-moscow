@@ -92,11 +92,42 @@ def _normalize_ga4(raw: str) -> str:
 
 
 def _normalize_yandex_wm(raw: str) -> str:
-    return (raw or "").strip().lower()
+    """Код или весь meta-тег → hex content (как в кабинете Вебмастера)."""
+    text = (raw or "").strip()
+    if not text:
+        return ""
+    # <meta name="yandex-verification" content="1056476fdcee767b" />
+    m = re.search(
+        r'yandex-verification[^>]*content\s*=\s*["\']([a-fA-F0-9]{16,64})["\']',
+        text,
+        flags=re.I,
+    )
+    if not m:
+        m = re.search(r'content\s*=\s*["\']([a-fA-F0-9]{16,64})["\']', text, flags=re.I)
+    if m:
+        return m.group(1).lower()
+    return re.sub(r"\s+", "", text).lower()
 
 
 def _normalize_google(raw: str) -> str:
-    return (raw or "").strip()
+    """Код или весь meta google-site-verification → content."""
+    text = (raw or "").strip()
+    if not text:
+        return ""
+    m = re.search(
+        r'google-site-verification[^>]*content\s*=\s*["\']([A-Za-z0-9_-]{20,100})["\']',
+        text,
+        flags=re.I,
+    )
+    if not m:
+        m = re.search(
+            r'content\s*=\s*["\']([A-Za-z0-9_-]{20,100})["\']',
+            text,
+            flags=re.I,
+        )
+    if m:
+        return m.group(1)
+    return re.sub(r"\s+", "", text)
 
 
 def validate_fields(

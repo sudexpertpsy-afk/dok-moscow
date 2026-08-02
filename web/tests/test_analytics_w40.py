@@ -42,6 +42,46 @@ def _enable_all(dbmod, *, metrika="12345678", ga4="G-ABCDEF12", ywm="a" * 16, gs
     invalidate_analytics_cache()
 
 
+def test_normalize_extracts_meta_tag_content():
+    from app.services.analytics import _normalize_google, _normalize_yandex_wm
+
+    tag = '<meta name="yandex-verification" content="1056476fdcee767b" />'
+    assert _normalize_yandex_wm(tag) == "1056476fdcee767b"
+    # как вставляют без угловых скобок
+    assert (
+        _normalize_yandex_wm('meta name="yandex-verification" content="1056476fdcee767b" /')
+        == "1056476fdcee767b"
+    )
+    assert _normalize_yandex_wm("1056476fdcee767b") == "1056476fdcee767b"
+
+    gtag = '<meta name="google-site-verification" content="AbC_dEf-0123456789XYZ" />'
+    assert _normalize_google(gtag) == "AbC_dEf-0123456789XYZ"
+
+
+def test_save_accepts_pasted_yandex_meta_tag(app):
+    _, dbmod = app
+    db = dbmod.SessionLocal()
+    try:
+        save_analytics_settings(
+            db,
+            user_id=1,
+            form={
+                "yandex_webmaster_enabled": "1",
+                "yandex_webmaster_code": '<meta name="yandex-verification" content="1056476fdcee767b" />',
+            },
+        )
+        db.commit()
+        from app.services.analytics import ensure_analytics_settings
+
+        row = ensure_analytics_settings(db)
+        assert row.yandex_webmaster_code == "1056476fdcee767b"
+        assert row.yandex_webmaster_enabled is True
+    finally:
+        db.close()
+    invalidate_analytics_cache()
+    assert get_analytics_public().yandex_webmaster_code == "1056476fdcee767b"
+
+
 def test_validate_rejects_invalid_and_xss():
     with __import__("pytest").raises(AnalyticsValidationError):
         validate_fields(

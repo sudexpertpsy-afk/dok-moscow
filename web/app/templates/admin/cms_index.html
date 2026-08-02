@@ -80,14 +80,14 @@
           {% if analytics.yandex_webmaster_enabled %}включён{% else %}выключен{% endif %}
         </span>
       </legend>
-      <p class="muted field-hint">Meta <span class="mono">yandex-verification</span>, hex 16–64. <a href="https://webmaster.yandex.ru/" target="_blank" rel="noopener">webmaster.yandex.ru</a></p>
+      <p class="muted field-hint">Вставьте <strong>только код</strong> из <span class="mono">content="…"</span> (hex 16–64) или весь meta-тег — код извлечём сами. <a href="https://webmaster.yandex.ru/" target="_blank" rel="noopener">webmaster.yandex.ru</a></p>
       <label style="display:flex;gap:0.5rem;align-items:center;margin:0.5rem 0">
         <input type="checkbox" name="yandex_webmaster_enabled" value="1" style="width:auto" {% if analytics.yandex_webmaster_enabled %}checked{% endif %}>
         Включено
       </label>
       <label for="yandex_webmaster_code">Код подтверждения</label>
-      <input id="yandex_webmaster_code" name="yandex_webmaster_code" autocomplete="off" maxlength="64"
-             pattern="[a-fA-F0-9]{16,64}" value="{{ analytics.yandex_webmaster_code or '' }}">
+      <input id="yandex_webmaster_code" name="yandex_webmaster_code" autocomplete="off" maxlength="400"
+             placeholder="1056476fdcee767b" value="{{ analytics.yandex_webmaster_code or '' }}">
     </fieldset>
 
     <fieldset style="border:1px solid var(--border,#d8d2c8);border-radius:8px;padding:1rem;margin:0 0 1rem">
@@ -97,14 +97,14 @@
           {% if analytics.google_site_verification_enabled %}включён{% else %}выключен{% endif %}
         </span>
       </legend>
-      <p class="muted field-hint">Meta <span class="mono">google-site-verification</span>. <a href="https://search.google.com/search-console" target="_blank" rel="noopener">search.google.com/search-console</a></p>
+      <p class="muted field-hint">Код из <span class="mono">content="…"</span> или весь meta-тег. <a href="https://search.google.com/search-console" target="_blank" rel="noopener">search.google.com/search-console</a></p>
       <label style="display:flex;gap:0.5rem;align-items:center;margin:0.5rem 0">
         <input type="checkbox" name="google_site_verification_enabled" value="1" style="width:auto" {% if analytics.google_site_verification_enabled %}checked{% endif %}>
         Включено
       </label>
       <label for="google_site_verification">Код подтверждения</label>
-      <input id="google_site_verification" name="google_site_verification" autocomplete="off" maxlength="100"
-             pattern="[A-Za-z0-9_-]{20,100}" value="{{ analytics.google_site_verification or '' }}">
+      <input id="google_site_verification" name="google_site_verification" autocomplete="off" maxlength="400"
+             placeholder="код из content=&quot;…&quot;" value="{{ analytics.google_site_verification or '' }}">
     </fieldset>
 
     <div class="actions">
