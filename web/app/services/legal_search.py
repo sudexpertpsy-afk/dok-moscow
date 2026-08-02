@@ -50,9 +50,11 @@ REQUISITE_ARTICLE_RE = re.compile(
     r"(?:\s+(?P<code>упк|гпк|апк|кас|каас|коап|ук)(?:\s*рф)?)?\s*$"
 )
 REQUISITE_FZ_RE = re.compile(r"(?is)^\s*(?P<num>\d+)\s*-\s*фз\s*$")
+# num: «87.1» или «87 1» (надстрочный индекс из ИПС часто приходит пробелом)
 ARTICLE_SPLIT_RE = re.compile(
     r"(?is)(?:^|\n|\r|<h[1-6][^>]*>|<p[^>]*>)\s*(?:статья|ст\.)\s*"
-    r"(?P<num>\d+(?:\.\d+)?)[.\s:–—\-]*(?P<title>[^\n<]{0,200})"
+    r"(?P<num>\d+(?:[.\u00b7·]\d+|\s+\d(?!\d))?)[.\s:–—\-]*"
+    r"(?P<title>[^\n<]{0,200})"
 )
 HTML_TAG_RE = re.compile(r"<[^>]+>")
 WS_RE = re.compile(r"\s+")
@@ -146,7 +148,7 @@ def split_html_articles(body_html: str) -> list[tuple[str, str, str]]:
         start = m.start()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(plain_source)
         chunk_html = plain_source[start:end]
-        num = m.group("num")
+        num = re.sub(r"[\s\u00b7·]+", ".", (m.group("num") or "").strip())
         title = WS_RE.sub(" ", (m.group("title") or "").strip(" .:—–-"))
         ref = f"ст. {num}"
         heading = f"{ref}" + (f". {title}" if title else "")

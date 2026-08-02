@@ -90,6 +90,48 @@ def test_linked_expert_to_subject():
     assert out["адрес_субъекта"] == "Москва"
 
 
+def test_linked_customer_passport_dates_and_signatory():
+    from app.services.package_master import ensure_core_on_path
+
+    ensure_core_on_path()
+    from docfiller_core import filters
+
+    out = linked_values("название_заказчика", "ООО Ромашка", only_empty=True)
+    assert out["плательщик"] == "ООО Ромашка"
+    assert out["принято_от"] == "ООО Ромашка"
+
+    out = linked_values("паспорт_эксперта", "4500 123456", only_empty=True)
+    assert out["паспорт_субъекта"] == "4500 123456"
+    out = linked_values("адрес_эксперта", "г. Москва", only_empty=True)
+    assert out["адрес_субъекта"] == "г. Москва"
+
+    fio = "Сидоров Сидор Сидорович"
+    out = linked_values("фио_подписанта", fio, only_empty=True)
+    assert out["фио_подписанта_кратко"] == filters.initials_after(fio)
+
+    out = linked_values(
+        "дата_договора",
+        "01.02.2026",
+        current={"номер_договора": "Д-10"},
+        only_empty=True,
+    )
+    assert out["дата_начала"] == "01.02.2026"
+    assert "Д-10" in out["основание_пко"]
+    assert "01.02.2026" in out["основание_пко"]
+    assert out["предмет_основание"] == out["основание_пко"]
+
+    out = linked_values(
+        "номер_счёта",
+        "С-3",
+        current={"дата_счёта": "05.02.2026"},
+        only_empty=True,
+    )
+    assert out["приложение_пко"] == "Счёт № С-3 от 05.02.2026"
+
+    out = linked_values("дата_счёта", "05.02.2026", only_empty=True)
+    assert out["дата_акта"] == "05.02.2026"
+
+
 def test_history_suggest_org_isolation(app):
     client, dbmod = app
     org_a, email_a = _org_user(dbmod, "ha@example.com")
