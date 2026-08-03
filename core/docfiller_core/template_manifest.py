@@ -134,7 +134,10 @@ def _infer_kind(stem: str, raw: dict) -> str:
     return "документ"
 
 
-def _default_counter_key(stem: str, kind: str) -> str:
+def _default_counter_key(stem: str, kind: str, fields: dict[str, FieldSpec] | None = None) -> str:
+    fields = fields or {}
+    if "исх_номер" in fields and fields["исх_номер"].type == "counter":
+        return "ishod"
     if kind != "заключение":
         return ""
     s = stem.casefold().replace("ё", "е")
@@ -157,7 +160,7 @@ def parse_manifest_dict(stem: str, raw: dict | None) -> TemplateManifest:
     kind = _infer_kind(stem, data)
     counter_key = str(data.get("счётчик") or data.get("counter_key") or "").strip()
     if not counter_key:
-        counter_key = _default_counter_key(stem, kind)
+        counter_key = _default_counter_key(stem, kind, fields)
     has_counter = any(f.type == "counter" for f in fields.values())
     return TemplateManifest(
         stem=stem,
@@ -217,7 +220,12 @@ def infer_group(template_name: str, manifest: TemplateManifest | None = None) ->
         return "Счета и акты"
     if stem.startswith("пко"):
         return "Кассовые"
-    if "суду" in n or stem.startswith("ходатайство") or "уведомление" in n:
+    if (
+        "суду" in n
+        or stem.startswith("ходатайство")
+        or "уведомление" in n
+        or stem.startswith("сопроводительное")
+    ):
         return "Письма суду"
     if stem.startswith("заключение"):
         return "Заключения эксперта"
@@ -249,16 +257,7 @@ def document_kind(template_name: str, *, templates_dir: Path | None = None) -> s
 
 
 def counter_key_for(template_name: str, field_name: str, *, templates_dir: Path | None = None) -> str | None:
-    """Ключ счётчика: у заключений — свой на шаблон."""
-    if field_name != "номер_заключения" and field_name not in {
-        "номер_договора",
-        "номер_счёта",
-        "номер_акта",
-        "номер_пко",
-        "номер_допсоглашения",
-    }:
-        # только если в манифесте поле помечено как счётчик
-        pass
+    """Ключ счётчика: у заключений — свой на шаблон; исх_номер — общий ishod."""
     man = None
     if templates_dir is not None:
         man = load_manifest(Path(templates_dir) / Path(template_name).name)
@@ -267,4 +266,6 @@ def counter_key_for(template_name: str, field_name: str, *, templates_dir: Path 
             return man.counter_key
     if field_name == "номер_заключения":
         return _default_counter_key(Path(template_name).stem, "заключение")
+    if field_name == "исх_номер":
+        return "ishod"
     return None

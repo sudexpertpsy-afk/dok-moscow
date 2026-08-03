@@ -63,6 +63,10 @@ def is_multiline_field(name):
         'выводы',
         'дополнительные_обстоятельства',
         'приложения',
+        'адресат',
+        'что_направляется_вин',
+        'основание_направления',
+        'дополнительный_текст',
     }
     n = str(name)
     return n in exact or any(n.startswith(p) for p in prefixes)

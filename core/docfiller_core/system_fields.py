@@ -43,6 +43,7 @@ _COUNTER_NAMES = frozenset(
         "номер_пко",
         "номер_допсоглашения",
         "номер_заключения",
+        "исх_номер",
     }
 )
 _MONEY_NAMES = frozenset(
