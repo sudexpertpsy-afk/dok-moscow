@@ -93,6 +93,9 @@ def related_documents(template_name, settings=None, templates_dir=None):
     templates_dir — каталог шаблонов (веб передаёт явно).
     """
     name = str(template_name or '')
+    # Заключение эксперта — самостоятельный документ, без счёта/акта/ПКО.
+    if name.startswith('Заключение_') or name.startswith('заключение_'):
+        return []
     if not name.startswith('Договор_'):
         return []
 

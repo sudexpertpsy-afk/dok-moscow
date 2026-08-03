@@ -21,6 +21,7 @@ from app.services.templates import (
     generate_docx,
     list_templates_for_org,
     template_variables,
+    templates_grouped,
 )
 from app.templating import templates
 from app.nav_context import cabinet_nav
@@ -59,10 +60,17 @@ def documents_index(
     db: Session = Depends(get_db),
 ):
     org = get_org_for_user(db, user)
+    items = list_templates_for_org(org.id)
     return templates.TemplateResponse(
         request=request,
         name="cabinet/documents_index.html",
-        context=_page(request, user, org, db, templates_list=list_templates_for_org(org.id),
+        context=_page(
+            request,
+            user,
+            org,
+            db,
+            templates_list=items,
+            templates_groups=templates_grouped(items),
         ),
     )
 
@@ -92,7 +100,7 @@ def document_form(
     from app.services.form_assist import enrich_form_context
     from app.services.settings_svc import bank_is_complete, ensure_requisites, is_bill_template
 
-    assist = enrich_form_context(db, org.id, variables, {})
+    assist = enrich_form_context(db, org.id, variables, {}, template_name=template_name)
     flash_error = None
     if is_bill_template(template_name) and not bank_is_complete(ensure_requisites(org)):
         flash_error = (
@@ -146,11 +154,11 @@ async def document_generate(
     from app.services.settings_svc import bank_is_complete, ensure_requisites, is_bill_template
 
     org_map = org_field_map(db, org.id)
-    assist_meta = enrich_form_context(db, org.id, variables, {})
+    assist_meta = enrich_form_context(db, org.id, variables, {}, template_name=template_name)
     field_meta = assist_meta["field_meta"]
 
     if is_bill_template(template_name) and not bank_is_complete(ensure_requisites(org)):
-        assist = enrich_form_context(db, org.id, variables, {})
+        assist = enrich_form_context(db, org.id, variables, {}, template_name=template_name)
         return templates.TemplateResponse(
             request=request,
             name="cabinet/document_form.html",
@@ -183,7 +191,7 @@ async def document_generate(
             context[var] = str(form.get(var) or "").strip()
         of = org_map.get(var)
         if of is not None and of.required and not str(context[var] or "").strip():
-            assist = enrich_form_context(db, org.id, variables, context)
+            assist = enrich_form_context(db, org.id, variables, context, template_name=template_name)
             return templates.TemplateResponse(
                 request=request,
                 name="cabinet/document_form.html",
@@ -216,6 +224,8 @@ async def document_generate(
             else:
                 number = number or raw
 
+    from datetime import date as _date
+
     for var in variables:
         meta = field_meta.get(var) or {}
         key = meta.get("counter_key")
@@ -223,7 +233,8 @@ async def document_generate(
             continue
         raw = context.get(var) or ""
         if not raw or str(raw).lower() in {"auto", "авто", "+"}:
-            _, formatted = allocate_number(db, org_id, key, prefix="")
+            suffix = f"/{_date.today().strftime('%y')}" if meta.get("counter_year_suffix") else ""
+            _, formatted = allocate_number(db, org_id, key, prefix="", suffix=suffix)
             context[var] = formatted
             if number is None:
                 number = formatted
@@ -238,7 +249,7 @@ async def document_generate(
             number=number,
         )
     except Exception as exc:
-        assist = enrich_form_context(db, org.id, variables, context)
+        assist = enrich_form_context(db, org.id, variables, context, template_name=template_name)
         return templates.TemplateResponse(
             request=request,
             name="cabinet/document_form.html",

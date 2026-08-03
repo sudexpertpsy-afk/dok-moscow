@@ -13,9 +13,26 @@ from app.org_scope import get_org_for_user, list_counterparty_options, require_o
 from app.nav_context import cabinet_nav
 from app.security import get_csrf_token
 from app.services.journal import distinct_templates, list_journal, parse_date
+from app.services.templates import ensure_core_on_path, templates_dir
 from app.templating import templates
 
 router = APIRouter(prefix="/cabinet", tags=["journal"])
+
+
+def _kinds_map(rows) -> dict[int, str]:
+    ensure_core_on_path()
+    from docfiller_core.contracts_registry import document_kind_from_registry
+    from docfiller_core.template_manifest import document_kind
+
+    root = templates_dir()
+    out: dict[int, str] = {}
+    for d in rows:
+        kind = document_kind_from_registry(root, d.template) or document_kind(
+            d.template, templates_dir=root
+        )
+        if kind and kind != "документ":
+            out[d.id] = kind
+    return out
 
 
 def _page(request: Request, user: CurrentUser, org, db, active: str, **extra):
@@ -84,6 +101,7 @@ def journal_page(
             templates_list=distinct_templates(db, org_id),
             counterparties=cps,
             cp_map=cp_map,
+            kinds_map=_kinds_map(rows),
             filters={
                 "from": request.query_params.get("from") or "",
                 "to": request.query_params.get("to") or "",
@@ -127,6 +145,7 @@ def journal_rows(
             "page": page,
             "pages": pages,
             "cp_map": cp_map,
+            "kinds_map": _kinds_map(rows),
             "filters": {
                 "from": request.query_params.get("from") or "",
                 "to": request.query_params.get("to") or "",

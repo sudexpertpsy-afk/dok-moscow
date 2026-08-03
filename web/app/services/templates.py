@@ -36,6 +36,12 @@ def list_templates() -> list[dict]:
     global _templates_cache
     ensure_core_on_path()
     from docfiller_core.filler import describe_template
+    from docfiller_core.template_manifest import (
+        document_kind,
+        group_sort_key,
+        infer_group,
+        load_manifest,
+    )
 
     root = templates_dir()
     try:
@@ -49,15 +55,58 @@ def list_templates() -> list[dict]:
     for path in sorted(root.glob("*.docx")):
         if path.name.startswith("~$"):
             continue
+        man = load_manifest(path)
+        group = infer_group(path.name, man)
+        desc = (man.description if man and man.description else None) or describe_template(path) or path.stem.replace("_", " ")
+        kind = (man.kind if man else None) or document_kind(path.name, templates_dir=root)
         items.append(
             {
                 "name": path.name,
                 "stem": path.stem,
-                "description": describe_template(path) or path.stem.replace("_", " "),
+                "description": desc,
+                "group": group,
+                "kind": kind,
             }
         )
+    items.sort(key=lambda x: (*group_sort_key(x.get("group") or "Прочее"), x["name"].lower()))
     _templates_cache = (stamp, items)
     return items
+
+
+def list_templates_for_org(org_id: int) -> list[dict]:
+    """Общие шаблоны + свои шаблоны организации (свои выше при совпадении имени)."""
+    from app.services.org_templates import list_org_templates
+    from docfiller_core.template_manifest import group_sort_key
+
+    shared = []
+    for item in list_templates():
+        shared.append({**item, "source": "shared", "title": item["stem"].replace("_", " ")})
+    org_items = list_org_templates(org_id)
+    for it in org_items:
+        it.setdefault("group", "Прочее")
+        it.setdefault("kind", "документ")
+    org_names = {i["name"] for i in org_items}
+    # свои перекрывают одноимённые общие в списке
+    merged = [i for i in shared if i["name"] not in org_names] + org_items
+    merged.sort(
+        key=lambda x: (
+            0 if x.get("source") == "org" else 1,
+            *group_sort_key(x.get("group") or "Прочее"),
+            x["name"].lower(),
+        )
+    )
+    return merged
+
+
+def templates_grouped(items: list[dict]) -> list[tuple[str, list[dict]]]:
+    """Сгруппировать каталог: [(группа, [шаблоны…]), …] с порядком GROUP_ORDER."""
+    from docfiller_core.template_manifest import group_sort_key
+
+    buckets: dict[str, list[dict]] = {}
+    for it in items:
+        g = it.get("group") or "Прочее"
+        buckets.setdefault(g, []).append(it)
+    return sorted(buckets.items(), key=lambda kv: group_sort_key(kv[0]))
 
 
 def template_path(name: str) -> Path:
@@ -83,21 +132,6 @@ def resolve_template_path(name: str, org_id: int | None = None) -> Path:
         if org_path.is_file():
             return org_path
     return template_path(safe)
-
-
-def list_templates_for_org(org_id: int) -> list[dict]:
-    """Общие шаблоны + свои шаблоны организации (свои выше при совпадении имени)."""
-    from app.services.org_templates import list_org_templates
-
-    shared = []
-    for item in list_templates():
-        shared.append({**item, "source": "shared", "title": item["stem"].replace("_", " ")})
-    org_items = list_org_templates(org_id)
-    org_names = {i["name"] for i in org_items}
-    # свои перекрывают одноимённые общие в списке
-    merged = [i for i in shared if i["name"] not in org_names] + org_items
-    merged.sort(key=lambda x: (0 if x.get("source") == "org" else 1, x["name"].lower()))
-    return merged
 
 
 def template_variables(

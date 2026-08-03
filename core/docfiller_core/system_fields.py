@@ -42,6 +42,7 @@ _COUNTER_NAMES = frozenset(
         "номер_акта",
         "номер_пко",
         "номер_допсоглашения",
+        "номер_заключения",
     }
 )
 _MONEY_NAMES = frozenset(
@@ -145,6 +146,39 @@ def load_registry(*, force: bool = False) -> dict[str, dict[str, Any]]:
                         if not key:
                             continue
                         data[key] = _normalize_entry(key, entry)
+        # Поля из *.manifest.yaml рядом с шаблонами (W-42)
+        try:
+            from . import paths as app_paths
+            from .template_manifest import load_manifest
+
+            root = Path(app_paths.TEMPLATES_DIR)
+            for docx in root.glob("*.docx"):
+                if docx.name.startswith("~$"):
+                    continue
+                man = load_manifest(docx)
+                if not man:
+                    continue
+                for fname, spec in man.fields.items():
+                    entry = spec.as_registry_entry()
+                    if fname in data:
+                        # Не затирать чужой тип при совпадении смысла; дополняем пустое
+                        cur = data[fname]
+                        merged = dict(cur)
+                        if not merged.get("label") and entry.get("label"):
+                            merged["label"] = entry["label"]
+                        if not merged.get("hint") and entry.get("hint"):
+                            merged["hint"] = entry["hint"]
+                        if entry.get("type") and entry["type"] != "string":
+                            merged["type"] = entry["type"]
+                        if entry.get("required"):
+                            merged["required"] = True
+                        if entry.get("default") and not merged.get("default"):
+                            merged["default"] = entry["default"]
+                        data[fname] = _normalize_entry(fname, merged)
+                    else:
+                        data[fname] = _normalize_entry(fname, entry)
+        except Exception:
+            pass
         _cache = data
         return deepcopy(data)
 

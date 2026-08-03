@@ -4,19 +4,27 @@
 {% include "cabinet/_layout_start.html" %}
 <section class="panel">
       <h1>Отдельный документ</h1>
-      <p class="muted">Выберите шаблон — форма полей строится из переменных Шаблонера.</p>
+      <p class="muted">Выберите шаблон — форма полей строится из переменных Шаблонера. Шаблоны сгруппированы по типу (в т.ч. «Заключения эксперта»).</p>
       <table class="table" style="margin-top:1rem">
         <thead><tr><th>Шаблон</th><th></th></tr></thead>
         <tbody>
-          {% for t in templates_list %}
+          {% for group, items in templates_groups %}
+          <tr>
+            <td colspan="2" style="padding-top:1rem;padding-bottom:0.35rem">
+              <strong style="font-family:var(--font-display);font-size:1.05rem">{{ group }}</strong>
+            </td>
+          </tr>
+          {% for t in items %}
           <tr>
             <td>
               <strong>{{ t.title or t.stem }}</strong>
               {% if t.source == "org" %}<span class="badge">свой</span>{% endif %}
+              {% if t.kind and t.kind != 'документ' %}<span class="badge" style="opacity:0.85">{{ t.kind }}</span>{% endif %}
               <div class="muted">{{ t.description }}</div>
             </td>
             <td><a class="btn" href="/cabinet/documents/new/{{ t.name }}">Заполнить</a></td>
           </tr>
+          {% endfor %}
           {% else %}
           <tr><td colspan="2" class="muted">Шаблоны не найдены. Загрузите свои в «Мои шаблоны» или проверьте каталог общих шаблонов.</td></tr>
           {% endfor %}

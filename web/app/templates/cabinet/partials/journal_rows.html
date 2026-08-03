@@ -1,7 +1,10 @@
 {% for d in rows %}
 <tr id="journal-doc-{{ d.id }}">
   <td class="muted">{{ d.created_at }}</td>
-  <td>{{ d.template }}</td>
+  <td>
+    {% set kind = kinds_map.get(d.id) if kinds_map is defined else none %}
+    {% if kind %}<span class="badge">{{ kind }}</span> {% endif %}{{ d.template }}
+  </td>
   <td class="mono">{{ d.number or '—' }}</td>
   <td>{% if d.counterparty_id %}<a href="/cabinet/counterparties/{{ d.counterparty_id }}">{{ cp_map.get(d.counterparty_id, d.counterparty_id) }}</a>{% else %}—{% endif %}</td>
   <td class="journal-actions">
