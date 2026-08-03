@@ -75,6 +75,7 @@ def list_templates() -> list[dict]:
 
 def list_templates_for_org(org_id: int) -> list[dict]:
     """Общие шаблоны + свои шаблоны организации (свои выше при совпадении имени)."""
+    ensure_core_on_path()
     from app.services.org_templates import list_org_templates
     from docfiller_core.template_manifest import group_sort_key
 
@@ -100,6 +101,7 @@ def list_templates_for_org(org_id: int) -> list[dict]:
 
 def templates_grouped(items: list[dict]) -> list[tuple[str, list[dict]]]:
     """Сгруппировать каталог: [(группа, [шаблоны…]), …] с порядком GROUP_ORDER."""
+    ensure_core_on_path()
     from docfiller_core.template_manifest import group_sort_key
 
     buckets: dict[str, list[dict]] = {}
