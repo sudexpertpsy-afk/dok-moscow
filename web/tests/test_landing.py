@@ -105,7 +105,9 @@ def test_w44_scope_public_surface_only():
         "web/app/static/landing.css",
         "web/app/static/img/",
         "web/app/static/samples/",
+        "web/app/content/praktika/",
         "web/app/services/public_catalog.py",
+        "web/app/services/praktika.py",
         "web/app/routers/landing.py",
         "web/app/routers/zakon.py",
         "web/app/services/cms.py",
@@ -119,6 +121,7 @@ def test_w44_scope_public_surface_only():
     allowed_exact = {
         "web/app/static/landing.css",
         "web/app/services/public_catalog.py",
+        "web/app/services/praktika.py",
         "web/app/routers/landing.py",
         "web/app/routers/zakon.py",
         "web/app/services/cms.py",
@@ -176,8 +179,10 @@ def test_robots_and_sitemap(app):
     assert "/obraztsy" in r.text
     assert "/bezopasnost" in r.text
     assert "/novoe" in r.text
+    assert "/praktika" in r.text
     assert "/dlya-ekspertov" in r.text
     assert "/obraztsy/dogovor-na-ekspertizu" in r.text
+    assert "/praktika/rekvizity-zaklyucheniya" in r.text
 
 
 def test_w44_obraztsy_and_public_pages(app):
@@ -214,6 +219,58 @@ def test_w44_obraztsy_and_public_pages(app):
     assert "/dlya-ekspertov" in home.text
     assert "/bezopasnost" in home.text
     assert 'href="/obraztsy"' in home.text
+    # W-44.3: без опубликованных отзывов блок скрыт (не выдумывать)
+    assert 'id="reviews"' not in home.text
+
+
+def test_w44_praktika_and_launch_offer(app):
+    client, dbmod = app
+    r = client.get("/praktika")
+    assert r.status_code == 200
+    assert "Практика" in r.text
+    assert "/praktika/rekvizity-zaklyucheniya" in r.text
+    assert "/praktika/faksimile-ekspertnoy-organizatsii" in r.text
+
+    art = client.get("/praktika/rekvizity-zaklyucheniya")
+    assert art.status_code == 200
+    assert "ст. 25" in art.text or "ФЗ" in art.text
+    assert "/obraztsy/" in art.text
+    assert "/zakon/" in art.text
+    assert client.get("/praktika/net-takoy-stati").status_code == 404
+
+    from sqlalchemy import select
+
+    from app.models import PromoCode, PromoCodeType
+    from app.services.cms import launch_offer_public
+
+    with dbmod.SessionLocal() as db:
+        assert launch_offer_public(db) is None
+        db.add(
+            PromoCode(
+                code="BETA50",
+                type=PromoCodeType.percent,
+                value=50,
+                tariff_codes=[],
+                periods=[],
+                max_uses=20,
+                used_count=3,
+                is_active=True,
+            )
+        )
+        db.commit()
+
+    home = client.get("/")
+    assert home.status_code == 200
+    assert "осталось 17 из 20" in home.text
+    assert "50%" in home.text
+
+    with dbmod.SessionLocal() as db:
+        row = db.scalar(select(PromoCode).where(PromoCode.code == "BETA50"))
+        assert row is not None
+        row.used_count = 20
+        db.commit()
+    home2 = client.get("/")
+    assert "Места по акции запуска заняты" in home2.text
 
 
 def test_favicon_and_html_404(app):

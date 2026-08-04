@@ -1,0 +1,49 @@
+{% extends "landing/base.html" %}
+{% block title %}{{ article.title }} — Практика — {{ app_name }}{% endblock %}
+{% block meta_description %}{{ article.description }}{% endblock %}
+{% block canonical %}{{ public_base_url }}/praktika/{{ article.slug }}{% endblock %}
+{% block og_title %}{{ article.title }} — {{ app_name }}{% endblock %}
+{% block og_description %}{{ article.description }}{% endblock %}
+{% block og_url %}{{ public_base_url }}/praktika/{{ article.slug }}{% endblock %}
+{% block twitter_title %}{{ article.title }} — {{ app_name }}{% endblock %}
+
+{% block content %}
+<article class="lp-legal lp-praktika-detail">
+  <div class="lp-wrap">
+    <p class="zk-eyebrow"><a href="/praktika">Практика</a>{% if article.date %} · {{ article.date }}{% endif %}</p>
+    <h1>{{ article.title }}</h1>
+    <p class="lp-section-lead">{{ article.description }}</p>
+
+    <div class="lp-praktika-body">
+      {{ article.body_html }}
+    </div>
+
+    {% if obraztsy_links or zakon_links %}
+    <aside class="lp-praktika-related" aria-label="Связанные материалы">
+      {% if obraztsy_links %}
+      <h2>Образцы</h2>
+      <ul class="lp-obraztsy-norm">
+        {% for it in obraztsy_links %}
+        <li><a href="/obraztsy/{{ it.slug }}">{{ it.title }}</a></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if zakon_links %}
+      <h2>Нормы</h2>
+      <ul class="lp-obraztsy-norm">
+        {% for it in zakon_links %}
+        <li><a href="/zakon/{{ it.slug }}">{{ it.title }}</a></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </aside>
+    {% endif %}
+
+    <p class="lp-section-foot">
+      <a href="/praktika">← Все статьи</a>
+      ·
+      <a href="/#apply" data-ym-goal="cta_apply">Оставить заявку</a>
+    </p>
+  </div>
+</article>
+{% endblock %}

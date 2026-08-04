@@ -45,6 +45,17 @@ CONTENT_SLOT_KEYS: tuple[str, ...] = (
     "segment_uchebnykh",
     "bezopasnost",
     "novoe",
+    # W-44 волна 3 — отзывы и код акции запуска
+    "review_1_name",
+    "review_1_role",
+    "review_1_text",
+    "review_2_name",
+    "review_2_role",
+    "review_2_text",
+    "review_3_name",
+    "review_3_role",
+    "review_3_text",
+    "launch_promo_code",
 )
 INLINE_SLOTS = {
     "hero_headline",
@@ -54,7 +65,17 @@ INLINE_SLOTS = {
     "feature_3",
     "tariffs_note",
     "footer_text",
+    "review_1_name",
+    "review_1_role",
+    "review_2_name",
+    "review_2_role",
+    "review_3_name",
+    "review_3_role",
+    "launch_promo_code",
 }
+
+# Промокод акции «первые N — 50%»: создаётся в Едином окне; слот launch_promo_code может переопределить.
+DEFAULT_LAUNCH_PROMO_CODE = "BETA50"
 
 DEFAULT_TARIFF_META: dict[TariffCode, dict[str, object]] = {
     TariffCode.guest: {
@@ -152,7 +173,15 @@ def safe_markdown(body_md: str | None, *, inline: bool = False) -> Markup:
             flush_paragraph()
             flush_list()
             continue
-        if stripped.startswith(("- ", "* ")):
+        if stripped.startswith("### "):
+            flush_paragraph()
+            flush_list()
+            parts.append(f"<h3>{_render_inline(stripped[4:].strip())}</h3>")
+        elif stripped.startswith("## "):
+            flush_paragraph()
+            flush_list()
+            parts.append(f"<h2>{_render_inline(stripped[3:].strip())}</h2>")
+        elif stripped.startswith(("- ", "* ")):
             flush_paragraph()
             list_items.append(_render_inline(stripped[2:].strip()))
         else:
@@ -512,6 +541,61 @@ def upsert_promo_code(db: Session, data: Mapping[str, object]) -> PromoCode:
     row.updated_at = utcnow()
     db.flush()
     return row
+
+
+def published_reviews(slots: Mapping[str, Markup]) -> list[dict[str, Markup | str]]:
+    """Отзывы для лендинга: только полные слоты (имя + текст). Пустые — не выдумывать."""
+    out: list[dict[str, Markup | str]] = []
+    for idx in (1, 2, 3):
+        name = slots.get(f"review_{idx}_name")
+        text = slots.get(f"review_{idx}_text")
+        if not name or not str(name).strip() or not text or not str(text).strip():
+            continue
+        role = slots.get(f"review_{idx}_role") or ""
+        out.append({"name": name, "role": role, "text": text})
+    return out
+
+
+def launch_offer_public(db: Session) -> dict | None:
+    """Акция запуска: остаток мест = max_uses − used_count у промокода (честный дефицит).
+
+    Код по умолчанию BETA50; переопределение — опубликованный слот launch_promo_code.
+    Без активного промокода с max_uses возвращает None (не рисуем «осталось N»).
+    """
+    code = DEFAULT_LAUNCH_PROMO_CODE
+    slot = db.get(ContentBlock, "launch_promo_code")
+    if (
+        slot is not None
+        and slot.status == "published"
+        and (slot.body_md or "").strip()
+    ):
+        code = normalize_promo_code(slot.body_md.strip().splitlines()[0])
+    if not code:
+        return None
+    promo = db.scalar(select(PromoCode).where(PromoCode.code == code))
+    if promo is None or not promo.is_active:
+        return None
+    if promo.max_uses is None or int(promo.max_uses) <= 0:
+        return None
+    now = utcnow()
+    start = _as_aware(promo.valid_from)
+    end = _as_aware(promo.valid_to)
+    if start and now < start:
+        return None
+    if end and now > end:
+        return None
+    max_uses = int(promo.max_uses)
+    used = int(promo.used_count or 0)
+    remaining = max(0, max_uses - used)
+    percent = int(promo.value or 0) if promo.type == PromoCodeType.percent else None
+    return {
+        "code": promo.code,
+        "max_uses": max_uses,
+        "used_count": used,
+        "remaining": remaining,
+        "percent": percent,
+        "exhausted": remaining <= 0,
+    }
 
 
 def active_announcement(db: Session, *, dismissed_id: str | None = None) -> dict | None:

@@ -16,7 +16,9 @@ from app.services.cms import (
     active_announcement,
     format_price_rub,
     get_content_slots,
+    launch_offer_public,
     list_public_tariffs,
+    published_reviews,
     tariff_blurb,
     tariff_features,
     tariff_price_label,
@@ -41,9 +43,13 @@ def _public_ctx(request: Request, db: Session | None = None, **extra):
     content_slots = {}
     announcement = None
     analytics_public = get_analytics_public(db)
+    reviews: list = []
+    launch_offer = None
     if db is not None:
         public_tariffs = list_public_tariffs(db)
         content_slots = get_content_slots(db)
+        reviews = published_reviews(content_slots)
+        launch_offer = launch_offer_public(db)
         announcement = active_announcement(
             db,
             dismissed_id=request.cookies.get("dok_announcement_dismissed"),
@@ -64,6 +70,8 @@ def _public_ctx(request: Request, db: Session | None = None, **extra):
         "form_comment": "",
         "public_tariffs": public_tariffs,
         "content_slots": content_slots,
+        "reviews": reviews,
+        "launch_offer": launch_offer,
         "announcement": announcement,
         "format_price_rub": format_price_rub,
         "tariff_price_label": tariff_price_label,
@@ -368,6 +376,57 @@ def novoe_page(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/praktika", response_class=HTMLResponse)
+def praktika_index(request: Request, db: Session = Depends(get_db)):
+    from app.services.praktika import list_praktika_articles
+
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/praktika_index.html",
+        context=_public_ctx(request, db, articles=list_praktika_articles()),
+    )
+
+
+@router.get("/praktika/{slug}", response_class=HTMLResponse)
+def praktika_detail(slug: str, request: Request, db: Session = Depends(get_db)):
+    from app.services.legal_public import get_act_by_slug
+    from app.services.praktika import get_praktika_article
+    from app.services.public_catalog import get_catalog_item
+
+    article = get_praktika_article(slug)
+    if article is None:
+        return templates.TemplateResponse(
+            request=request,
+            name="landing/404.html",
+            context=_public_ctx(request, db),
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    obraztsy_links = []
+    for s in article.related_obraztsy:
+        item = get_catalog_item(s)
+        if item is not None:
+            obraztsy_links.append({"slug": item.slug, "title": item.title})
+        else:
+            obraztsy_links.append({"slug": s, "title": s})
+    zakon_links = []
+    for s in article.related_zakon:
+        act = get_act_by_slug(db, s)
+        zakon_links.append(
+            {"slug": s, "title": act.title if act is not None else s}
+        )
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/praktika_detail.html",
+        context=_public_ctx(
+            request,
+            db,
+            article=article,
+            obraztsy_links=obraztsy_links,
+            zakon_links=zakon_links,
+        ),
+    )
+
+
 @router.get("/robots.txt", response_class=PlainTextResponse)
 def robots_txt(request: Request):
     from app.hosting import host_role, request_host
@@ -401,6 +460,7 @@ def sitemap_xml(request: Request, db: Session = Depends(get_db)):
     if role == "app":
         return RedirectResponse(redirect_url_for_path("/sitemap.xml"), status_code=301)
 
+    from app.services.praktika import all_praktika_paths
     from app.services.public_catalog import all_obraztsy_paths
 
     base = get_settings().public_base_url.rstrip("/")
@@ -413,11 +473,13 @@ def sitemap_xml(request: Request, db: Session = Depends(get_db)):
         "/contacts",
         "/bezopasnost",
         "/novoe",
+        "/praktika",
         "/dlya-ekspertov",
         "/dlya-organizatsiy",
         "/dlya-uchebnykh-tsentrov",
         "/zakon/",
         *all_obraztsy_paths(),
+        *all_praktika_paths()[1:],  # /praktika уже выше
     ]
     body = [
         '<?xml version="1.0" encoding="UTF-8"?>',

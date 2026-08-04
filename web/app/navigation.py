@@ -464,6 +464,8 @@ ROUTE_EXCEPTION_NOTES: dict[str, str] = {
     "/dlya-uchebnykh-tsentrov": "сегментный лендинг",
     "/bezopasnost": "страница доверия",
     "/novoe": "лента релизов",
+    "/praktika": "раздел Практика",
+    "/praktika/{slug}": "статья Практики",
     "/robots.txt": "SEO",
     "/sitemap.xml": "SEO",
     "/billing/webhook": "вебхук Т-Кассы",

@@ -97,6 +97,25 @@
   </div>
 </section>
 
+{% if reviews %}
+<section class="lp-section" id="reviews" aria-labelledby="reviews-title">
+  <div class="lp-wrap">
+    <h2 id="reviews-title">Отзывы</h2>
+    <p class="lp-section-lead">Слова первых пользователей беты — без выдуманных цитат.</p>
+    <div class="lp-reviews">
+      {% for r in reviews %}
+      <blockquote class="lp-review">
+        <div class="lp-review-text">{{ r.text }}</div>
+        <footer>
+          <cite>{{ r.name }}</cite>{% if r.role %}<span class="lp-review-role">{{ r.role }}</span>{% endif %}
+        </footer>
+      </blockquote>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
 <section class="lp-section" id="features" aria-labelledby="features-title">
   <div class="lp-wrap">
     <h2 id="features-title">Возможности</h2>
@@ -316,8 +335,16 @@
 
 <section class="lp-section lp-final" id="apply" aria-labelledby="apply-title">
   <div class="lp-wrap lp-apply">
+    {% if launch_offer and not launch_offer.exhausted %}
+    <h2 id="apply-title">Первые {{ launch_offer.max_uses }} подписчиков — {{ launch_offer.percent or 50 }}% навсегда, осталось {{ launch_offer.remaining }} из {{ launch_offer.max_uses }}</h2>
+    <p class="lp-section-lead">Оставьте e-mail и профиль — откроем доступ по мере запуска беты. Счётчик — по использованиям промокода, без «рисованного» дефицита.</p>
+    {% elif launch_offer and launch_offer.exhausted %}
+    <h2 id="apply-title">Места по акции запуска заняты</h2>
+    <p class="lp-section-lead">Оставьте e-mail — сообщим об условиях доступа, когда откроем следующие приглашения.</p>
+    {% else %}
     <h2 id="apply-title">Первые 20 подписчиков беты — 50% навсегда</h2>
     <p class="lp-section-lead">Оставьте e-mail и профиль — откроем доступ по мере запуска беты.</p>
+    {% endif %}
 
     {% if flash_error %}<div class="lp-alert lp-alert-error" role="alert">{{ flash_error }}</div>{% endif %}
     {% if flash_ok %}<div class="lp-alert lp-alert-ok" role="status">{{ flash_ok }}</div>{% endif %}

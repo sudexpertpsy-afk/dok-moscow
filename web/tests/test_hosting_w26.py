@@ -13,6 +13,8 @@ def test_path_surface_matrix():
     assert path_surface("/dlya-ekspertov") == "public"
     assert path_surface("/bezopasnost") == "public"
     assert path_surface("/novoe") == "public"
+    assert path_surface("/praktika") == "public"
+    assert path_surface("/praktika/rekvizity-zaklyucheniya") == "public"
     assert path_surface("/robots.txt") == "shared"
     assert path_surface("/login") == "app"
     assert path_surface("/cabinet/documents/") == "app"

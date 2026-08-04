@@ -780,6 +780,46 @@ a:hover { color: var(--lp-accent-hot); }
 }
 .lp-release { margin: 1.75rem 0; }
 .lp-release h2 { margin-bottom: 0.5rem; }
+.lp-reviews {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.25rem;
+}
+.lp-review {
+  margin: 0;
+  padding: 1.25rem 1.35rem;
+  border-left: 3px solid var(--lp-accent);
+  background: var(--lp-card);
+  border-radius: 0 12px 12px 0;
+}
+.lp-review-text {
+  color: var(--lp-ink);
+  line-height: 1.55;
+  margin: 0 0 0.85rem;
+}
+.lp-review-text p { margin: 0 0 0.5rem; color: inherit; }
+.lp-review footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  font-size: 0.92rem;
+  color: var(--lp-muted);
+}
+.lp-review cite {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--lp-ink);
+}
+.lp-praktika-body { margin: 1.25rem 0 2rem; }
+.lp-praktika-body h2 { margin-top: 1.75rem; }
+.lp-praktika-related {
+  margin: 2rem 0;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--lp-line);
+  border-radius: 12px;
+  background: var(--lp-card);
+}
 @media (max-width: 720px) {
   .lp-obraztsy-fields { columns: 1; }
 }
