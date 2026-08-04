@@ -51,9 +51,14 @@ def list_templates() -> list[dict]:
     if _templates_cache is not None and _templates_cache[0] == stamp:
         return _templates_cache[1]
 
+    from app.services.template_admin import load_deleted_templates
+
+    deleted = load_deleted_templates(root)
     items = []
     for path in sorted(root.glob("*.docx")):
         if path.name.startswith("~$"):
+            continue
+        if path.name in deleted:
             continue
         man = load_manifest(path)
         group = infer_group(path.name, man)
@@ -115,6 +120,10 @@ def template_path(name: str) -> Path:
     """Безопасный путь к общему шаблону (без path traversal)."""
     safe = Path(name).name
     if safe != name or not safe.endswith(".docx"):
+        raise FileNotFoundError("Шаблон не найден")
+    from app.services.template_admin import load_deleted_templates
+
+    if safe in load_deleted_templates():
         raise FileNotFoundError("Шаблон не найден")
     path = templates_dir() / safe
     if not path.is_file():

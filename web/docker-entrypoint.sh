@@ -30,5 +30,20 @@ else
   echo "→ SKIP_MIGRATIONS=1 — alembic пропущен"
 fi
 
+# Убрать DOCX, возвращённые git pull'ом, если админ удалял их через UI (tombstone).
+if [[ "${SKIP_TEMPLATE_TOMBSTONE:-0}" != "1" ]]; then
+  python - <<'PY' || true
+from pathlib import Path
+try:
+    from app.services.template_admin import apply_deleted_templates, deleted_templates_path
+    if deleted_templates_path().is_file():
+        removed = apply_deleted_templates()
+        if removed:
+            print(f"→ tombstone шаблонов: убрано {len(removed)}")
+except Exception as exc:
+    print(f"⚠ tombstone шаблонов: {exc}")
+PY
+fi
+
 echo "→ Запуск приложения"
 exec "$@"

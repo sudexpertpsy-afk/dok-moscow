@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -16,6 +17,10 @@ from app.services.templates import (
     template_path,
     templates_dir,
 )
+
+# Tombstone: git pull / checkout возвращает tracked DOCX из репозитория.
+# Список удалённых через админку хранится рядом с файлами и применяется после деплоя.
+DELETED_TEMPLATES_FILENAME = ".deleted_templates.json"
 
 CONTRACT_TYPE_LABELS = {
     "": "Не договор комплекта",
@@ -33,6 +38,88 @@ def _root() -> Path:
     root = templates_dir()
     root.mkdir(parents=True, exist_ok=True)
     return root
+
+
+def deleted_templates_path(root: Path | None = None) -> Path:
+    return (root or _root()) / DELETED_TEMPLATES_FILENAME
+
+
+def load_deleted_templates(root: Path | None = None) -> set[str]:
+    path = deleted_templates_path(root)
+    if not path.is_file():
+        return set()
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    if isinstance(raw, dict):
+        names = raw.get("deleted") or raw.get("names") or []
+    elif isinstance(raw, list):
+        names = raw
+    else:
+        return set()
+    out: set[str] = set()
+    for item in names:
+        name = Path(str(item)).name
+        if name.endswith(".docx") and name == str(item).replace("\\", "/").split("/")[-1]:
+            out.add(name)
+    return out
+
+
+def save_deleted_templates(names: set[str], root: Path | None = None) -> None:
+    root = root or _root()
+    path = deleted_templates_path(root)
+    payload = {"deleted": sorted(names)}
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def mark_template_deleted(name: str, root: Path | None = None) -> None:
+    root = root or _root()
+    names = load_deleted_templates(root)
+    names.add(Path(name).name)
+    save_deleted_templates(names, root)
+
+
+def unmark_template_deleted(name: str, root: Path | None = None) -> None:
+    root = root or _root()
+    names = load_deleted_templates(root)
+    names.discard(Path(name).name)
+    save_deleted_templates(names, root)
+
+
+def _unlink_template_files(root: Path, name: str) -> bool:
+    """Удалить DOCX и соседний .manifest.yaml. True если DOCX был на диске."""
+    safe = Path(name).name
+    docx = root / safe
+    existed = docx.is_file()
+    if existed:
+        docx.unlink()
+    manifest = root / f"{Path(safe).stem}.manifest.yaml"
+    if manifest.is_file():
+        manifest.unlink()
+    return existed
+
+
+def apply_deleted_templates(root: Path | None = None) -> list[str]:
+    """Повторно убрать с диска и из реестра шаблоны из tombstone (после git pull)."""
+    ensure_core_on_path()
+    from docfiller_core.contracts_registry import remove_from_registry
+
+    root = root or _root()
+    removed: list[str] = []
+    for name in sorted(load_deleted_templates(root)):
+        if _unlink_template_files(root, name):
+            removed.append(name)
+        try:
+            remove_from_registry(root, name)
+        except OSError:
+            pass
+    if removed:
+        invalidate_templates_cache()
+    return removed
 
 
 def _safe_stem(raw: str) -> str:
@@ -72,9 +159,12 @@ def list_admin_templates() -> list[dict]:
         for name in names:
             contract_of.setdefault(name, []).append(ctype)
 
+    deleted = load_deleted_templates(root)
     items: list[dict] = []
     for path in sorted(root.glob("*.docx"), key=lambda p: p.name.lower()):
         if path.name.startswith("~$"):
+            continue
+        if path.name in deleted:
             continue
         try:
             size = path.stat().st_size
@@ -121,10 +211,14 @@ def save_upload(
         raise TemplateAdminError(str(exc)) from exc
     stem = _safe_stem(filename)
     name = _docx_name(stem)
-    dest = _root() / name
-    if dest.exists():
+    root = _root()
+    dest = root / name
+    deleted = load_deleted_templates(root)
+    if dest.exists() and name not in deleted:
         raise TemplateAdminError(f"Шаблон «{name}» уже есть — переименуйте или удалите старый")
+    # повторная загрузка после удаления (в т.ч. если git вернул файл) — снимаем tombstone
     dest.write_bytes(data)
+    unmark_template_deleted(name, root)
     if contract_type:
         ensure_core_on_path()
         from docfiller_core.contracts_registry import CONTRACT_TYPES, add_contract
@@ -160,15 +254,19 @@ def rename_template(db: Session, *, old_name: str, new_title: str) -> str:
 
 
 def delete_template(db: Session, *, name: str) -> None:
+    """Удалить шаблон с диска и запомнить в tombstone (чтобы git pull не вернул файл)."""
     ensure_core_on_path()
     from docfiller_core.contracts_registry import remove_from_registry
 
     safe = Path(name).name
     if safe != name or not safe.endswith(".docx"):
         raise TemplateAdminError("Некорректное имя шаблона")
-    path = template_path(safe)
-    path.unlink()
-    remove_from_registry(_root(), safe)
+    root = _root()
+    # existence check
+    template_path(safe)
+    _unlink_template_files(root, safe)
+    mark_template_deleted(safe, root)
+    remove_from_registry(root, safe)
     invalidate_templates_cache()
 
 
