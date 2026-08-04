@@ -127,6 +127,11 @@
     </div>
     <button type="submit">Сохранить</button>
   </form>
+  <form method="post" action="/admin/legal/{{ act.id }}/delete" hx-boost="false" style="margin-top:1.25rem"
+        onsubmit="return confirm('Удалить акт «{{ act.title|e }}» и все редакции? Это необратимо.');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="danger">Удалить акт</button>
+  </form>
   <p class="muted" style="margin-top:1rem">
     Статус <code>repealed</code> («утратил силу») сохраняет архив редакций; публичный каталог показывает только <code>active</code>.
   </p>

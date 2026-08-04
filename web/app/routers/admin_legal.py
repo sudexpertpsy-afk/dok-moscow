@@ -18,6 +18,7 @@ from app.services.audit import record_event
 from app.services.legal_admin import (
     HEALTH_LABEL,
     create_act,
+    delete_act,
     do_publish,
     do_reject,
     draft_diff_html,
@@ -82,6 +83,7 @@ def legal_list(
                 "draft": "Черновик создан",
                 "saved": "Сохранено",
                 "created": "Акт добавлен",
+                "deleted": request.query_params.get("msg") or "Акт удалён",
                 "bootstrap": request.query_params.get("msg") or "Наполнение запущено",
                 "pulled": "Текст подтянут в черновик",
                 "batch_publish": request.query_params.get("msg")
@@ -132,7 +134,11 @@ def legal_publish_all_drafts(
     _: None = Depends(require_csrf),
     only_new: str = Form(""),
 ):
-    """Пакетная публикация черновиков (осознанное действие админа)."""
+    """Пакетная публикация черновиков (осознанное действие админа).
+
+    По умолчанию публикует все непустые черновики, в т.ч. обновления уже
+    опубликованных актов. only_new=1 — только акты без published (редкий режим).
+    """
     report = publish_all_drafts(
         db,
         user_id=user.id,
@@ -147,6 +153,7 @@ def legal_publish_all_drafts(
             "ok": report.ok_count,
             "fail": report.fail_count,
             "skip": report.skip_count,
+            "only_new": only_new in ("1", "on", "true"),
             "published": [
                 {"slug": i.slug, "version_id": i.version_id}
                 for i in report.items
@@ -288,6 +295,7 @@ def legal_publish(
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf),
+    return_to: str = Form(""),
 ):
     try:
         version = do_publish(db, version_id, user.id)
@@ -306,7 +314,9 @@ def legal_publish(
         )
         db.commit()
     except ValueError as exc:
-        return _err(act_id, str(exc))
+        return _err(act_id if return_to != "list" else None, str(exc))
+    if return_to == "list":
+        return RedirectResponse("/admin/legal/?ok=published", status_code=303)
     return RedirectResponse(f"/admin/legal/{act_id}?ok=published", status_code=303)
 
 
@@ -317,6 +327,7 @@ def legal_reject(
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf),
+    return_to: str = Form(""),
 ):
     try:
         version = do_reject(db, version_id, user.id)
@@ -331,7 +342,9 @@ def legal_reject(
         )
         db.commit()
     except ValueError as exc:
-        return _err(act_id, str(exc))
+        return _err(act_id if return_to != "list" else None, str(exc))
+    if return_to == "list":
+        return RedirectResponse("/admin/legal/?ok=rejected", status_code=303)
     return RedirectResponse(f"/admin/legal/{act_id}?ok=rejected", status_code=303)
 
 
@@ -442,3 +455,26 @@ def legal_settings(
     except ValueError as exc:
         return _err(act_id, str(exc))
     return RedirectResponse(f"/admin/legal/{act_id}?ok=saved", status_code=303)
+
+
+@router.post("/{act_id}/delete")
+def legal_delete_act(
+    act_id: int,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    try:
+        slug = delete_act(db, act_id)
+        record_event(
+            db,
+            type="legal_act_deleted",
+            org_id=None,
+            user_id=user.id,
+            details={"act_id": act_id, "slug": slug},
+        )
+        db.commit()
+    except ValueError as exc:
+        return _err(None, str(exc))
+    msg = quote(f"Акт «{slug}» удалён", safe="")
+    return RedirectResponse(f"/admin/legal/?ok=deleted&msg={msg}", status_code=303)

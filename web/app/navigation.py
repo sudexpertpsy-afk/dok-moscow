@@ -584,6 +584,7 @@ ROUTE_EXCEPTION_NOTES: dict[str, str] = {
     "/admin/legal/{act_id}/reject/{version_id}": "POST отклонение черновика",
     "/admin/legal/{act_id}/pull-ips": "POST подтянуть текст из ИПС",
     "/admin/legal/{act_id}/upload": "POST ручная загрузка",
+    "/admin/legal/{act_id}/delete": "POST удаление акта НПА",
     "/admin/legal/{act_id}/settings": "POST настройки акта",
     "/admin/server/status-fragment": "HTMX статус ops-agent",
     "/admin/server/redeploy-fragment": "HTMX лог деплоя",
