@@ -84,7 +84,16 @@ class TBankClient:
 
     def _http(self) -> httpx.Client:
         if self._client is None:
-            self._client = httpx.Client(timeout=self.config.timeout)
+            # Явный CA bundle (certifi), без verify=False — W-45/G-08
+            verify: bool | ssl.SSLContext = True
+            try:
+                import ssl
+                import certifi
+
+                verify = ssl.create_default_context(cafile=certifi.where())
+            except ImportError:
+                verify = True
+            self._client = httpx.Client(timeout=self.config.timeout, verify=verify)
         return self._client
 
     def _call(self, method: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -96,7 +105,11 @@ class TBankClient:
         url = f"{self.config.api_base.rstrip('/')}/{method}"
         # Не логируем Token/Password и полный body
         log.info("T-Bank %s OrderId=%s", method, body.get("OrderId") or body.get("PaymentId"))
-        resp = self._http().post(url, json=body)
+        try:
+            resp = self._http().post(url, json=body)
+        except httpx.ConnectError as exc:
+            log.error("T-Bank ConnectError url=%s err=%s", url, exc)
+            raise
         resp.raise_for_status()
         data = resp.json()
         if not data.get("Success"):

@@ -251,6 +251,11 @@ def _send_alert(key: str, subject: str, body: str) -> None:
         write_marker(f"alert_{key}", subject=subject)
 
 
+def send_ops_alert(key: str, subject: str, body: str) -> None:
+    """Публичная обёртка для алертов из биллинга/воркера (W-45)."""
+    _send_alert(key, subject, body)
+
+
 def check_alerts(db: Session) -> list[str]:
     """Проверить пороги и при необходимости отправить письма. Возвращает ключи алертов."""
     fired: list[str] = []
@@ -324,8 +329,18 @@ def check_alerts(db: Session) -> list[str]:
         fired.append(key)
 
     backup_age = marker_age_sec("backup_ok")
-    # Алерт если маркер протух > 26 ч (ночной cron + запас)
-    if backup_age is not None and backup_age > 26 * 3600:
+    # W-45/G-01: нет маркера в FILES_ROOT (host≠volume) — тоже алерт; иначе «слепой» статус.
+    if backup_age is None:
+        key = "backup_missing"
+        _send_alert(
+            key,
+            f"[{app_name}] Нет маркера бэкапа",
+            "Маркер backup_ok отсутствует в FILES_ROOT/.ops/.\n"
+            "Проверьте, что deploy/backup.sh пишет маркер через "
+            "`docker compose exec app` в named volume (не на host-путь).\n",
+        )
+        fired.append(key)
+    elif backup_age > 26 * 3600:
         key = "backup_stale"
         _send_alert(
             key,

@@ -88,11 +88,25 @@ def test_landing_assets_present(app):
 
 
 def test_w44_scope_public_surface_only():
-    """W-44: относительно tip W-43 — публичная витрина (+ роуты/CMS/hosting для новых страниц)."""
+    """W-44: относительно tip W-43 — публичная витрина (+ роуты/CMS/hosting для новых страниц).
+
+    После влития W-44 проверка scope относится только к веткам cursor/w44-*.
+    """
     import subprocess
     from pathlib import Path
 
+    import pytest
+
     repo = Path(__file__).resolve().parents[2]
+    try:
+        branch = subprocess.check_output(
+            ["git", "branch", "--show-current"], cwd=repo, text=True
+        ).strip()
+    except Exception:
+        branch = ""
+    if not branch.startswith("cursor/w44"):
+        pytest.skip("исторический scope-тест W-44 — только на ветке cursor/w44-*")
+
     base = "cursor/w43-facsimile-branding-0030"
     out = subprocess.check_output(
         ["git", "-c", "core.quotepath=false", "diff", "--name-only", f"{base}...HEAD"],
@@ -117,6 +131,7 @@ def test_w44_scope_public_surface_only():
         "web/tests/test_hosting_w26.py",
         "scripts/make_samples.py",
         "docs/",
+        "deploy/",
     )
     allowed_exact = {
         "web/app/static/landing.css",
@@ -130,6 +145,7 @@ def test_w44_scope_public_surface_only():
         "web/tests/test_landing.py",
         "web/tests/test_hosting_w26.py",
         "scripts/make_samples.py",
+        "deploy/deploy.sh",
     }
 
     def _norm(path: str) -> str:

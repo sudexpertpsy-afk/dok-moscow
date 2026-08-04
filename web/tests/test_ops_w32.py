@@ -108,12 +108,73 @@ def test_webhook_fail_streak_and_alerts(app):
     d = ops_dir()
     for p in d.glob("*.json"):
         p.unlink()
+    write_marker("backup_ok")  # W-45: иначе сработает backup_missing
     for _ in range(3):
         record_webhook_fail("token")
     db = dbmod.SessionLocal()
     try:
         fired = check_alerts(db)
         assert "webhook_fail" in fired
+        assert "backup_missing" not in fired
+    finally:
+        db.close()
+
+
+def test_backup_marker_stale_and_fresh(app):
+    """W-45/G-01: устаревший маркер → алерт; свежий → статус зелёный."""
+    from datetime import datetime, timedelta, timezone
+    import json
+    from pathlib import Path
+
+    _, dbmod = app
+    d = ops_dir()
+    for p in d.glob("*.json"):
+        p.unlink()
+
+    stale = {
+        "at": (datetime.now(timezone.utc) - timedelta(hours=50)).isoformat(),
+        "file": "/tmp/x.tar.age",
+        "stamp": "stale",
+    }
+    (d / "backup_ok.json").write_text(json.dumps(stale), encoding="utf-8")
+    db = dbmod.SessionLocal()
+    try:
+        snap = status_snapshot(db)
+        backup_row = [x for x in snap["background"] if x[0].startswith("Бэкап")][0]
+        assert backup_row[2] is False
+        fired = check_alerts(db)
+        assert "backup_stale" in fired
+    finally:
+        db.close()
+
+    write_marker("backup_ok", file="/tmp/ok.tar.age", stamp="fresh")
+    # сбросить cooldown алерта
+    for p in d.glob("alert_backup_*.json"):
+        p.unlink()
+    db = dbmod.SessionLocal()
+    try:
+        snap = status_snapshot(db)
+        backup_row = [x for x in snap["background"] if x[0].startswith("Бэкап")][0]
+        assert backup_row[2] is True
+        fired = check_alerts(db)
+        assert "backup_stale" not in fired
+        assert "backup_missing" not in fired
+    finally:
+        db.close()
+
+
+def test_backup_marker_missing_alerts(app):
+    _, dbmod = app
+    d = ops_dir()
+    for p in d.glob("*.json"):
+        p.unlink()
+    db = dbmod.SessionLocal()
+    try:
+        fired = check_alerts(db)
+        assert "backup_missing" in fired
+        snap = status_snapshot(db)
+        backup_row = [x for x in snap["background"] if x[0].startswith("Бэкап")][0]
+        assert backup_row[2] is False
     finally:
         db.close()
 

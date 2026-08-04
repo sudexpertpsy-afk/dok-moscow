@@ -226,6 +226,7 @@ def test_reconcile_getstate_mocked(app):
             "Amount": 99000,
             "ErrorCode": "0",
             "RebillId": "R1",
+            "Receipt": {"Status": "DONE", "Url": "https://ofd.example/from-getstate"},
         }
         with patch("app.billing.payments.load_tbank_client", return_value=fake):
             reconcile_payment(db, pay)
@@ -233,7 +234,33 @@ def test_reconcile_getstate_mocked(app):
         fake.close.assert_called()
         db.refresh(pay)
         assert pay.status == PaymentStatus.confirmed
+        assert pay.receipt_status == "DONE"
+        assert pay.receipt_url == "https://ofd.example/from-getstate"
         assert db.get(Subscription, sub_id).status == SubscriptionStatus.active
+    finally:
+        db.close()
+
+
+def test_confirmed_without_receipt_is_incomplete(app):
+    """W-45/G-03: confirmed без receipt_status — незавершённая цепочка 54-ФЗ."""
+    from app.billing.payments import flag_incomplete_receipts, payment_receipt_complete
+
+    _, dbmod = app
+    _org_id, _sub_id, pay_id, _password = _seed_org_payment(dbmod)
+    db = dbmod.SessionLocal()
+    try:
+        pay = db.get(Payment, pay_id)
+        pay.status = PaymentStatus.confirmed
+        pay.receipt_status = None
+        pay.receipt_url = None
+        db.commit()
+        assert payment_receipt_complete(pay) is False
+        flagged = flag_incomplete_receipts(db)
+        assert str(pay_id) in flagged
+        pay.receipt_status = "DONE"
+        db.commit()
+        assert payment_receipt_complete(pay) is True
+        assert flag_incomplete_receipts(db) == []
     finally:
         db.close()
 

@@ -172,10 +172,13 @@ def _resolve_ends_at(
     ends_on: date | None,
     now: datetime,
 ) -> datetime:
+    from app.timeutil import end_of_moscow_day, to_moscow
+
     if term_mode == "absolute":
         if ends_on is None:
             raise AdminSubscriptionError("Укажите дату окончания")
-        end = datetime.combine(ends_on, time(23, 59, 59), tzinfo=timezone.utc)
+        # W-45/G-02: конец календарного дня Europe/Moscow, не UTC 23:59:59
+        end = end_of_moscow_day(ends_on)
         if end <= now:
             raise AdminSubscriptionError("Дата окончания должна быть в будущем")
         return end
@@ -185,7 +188,9 @@ def _resolve_ends_at(
     base = _aware(sub.ends_at) if sub.is_current(now) else now
     if base < now:
         base = now
-    return add_months(base, months)
+    extended = add_months(base, months)
+    # Согласовать с бейджами/письмами: конец дня МСК даты окончания
+    return end_of_moscow_day(to_moscow(extended).date())
 
 
 def _months_between(start: datetime, end: datetime) -> float:

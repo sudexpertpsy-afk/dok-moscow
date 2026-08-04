@@ -102,8 +102,10 @@ def test_extend_active_stacks_from_ends_at(app):
         assert sub is not None
         assert sub.is_current()
         assert sub.tariff.code == TariffCode.specialist
-        expected = add_months(before, 3)
-        assert abs((sub.ends_at - expected).total_seconds()) < 2
+        from app.timeutil import as_utc, end_of_moscow_day, to_moscow
+
+        expected = end_of_moscow_day(to_moscow(add_months(before, 3)).date())
+        assert abs((as_utc(sub.ends_at) - expected).total_seconds()) < 2
         assert sub.is_complimentary is True
         pays = db.scalars(select(Payment).where(Payment.org_id == oid)).all()
         assert pays == []

@@ -99,20 +99,29 @@ echo "[$STAMP] → ротация (30 daily / 12 monthly)"
 ls -1t "$DAILY_DIR"/dok_* 2>/dev/null | tail -n +31 | xargs -r rm -f
 ls -1t "$MONTHLY_DIR"/dok_* 2>/dev/null | tail -n +13 | xargs -r rm -f
 
-# W-32: маркер успеха для /admin/status и алертов (файл в томе files)
-MARKER_DIR="${FILES_ROOT_HOST:-/srv/dok/files}/.ops"
-mkdir -p "$MARKER_DIR"
-python3 - <<PY
-import json
+# W-45/G-01: маркер в ТОТ ЖЕ named volume, что монтирует app (не host-путь).
+# Host /srv/dok/files ≠ docker volume dok_files — иначе read_marker=None.
+MARKER_FILE="$OUT"
+MARKER_STAMP="$STAMP"
+if docker compose --env-file .env ps --status running -q app >/dev/null 2>&1; then
+  docker compose --env-file .env exec -T app \
+    env MARKER_FILE="$MARKER_FILE" MARKER_STAMP="$MARKER_STAMP" \
+    python - <<'PY'
+import json, os
 from datetime import datetime, timezone
 from pathlib import Path
-p = Path("$MARKER_DIR") / "backup_ok.json"
-p.write_text(json.dumps({
+p = Path("/srv/dok/files/.ops")
+p.mkdir(parents=True, exist_ok=True)
+out = p / "backup_ok.json"
+out.write_text(json.dumps({
     "at": datetime.now(timezone.utc).isoformat(),
-    "file": "$OUT",
-    "stamp": "$STAMP",
+    "file": os.environ["MARKER_FILE"],
+    "stamp": os.environ["MARKER_STAMP"],
 }, ensure_ascii=False), encoding="utf-8")
-print(f"[$STAMP] маркер: {p}")
+print(f"маркер (volume): {out}")
 PY
+else
+  echo "⚠ app не запущен — маркер backup_ok не записан в volume" >&2
+fi
 
 echo "[$STAMP] ✓ бэкап: $OUT"

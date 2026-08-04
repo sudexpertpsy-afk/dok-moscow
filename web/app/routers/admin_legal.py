@@ -228,7 +228,7 @@ def legal_new_submit(
         )
         db.commit()
     except ValueError as exc:
-        return _err(None, str(exc)) if False else RedirectResponse(
+        return RedirectResponse(
             f"/admin/legal/new?error={quote(str(exc), safe='')}", status_code=303
         )
     return RedirectResponse(f"/admin/legal/{act.id}?ok=created", status_code=303)

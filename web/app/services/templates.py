@@ -31,8 +31,12 @@ def invalidate_templates_cache() -> None:
     _templates_cache = None
 
 
-def list_templates() -> list[dict]:
-    """Каталог шаблонов с кэшем по mtime каталога (без открытия каждого DOCX на каждый запрос)."""
+def list_templates(*, include_deleted: bool = False) -> list[dict]:
+    """Каталог шаблонов с кэшем по mtime каталога (без открытия каждого DOCX на каждый запрос).
+
+    include_deleted=True — для публичной витрины /obraztsy (W-45): tombstone админки
+    скрывает шаблон только из кабинета, не с маркетинговых страниц.
+    """
     global _templates_cache
     ensure_core_on_path()
     from docfiller_core.filler import describe_template
@@ -48,12 +52,17 @@ def list_templates() -> list[dict]:
         stamp = root.stat().st_mtime
     except OSError:
         stamp = 0.0
-    if _templates_cache is not None and _templates_cache[0] == stamp:
+    # кэш только для кабинетного режима (без удалённых)
+    if (
+        not include_deleted
+        and _templates_cache is not None
+        and _templates_cache[0] == stamp
+    ):
         return _templates_cache[1]
 
     from app.services.template_admin import load_deleted_templates
 
-    deleted = load_deleted_templates(root)
+    deleted = set() if include_deleted else load_deleted_templates(root)
     items = []
     for path in sorted(root.glob("*.docx")):
         if path.name.startswith("~$"):
@@ -74,7 +83,8 @@ def list_templates() -> list[dict]:
             }
         )
     items.sort(key=lambda x: (*group_sort_key(x.get("group") or "Прочее"), x["name"].lower()))
-    _templates_cache = (stamp, items)
+    if not include_deleted:
+        _templates_cache = (stamp, items)
     return items
 
 

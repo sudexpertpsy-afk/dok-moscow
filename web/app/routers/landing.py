@@ -406,14 +406,13 @@ def praktika_detail(slug: str, request: Request, db: Session = Depends(get_db)):
         item = get_catalog_item(s)
         if item is not None:
             obraztsy_links.append({"slug": item.slug, "title": item.title})
-        else:
-            obraztsy_links.append({"slug": s, "title": s})
+        # W-45/G-07: не публикуем битые /obraztsy/{slug} в related
     zakon_links = []
     for s in article.related_zakon:
         act = get_act_by_slug(db, s)
-        zakon_links.append(
-            {"slug": s, "title": act.title if act is not None else s}
-        )
+        if act is None:
+            continue
+        zakon_links.append({"slug": s, "title": act.title})
     return templates.TemplateResponse(
         request=request,
         name="landing/praktika_detail.html",

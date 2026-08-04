@@ -41,11 +41,21 @@ class ThrottledClient:
         self._last_request_at = -self.min_interval
         self._cache: dict[str, _CacheEntry] = {}
         self._request_count = 0
+        verify: bool | str = True
+        try:
+            import ssl
+            import certifi
+
+            ctx = ssl.create_default_context(cafile=certifi.where())
+            verify = ctx
+        except ImportError:
+            verify = True
         self._client = httpx.Client(
             timeout=timeout,
             headers={"User-Agent": user_agent, "Accept": "*/*"},
             follow_redirects=True,
             transport=transport,
+            verify=verify,
         )
 
     @property

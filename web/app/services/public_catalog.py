@@ -221,7 +221,7 @@ def list_catalog_items(*, with_fields: bool = False) -> list[CatalogItem]:
         return list(_items_cache[1])
 
     items: list[CatalogItem] = []
-    for raw in list_templates():
+    for raw in list_templates(include_deleted=True):
         stem = raw["stem"]
         name = raw["name"]
         group = raw.get("group") or "Прочее"

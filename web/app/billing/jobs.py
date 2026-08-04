@@ -14,8 +14,10 @@ from app import db as dbmod
 from app.billing.payments import (
     apply_payment_notification,
     create_card_payment,
+    flag_incomplete_receipts,
     load_tbank_client,
     org_billing_email,
+    payment_receipt_complete,
     reconcile_payment,
 )
 from app.billing.tbank import TBankError
@@ -38,15 +40,34 @@ EXPIRY_NOTICE_DAYS = (7, 1)
 
 
 def reconcile_stale_payments(db: Session, *, older_than_min: int = 15) -> int:
-    """Сверить платежи в промежуточных статусах старше N минут."""
+    """Сверить платежи в промежуточных статусах и confirmed без чека (W-45/G-03)."""
     cutoff = utcnow() - timedelta(minutes=older_than_min)
-    rows = db.scalars(
+    rows = list(
+        db.scalars(
+            select(Payment).where(
+                Payment.status.in_([PaymentStatus.created, PaymentStatus.authorized]),
+                Payment.tbank_payment_id.is_not(None),
+                Payment.updated_at < cutoff,
+            )
+        ).all()
+    )
+    # Добираем чек для уже confirmed/refunded без receipt_status
+    need_receipt = db.scalars(
         select(Payment).where(
-            Payment.status.in_([PaymentStatus.created, PaymentStatus.authorized]),
+            Payment.status.in_(
+                [
+                    PaymentStatus.confirmed,
+                    PaymentStatus.refunded,
+                    PaymentStatus.partial_refund,
+                ]
+            ),
             Payment.tbank_payment_id.is_not(None),
-            Payment.updated_at < cutoff,
         )
     ).all()
+    for pay in need_receipt:
+        if not payment_receipt_complete(pay):
+            rows.append(pay)
+
     done = 0
     for pay in rows:
         try:
@@ -59,6 +80,10 @@ def reconcile_stale_payments(db: Session, *, older_than_min: int = 15) -> int:
     from app.services.ops import write_marker
 
     write_marker("billing_reconcile", reconciled=done)
+    try:
+        flag_incomplete_receipts(db)
+    except Exception:
+        log.exception("flag_incomplete_receipts failed")
     return done
 
 
