@@ -917,6 +917,8 @@ def admin_invites(
             orgs=orgs,
             org_names=org_names,
             invite_ttl=get_settings().invite_ttl_hours,
+            flash_ok=request.query_params.get("ok"),
+            flash_error=request.query_params.get("err"),
         ),
     )
 
@@ -1009,6 +1011,157 @@ def revoke_invite(
         invite.expires_at = utcnow() - timedelta(seconds=1)
         db.commit()
     return RedirectResponse("/admin/invites", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/invites/{invite_id}/resend", response_class=HTMLResponse)
+def resend_admin_invite(
+    invite_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    """Повторить приглашение: погасить старый токен, выдать новый для той же орг/e-mail."""
+    from app.services.audit import record_event
+    from app.services.limits import assert_can_add_user
+    from app.services.mail import send_email
+
+    settings = get_settings()
+    invite = db.get(Invite, invite_id)
+    orgs = db.scalars(select(Organization).order_by(Organization.name)).all()
+    org_names = {o.id: o.name for o in orgs}
+
+    def page(*, flash_ok=None, flash_error=None, last_invite_link=None, code=200):
+        invites = db.scalars(select(Invite).order_by(Invite.id.desc()).limit(100)).all()
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/invites.html",
+            context=_ctx(
+                request,
+                user,
+                "invites",
+                invites=invites,
+                orgs=orgs,
+                org_names=org_names,
+                flash_ok=flash_ok,
+                flash_error=flash_error,
+                last_invite_link=last_invite_link,
+                invite_ttl=settings.invite_ttl_hours,
+            ),
+            status_code=code,
+        )
+
+    if invite is None:
+        return page(flash_error="Приглашение не найдено.", code=404)
+
+    email_norm = invite.email.strip().lower()
+    org = db.get(Organization, invite.org_id)
+    if org is None:
+        return page(flash_error="Организация не найдена.", code=404)
+    if db.scalar(select(User).where(User.email == email_norm)):
+        return page(
+            flash_error="Пользователь с таким e-mail уже зарегистрирован.",
+            code=409,
+        )
+
+    try:
+        assert_can_add_user(db, org.id)
+    except HTTPException as exc:
+        return page(flash_error=str(exc.detail), code=int(exc.status_code))
+
+    now = utcnow()
+    # погасить исходное и любые другие открытые по этому e-mail
+    for inv in db.scalars(
+        select(Invite).where(
+            Invite.email == email_norm,
+            Invite.used_at.is_(None),
+            Invite.expires_at > now,
+        )
+    ).all():
+        inv.expires_at = now - timedelta(seconds=1)
+
+    token = new_invite_token()
+    new_inv = Invite(
+        org_id=org.id,
+        email=email_norm,
+        token=token,
+        expires_at=now + timedelta(hours=settings.invite_ttl_hours),
+        lead_id=invite.lead_id,
+        note=(invite.note or "")[:500] or None,
+    )
+    db.add(new_inv)
+    db.flush()
+
+    if invite.lead_id:
+        lead = db.get(Lead, invite.lead_id)
+        if lead is not None:
+            lead.invite_id = new_inv.id
+            lead.org_id = org.id
+            lead.updated_at = now
+
+    link = _invite_link(request, token)
+    email_sent = send_email(
+        settings,
+        to_addr=email_norm,
+        subject=f"[Док.Москва] Приглашение в «{org.name}»",
+        body=(
+            f"Вас пригласили в организацию «{org.name}» на Док.Москва.\n\n"
+            f"Принять приглашение: {link}\n\n"
+            f"Ссылка действует {settings.invite_ttl_hours} ч.\n"
+        ),
+    )
+    record_event(
+        db,
+        type="invite_resent",
+        org_id=org.id,
+        user_id=user.id,
+        details={
+            "from_invite_id": invite_id,
+            "invite_id": new_inv.id,
+            "email": email_norm,
+            "email_sent": email_sent,
+        },
+        commit=False,
+    )
+    db.commit()
+    msg = "Приглашение повторено" + (", письмо отправлено." if email_sent else ".")
+    return page(flash_ok=msg, last_invite_link=link)
+
+
+@router.post("/invites/{invite_id}/delete", response_class=HTMLResponse)
+def delete_admin_invite(
+    invite_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from sqlalchemy import update
+
+    from app.services.audit import record_event
+
+    invite = db.get(Invite, invite_id)
+    if invite is None:
+        return RedirectResponse("/admin/invites", status_code=status.HTTP_303_SEE_OTHER)
+
+    email = invite.email
+    org_id = invite.org_id
+    # Lead.invite_id — ON DELETE SET NULL; на SQLite обнуляем явно
+    db.execute(update(Lead).where(Lead.invite_id == invite_id).values(invite_id=None))
+    record_event(
+        db,
+        type="invite_deleted",
+        org_id=org_id,
+        user_id=user.id,
+        details={"invite_id": invite_id, "email": email, "used": bool(invite.used_at)},
+        commit=False,
+    )
+    db.delete(invite)
+    db.commit()
+    return RedirectResponse(
+        "/admin/invites?ok=Приглашение+удалено",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
 @router.get("/status", response_class=HTMLResponse)

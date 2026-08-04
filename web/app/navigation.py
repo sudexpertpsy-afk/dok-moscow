@@ -553,6 +553,8 @@ ROUTE_EXCEPTION_NOTES: dict[str, str] = {
     "/admin/leads/{lead_id}/delete": "POST удаление заявки",
     "/admin/invites": "список инвайтов",
     "/admin/invites/{invite_id}/revoke": "POST",
+    "/admin/invites/{invite_id}/resend": "POST повтор приглашения",
+    "/admin/invites/{invite_id}/delete": "POST удаление приглашения",
     "/admin/payments/export": "xlsx",
     "/admin/payments/{payment_id}": "карточка платежа",
     "/admin/payments/{payment_id}/reconcile": "POST",
