@@ -29,6 +29,19 @@ def test_landing_home(app):
     assert "Запросить ранний доступ" not in r.text
     assert 'name="inn"' in r.text
     assert "Популярный" in r.text
+    # W-44: новые карточки и образцы
+    assert "Заключения эксперта по ГПК и УПК" in r.text
+    assert "Печать и подпись — прямо в PDF" in r.text
+    assert "Печать и подпись — сразу в PDF" in r.text
+    assert "/static/samples/zaklyuchenie-fragment.pdf" in r.text
+    assert "/static/samples/schet-faksimile.pdf" in r.text
+    assert "Можно ли поставить печать и подпись без принтера?" in r.text
+    assert "Есть ли шаблон заключения эксперта?" in r.text
+    assert 'property="og:image"' in r.text
+    assert "og-default.png" in r.text
+    assert 'name="twitter:card"' in r.text
+    assert 'data-ym-goal="cta_apply"' in r.text
+    assert 'data-ym-goal="sample_pdf"' in r.text
 
 
 def test_landing_tariffs_comparison(app):
@@ -40,6 +53,11 @@ def test_landing_tariffs_comparison(app):
     assert "lp-tariff-card" in r.text
     assert "Оставить заявку" in r.text
     assert "Запросить доступ" not in r.text
+    assert "Заключения эксперта (ГПК/УПК)" in r.text
+    assert "Печать и подпись в PDF" in r.text
+    assert "Свои шаблоны и свои поля" in r.text
+    assert "Слежение за изменениями НПА" in r.text
+    assert "og-default.png" in r.text
 
 
 def test_landing_assets_present(app):
@@ -52,27 +70,35 @@ def test_landing_assets_present(app):
         "/static/img/sample-dogovor.webp",
         "/static/img/sample-schet.webp",
         "/static/img/sample-akt.webp",
+        "/static/img/og-default.png",
+        "/static/img/og-zakon.png",
     ):
         r = client.get(path)
         assert r.status_code == 200, path
-        assert r.content[:4] == b"RIFF", path
+        if path.endswith(".webp"):
+            assert r.content[:4] == b"RIFF", path
+        else:
+            assert r.content[:8] == b"\x89PNG\r\n\x1a\n", path
 
 
-def test_w37_scope_non_landing_templates_untouched():
-    """W-37: diff вне landing/* шаблонов и публичной статики лендинга = 0."""
+def test_w44_scope_public_surface_only():
+    """W-44: относительно tip W-43 меняем только публичную витрину."""
     import subprocess
     from pathlib import Path
 
     repo = Path(__file__).resolve().parents[2]
+    base = "cursor/w43-facsimile-branding-0030"
     out = subprocess.check_output(
-        ["git", "-c", "core.quotepath=false", "diff", "--name-only", "main...HEAD"],
+        ["git", "-c", "core.quotepath=false", "diff", "--name-only", f"{base}...HEAD"],
         cwd=repo,
         text=True,
     )
     allowed_prefixes = (
         "web/app/templates/landing/",
+        "web/app/templates/zakon/",
         "web/app/static/landing.css",
         "web/app/static/img/",
+        "web/app/static/samples/",
         "web/tests/test_landing.py",
         "scripts/make_samples.py",
         "docs/",
@@ -85,7 +111,6 @@ def test_w37_scope_non_landing_templates_untouched():
 
     def _norm(path: str) -> str:
         path = path.strip().strip('"')
-        # git quotepath octal escapes → utf-8
         if "\\" in path:
             try:
                 path = path.encode("utf-8").decode("unicode_escape")
@@ -97,7 +122,7 @@ def test_w37_scope_non_landing_templates_untouched():
     for path in sorted(paths):
         if path in allowed_exact or any(path.startswith(p) for p in allowed_prefixes):
             continue
-        raise AssertionError(f"W-37 вне scope: {path}")
+        raise AssertionError(f"W-44 вне scope: {path}")
 
 
 def test_privacy_and_contacts(app):

@@ -1,16 +1,18 @@
 {% extends "landing/base.html" %}
 {% block title %}{{ app_name }} — комплект документов экспертизы{% endblock %}
 {% block og_title %}{{ app_name }} — комплект документов экспертизы{% endblock %}
-{% block og_description %}Договор на экспертизу, счёт, акт и ПКО — комплект документов экспертизы за минуты. Реквизиты из ЕГРЮЛ, сроки под контролем.{% endblock %}
+{% block og_description %}Договор на экспертизу, счёт, акт и ПКО — комплект документов экспертизы за минуты. Реквизиты из ЕГРЮЛ, печать и подпись в PDF.{% endblock %}
+{% block twitter_title %}{{ app_name }} — комплект документов экспертизы{% endblock %}
+{% block twitter_description %}Договор на экспертизу, счёт, акт и ПКО — комплект документов экспертизы за минуты. Реквизиты из ЕГРЮЛ, печать и подпись в PDF.{% endblock %}
 
 {% block content %}
 <section class="lp-hero" aria-label="Главный экран">
   <div class="lp-hero-copy">
     <p class="lp-brand">{{ app_name }}</p>
     <h1 class="lp-headline">{% if content_slots.hero_headline %}{{ content_slots.hero_headline }}{% else %}Комплект документов экспертизы — за 5 минут вместо часа{% endif %}</h1>
-    <p class="lp-sub">{% if content_slots.hero_sub %}{{ content_slots.hero_sub }}{% else %}Договор, счёт, акт и кассовый ордер по шаблонам, выверенным практикующей судебно-экспертной организацией. Реквизиты заказчика — из ЕГРЮЛ по одному ИНН. Сроки договоров — под контролем.{% endif %}</p>
+    <p class="lp-sub">{% if content_slots.hero_sub %}{{ content_slots.hero_sub }}{% else %}Договор, счёт, акт и кассовый ордер по шаблонам, выверенным практикующей судебно-экспертной организацией. Реквизиты — из ЕГРЮЛ по одному ИНН. Печать и подпись — сразу в PDF.{% endif %}</p>
     <div class="lp-cta">
-      <a class="lp-btn" href="#apply">Оставить заявку</a>
+      <a class="lp-btn" href="#apply" data-ym-goal="cta_apply">Оставить заявку</a>
       <a class="lp-btn lp-btn-ghost" href="#samples">Примеры документов ↓</a>
     </div>
     <p class="lp-trust">Сделано экспертами ООО «УСЭ» (лицензия ЛО-77-01-017900) · Данные хранятся в России · 152-ФЗ</p>
@@ -128,11 +130,21 @@
       <article class="lp-card lp-card-icon">
         <svg class="lp-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12H4V7zm3-3h10v3H7V4z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 12h8M8 15h5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
         <h3>Свои шаблоны</h3>
-        <p>Тариф «Организация»: загрузите фирменные DOCX — сервис заполняет их как родные.</p>
+        <p>Тариф «Организация»: загрузите фирменные DOCX — сервис заполняет их как родные, с собственными полями: впишите {% raw %}<code>{{ своё_поле }}</code>{% endraw %} — сервис сам предложит его настроить.</p>
+      </article>
+      <article class="lp-card lp-card-icon">
+        <svg class="lp-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5V4zm3 4h8M8 12h8M8 16h5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        <h3>Заключения эксперта по ГПК и УПК</h3>
+        <p>Каркас заключения со всеми обязательными реквизитами по ст. 25 ФЗ-73, ст. 86 ГПК, ст. 204 УПК: подписка, вводная часть, исследование, выводы. Для любого вида экспертиз.</p>
+      </article>
+      <article class="lp-card lp-card-icon">
+        <svg class="lp-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 14c1.2 1.2 2.5 1.8 4 1.8s2.8-.6 4-1.8M9 10h.01M15 10h.01" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        <h3>Печать и подпись — прямо в PDF</h3>
+        <p>Загрузите оттиск печати и подписи один раз — сервис встроит их в счёт или письмо. Без принтера и сканера.</p>
       </article>
     </div>
     <div class="lp-cta lp-cta-center">
-      <a class="lp-btn" href="#apply">Оставить заявку</a>
+      <a class="lp-btn" href="#apply" data-ym-goal="cta_apply">Оставить заявку</a>
     </div>
   </div>
 </section>
@@ -160,7 +172,7 @@
 
 <section class="lp-strip" id="stats" aria-label="Цифры">
   <div class="lp-wrap lp-strip-inner">
-    <p>26 шаблонов · комплект за ~5 минут · реквизиты из ЕГРЮЛ без ручного ввода · документы в DOCX и PDF</p>
+    <p>Заключения эксперта · печать в PDF · 26+ шаблонов · комплект за ~5 минут · реквизиты из ЕГРЮЛ</p>
   </div>
 </section>
 
@@ -170,25 +182,39 @@
     <p class="lp-section-lead">Обезличенные PDF из настоящих шаблонов сервиса (с водяным знаком «ОБРАЗЕЦ»). Так выглядит результат генерации в кабинете.</p>
     <div class="lp-sample-grid">
       <article class="lp-sample-card">
-        <a class="lp-sample-thumb" href="/static/samples/dogovor-fl.pdf" target="_blank" rel="noopener">
+        <a class="lp-sample-thumb" href="/static/samples/dogovor-fl.pdf" target="_blank" rel="noopener" data-ym-goal="sample_pdf">
           <img src="/static/img/sample-dogovor.webp" alt="Миниатюра договора на экспертизу" width="480" height="679" loading="lazy" decoding="async">
         </a>
         <h3>Договор на экспертизу (ФЛ)</h3>
-        <a class="lp-btn lp-btn-small" href="/static/samples/dogovor-fl.pdf" target="_blank" rel="noopener">Открыть PDF</a>
+        <a class="lp-btn lp-btn-small" href="/static/samples/dogovor-fl.pdf" target="_blank" rel="noopener" data-ym-goal="sample_pdf">Открыть PDF</a>
       </article>
       <article class="lp-sample-card">
-        <a class="lp-sample-thumb" href="/static/samples/schet.pdf" target="_blank" rel="noopener">
+        <a class="lp-sample-thumb" href="/static/samples/schet.pdf" target="_blank" rel="noopener" data-ym-goal="sample_pdf">
           <img src="/static/img/sample-schet.webp" alt="Миниатюра счёта" width="480" height="679" loading="lazy" decoding="async">
         </a>
         <h3>Счёт</h3>
-        <a class="lp-btn lp-btn-small" href="/static/samples/schet.pdf" target="_blank" rel="noopener">Открыть PDF</a>
+        <a class="lp-btn lp-btn-small" href="/static/samples/schet.pdf" target="_blank" rel="noopener" data-ym-goal="sample_pdf">Открыть PDF</a>
       </article>
       <article class="lp-sample-card">
-        <a class="lp-sample-thumb" href="/static/samples/akt.pdf" target="_blank" rel="noopener">
+        <a class="lp-sample-thumb" href="/static/samples/akt.pdf" target="_blank" rel="noopener" data-ym-goal="sample_pdf">
           <img src="/static/img/sample-akt.webp" alt="Миниатюра акта" width="480" height="679" loading="lazy" decoding="async">
         </a>
         <h3>Акт</h3>
-        <a class="lp-btn lp-btn-small" href="/static/samples/akt.pdf" target="_blank" rel="noopener">Открыть PDF</a>
+        <a class="lp-btn lp-btn-small" href="/static/samples/akt.pdf" target="_blank" rel="noopener" data-ym-goal="sample_pdf">Открыть PDF</a>
+      </article>
+      <article class="lp-sample-card">
+        <a class="lp-sample-thumb" href="/static/samples/zaklyuchenie-fragment.pdf" target="_blank" rel="noopener" data-ym-goal="sample_pdf">
+          <img src="/static/img/sample-zaklyuchenie.webp" alt="Миниатюра фрагмента заключения эксперта" width="480" height="679" loading="lazy" decoding="async">
+        </a>
+        <h3>Заключение эксперта (фрагмент)</h3>
+        <a class="lp-btn lp-btn-small" href="/static/samples/zaklyuchenie-fragment.pdf" target="_blank" rel="noopener" data-ym-goal="sample_pdf">Открыть PDF</a>
+      </article>
+      <article class="lp-sample-card">
+        <a class="lp-sample-thumb" href="/static/samples/schet-faksimile.pdf" target="_blank" rel="noopener" data-ym-goal="sample_pdf">
+          <img src="/static/img/sample-schet-faksimile.webp" alt="Миниатюра счёта с печатью и подписью" width="480" height="679" loading="lazy" decoding="async">
+        </a>
+        <h3>Счёт с печатью и подписью</h3>
+        <a class="lp-btn lp-btn-small" href="/static/samples/schet-faksimile.pdf" target="_blank" rel="noopener" data-ym-goal="sample_pdf">Открыть PDF</a>
       </article>
     </div>
   </div>
@@ -229,7 +255,7 @@
               <li>{{ feature }}</li>
             {% endfor %}
           </ul>
-          <a class="lp-btn{% if t.code.value != 'specialist' %} lp-btn-outline{% endif %}" href="#apply">Оставить заявку</a>
+          <a class="lp-btn{% if t.code.value != 'specialist' %} lp-btn-outline{% endif %}" href="#apply" data-ym-goal="cta_apply">Оставить заявку</a>
         </article>
       {% endfor %}
     </div>
@@ -254,6 +280,18 @@
         <details>
           <summary>Можно ли загрузить собственные шаблоны?</summary>
           <p>Да, на тарифе «Организация»: загружаете фирменные DOCX — сервис заполняет их теми же полями, что и встроенные шаблоны.</p>
+        </details>
+        <details>
+          <summary>Можно ли поставить печать и подпись без принтера?</summary>
+          <p>Да: загрузите изображения печати и подписей в «Настройки → Печать и подписи» — сервис встроит факсимиле в PDF. Файл DOCX для скачивания остаётся без изображений. Ответственность за правомерность применения факсимиле несёт пользователь; подробности — в <a href="{{ app_base_url }}/cabinet/help#facsimile-templates">справке кабинета</a>.</p>
+        </details>
+        <details>
+          <summary>Есть ли шаблон заключения эксперта?</summary>
+          <p>Да — по ГПК и УПК: подписка, вводная часть, исследование и выводы с обязательными реквизитами (ст. 25 ФЗ-73, ст. 86 ГПК, ст. 204 УПК). Подходит для любого вида экспертиз.</p>
+        </details>
+        <details>
+          <summary>Могу ли я использовать свои бланки?</summary>
+          <p>Да, на тарифе «Организация»: загрузите фирменный DOCX в «Мои шаблоны», включая собственные поля — сервис предложит их настроить при загрузке.</p>
         </details>
         <details>
           <summary>Что будет с документами, если я перестану платить?</summary>
@@ -304,7 +342,7 @@
       <textarea id="comment" name="comment" rows="3" maxlength="2000">{{ form_comment }}</textarea>
 
       <p class="lp-consent">Нажимая «Отправить», вы соглашаетесь с <a href="/privacy">политикой обработки ПДн</a>.</p>
-      <button type="submit" class="lp-btn">Отправить заявку</button>
+      <button type="submit" class="lp-btn" data-ym-goal="apply_submit">Отправить заявку</button>
     </form>
   </div>
 </section>
@@ -327,3 +365,4 @@
 })();
 </script>
 {% endblock %}
+{# цели Метрики — в landing/base.html через data-ym-goal #}
