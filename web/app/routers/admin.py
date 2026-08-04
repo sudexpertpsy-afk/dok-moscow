@@ -122,6 +122,10 @@ def admin_home(
     recent_leads = db.scalars(select(Lead).order_by(Lead.id.desc()).limit(8)).all()
     recent_orgs = db.scalars(select(Organization).order_by(Organization.id.desc()).limit(8)).all()
     stats = _org_stats(db)
+    from app.services.facsimile import count_orgs_with_branding
+
+    org_ids = list(db.scalars(select(Organization.id)).all())
+    branding_orgs = count_orgs_with_branding(org_ids)
     return templates.TemplateResponse(
         request=request,
         name="admin/home.html",
@@ -134,6 +138,7 @@ def admin_home(
                 "users": users_n,
                 "leads": leads_n,
                 "open_invites": open_invites,
+                "branding_orgs": branding_orgs,
             },
             recent_leads=recent_leads,
             recent_orgs=recent_orgs,
@@ -243,6 +248,8 @@ def admin_organization_detail(
     source_lead = None
     if org.source_lead_id:
         source_lead = db.get(Lead, org.source_lead_id)
+    from app.services.facsimile import branding_slots_summary
+
     return templates.TemplateResponse(
         request=request,
         name="admin/organization_detail.html",
@@ -260,6 +267,7 @@ def admin_organization_detail(
             sub_history=subscription_history(db, org_id),
             reason_choices=REASON_CHOICES,
             source_lead=source_lead,
+            branding_slots=branding_slots_summary(org_id),
             flash_ok=request.query_params.get("ok"),
             flash_error=request.query_params.get("err"),
         ),

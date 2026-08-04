@@ -250,14 +250,7 @@ def test_generate_clean_docx_and_ui_rules(app, tmp_path, monkeypatch):
         for v in vars_:
             data.setdefault(v, "тест")
         r = client.post("/cabinet/documents/new/ПКО_КО-1.docx", data=data, follow_redirects=False)
-        if r.status_code == 303:
-            db = dbmod.SessionLocal()
-            try:
-                doc = db.scalar(select(Document).order_by(Document.id.desc()))
-                assert doc.context.get("_facsimile_pdf") is False
-                assert doc.context.get("_facsimile_docx") is False
-            finally:
-                db.close()
+        assert r.status_code == 400
     finally:
         get_settings.cache_clear()
 
@@ -311,3 +304,57 @@ def test_fill_with_images_inserts_media(app, tmp_path, monkeypatch):
         assert len(img_media) > len(clean_media)
     finally:
         get_settings.cache_clear()
+
+
+def test_package_summary_and_feature_flag(monkeypatch):
+    from app.config import get_settings
+    from app.services.branding import px_to_mm
+    from app.services.facsimile import (
+        facsimile_feature_enabled,
+        facsimile_ui,
+        package_facsimile_summary,
+    )
+
+    summary = package_facsimile_summary(
+        ["Счёт_на_оплату.docx", "Договор_услуги_v2.docx", "ПКО_КО-1.docx"]
+    )
+    assert "Будет добавлено" in summary["text"]
+    assert "С предупреждением" in summary["text"]
+    assert "Не добавляется" in summary["text"]
+    assert summary["any_toggle"] is True
+    assert px_to_mm(600) == round(600 * 25.4 / 300, 1)
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("FAKSIMILE_ENABLED", "false")
+    get_settings.cache_clear()
+    try:
+        assert facsimile_feature_enabled() is False
+        ui = facsimile_ui("Счёт_на_оплату.docx")
+        assert ui["show_checkbox"] is False
+    finally:
+        monkeypatch.delenv("FAKSIMILE_ENABLED", raising=False)
+        get_settings.cache_clear()
+
+
+def test_verdict_low_contrast_usable():
+    """Бледное изображение после очистки → «пригодно»."""
+    img = Image.new("RGB", (600, 600), (255, 255, 255))
+    for x in range(100, 500):
+        for y in range(100, 500):
+            img.putpixel((x, y), (245, 245, 245))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    v = evaluate_image(
+        buf.getvalue(), kind="stamp", simulate_remove_bg=True, bg_threshold=240
+    )
+    assert v.level == VerdictLevel.usable
+    assert "контраст" in v.message.lower() or "пригодно" in v.message.lower()
+
+
+def test_preview_pair_uris_ok():
+    from app.services.branding import preview_pair_uris
+
+    data = _png_bytes(600, 600)
+    previews = preview_pair_uris(data, remove_bg=True)
+    for key in ("before_gray", "before_white", "after_gray", "after_white", "in_document"):
+        assert previews[key].startswith("data:image/png;base64,")

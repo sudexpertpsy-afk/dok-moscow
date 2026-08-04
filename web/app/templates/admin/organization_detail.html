@@ -18,6 +18,16 @@
     <div class="actions"><button type="submit">Сохранить</button>
       <a class="btn secondary" href="/admin/invites">Выдать приглашение</a></div>
   </form>
+  {% if branding_slots is defined %}
+  <p style="margin-top:1rem"><strong>Факсимиле (слоты):</strong>
+    {% for s in branding_slots %}
+      {% if s.exists %}<span class="badge ok">{{ s.label }}</span>
+      {% else %}<span class="badge">{{ s.label }} — нет</span>{% endif %}
+    {% else %}
+      <span class="muted">не настроено</span>
+    {% endfor %}
+  </p>
+  {% endif %}
 </section>
 
 <section class="panel" id="subscription" style="margin-top:1rem">

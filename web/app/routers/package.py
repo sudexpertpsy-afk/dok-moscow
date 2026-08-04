@@ -330,19 +330,9 @@ def package_step3_get(
             data["egrul_warning"] = egrul_warning
             _save(request, data)
 
-    from app.services.facsimile import facsimile_ui, org_has_any_branding
+    from app.services.facsimile import org_has_any_branding, package_facsimile_summary
 
-    facsimile_rows = []
-    for name in selected:
-        ui = facsimile_ui(name)
-        facsimile_rows.append(
-            {
-                "name": name,
-                "show": ui["show_checkbox"],
-                "checked": ui["default_on"],
-                "warn": ui["warn_text"],
-            }
-        )
+    facsimile_summary = package_facsimile_summary(selected, display_name=display_name)
 
     return templates.TemplateResponse(
         request=request,
@@ -357,7 +347,7 @@ def package_step3_get(
             selected=selected,
             display_name=display_name,
             egrul_warning=egrul_warning,
-            facsimile_rows=facsimile_rows,
+            facsimile_summary=facsimile_summary,
             facsimile_has_images=org_has_any_branding(org.id),
         ),
     )
@@ -472,6 +462,10 @@ def package_done(
     docs = []
     for i in ids:
         docs.append(get_document_for_org(db, org_id, int(i)))
+    from app.services.facsimile import doc_has_facsimile
+
+    fax_flags = {d.id: doc_has_facsimile(d) for d in docs}
+    any_fax = any(fax_flags.values())
     return templates.TemplateResponse(
         request=request,
         name="cabinet/package_done.html",
@@ -479,6 +473,8 @@ def package_done(
             wizard=data,
             documents=docs,
             display_name=display_name,
+            fax_flags=fax_flags,
+            any_fax=any_fax,
         ),
     )
 

@@ -91,18 +91,27 @@
     var fileInput = form.querySelector(".branding-file");
     var box = form.querySelector(".branding-verdict");
     if (!fileInput || !box) return;
-    fileInput.addEventListener("change", function () {
+    function runCheck() {
       if (!fileInput.files || !fileInput.files[0]) { box.innerHTML = ""; return; }
       var fd = new FormData();
       fd.append("csrf_token", form.querySelector("[name=csrf_token]").value);
       fd.append("slot", form.getAttribute("data-slot"));
       fd.append("file", fileInput.files[0]);
+      var rem = form.querySelector("[name=remove_bg]");
+      if (rem && rem.checked) fd.append("remove_bg", "1");
+      var thr = form.querySelector("[name=bg_threshold]");
+      if (thr) fd.append("bg_threshold", thr.value);
       box.textContent = "Проверка…";
       fetch("/cabinet/settings/branding/check", { method: "POST", body: fd, credentials: "same-origin" })
         .then(function (r) { return r.text(); })
         .then(function (html) { box.innerHTML = html; })
         .catch(function () { box.textContent = "Не удалось проверить файл"; });
-    });
+    }
+    fileInput.addEventListener("change", runCheck);
+    var rem = form.querySelector("[name=remove_bg]");
+    var thr = form.querySelector("[name=bg_threshold]");
+    if (rem) rem.addEventListener("change", runCheck);
+    if (thr) thr.addEventListener("change", runCheck);
   });
 })();
 </script>

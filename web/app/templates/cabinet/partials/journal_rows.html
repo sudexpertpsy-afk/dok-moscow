@@ -4,6 +4,9 @@
   <td>
     {% set kind = kinds_map.get(d.id) if kinds_map is defined else none %}
     {% if kind %}<span class="badge">{{ kind }}</span> {% endif %}{{ d.template }}
+    {% if d.context and d.context.get('_facsimile_pdf') %}
+    <span class="badge ok">с факсимиле</span>
+    {% endif %}
   </td>
   <td class="mono">{{ d.number or '—' }}</td>
   <td>{% if d.counterparty_id %}<a href="/cabinet/counterparties/{{ d.counterparty_id }}">{{ cp_map.get(d.counterparty_id, d.counterparty_id) }}</a>{% else %}—{% endif %}</td>
@@ -26,7 +29,7 @@
   <td colspan="5" class="muted" style="text-align:center;padding:1rem">
     <button type="button"
             class="btn secondary"
-            hx-get="/cabinet/journal/rows?page={{ page + 1 }}&from={{ filters.from }}&to={{ filters.to }}&template={{ filters.template }}&counterparty_id={{ filters.counterparty_id }}"
+            hx-get="/cabinet/journal/rows?page={{ page + 1 }}&from={{ filters.from }}&to={{ filters.to }}&template={{ filters.template }}&counterparty_id={{ filters.counterparty_id }}&facsimile={{ filters.facsimile }}"
             hx-target="#journal-body"
             hx-swap="beforeend"
             hx-trigger="intersect once">

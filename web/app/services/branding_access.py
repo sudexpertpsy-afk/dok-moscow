@@ -12,8 +12,11 @@ from app.services.billing import get_tariff_limits
 
 
 def can_manage_branding(db: Session, org_id: int) -> tuple[bool, str | None]:
+    from app.config import get_settings
     from app.services.billing import ensure_beta_subscriptions
 
+    if not get_settings().faksimile_enabled:
+        return False, "Функция факсимиле временно выключена администратором сервиса."
     ensure_beta_subscriptions(db)
     limits = get_tariff_limits(db, org_id)
     if not limits.is_current:

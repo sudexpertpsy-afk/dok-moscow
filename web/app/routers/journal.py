@@ -58,11 +58,14 @@ def _journal_filters(request: Request):
     template = (q.get("template") or "").strip() or None
     cp_raw = (q.get("counterparty_id") or "").strip()
     counterparty_id = int(cp_raw) if cp_raw.isdigit() else None
+    facsimile = (q.get("facsimile") or "").strip() or None
+    if facsimile not in ("yes", "no"):
+        facsimile = None
     try:
         page = int(q.get("page") or "1")
     except ValueError:
         page = 1
-    return date_from, date_to, template, counterparty_id, cp_raw, max(1, page)
+    return date_from, date_to, template, counterparty_id, cp_raw, facsimile, max(1, page)
 
 
 @router.get("/journal", response_class=HTMLResponse)
@@ -73,7 +76,7 @@ def journal_page(
 ):
     org = get_org_for_user(db, user)
     org_id = require_org_id(user)
-    date_from, date_to, template, counterparty_id, cp_raw, page = _journal_filters(request)
+    date_from, date_to, template, counterparty_id, cp_raw, facsimile, page = _journal_filters(request)
     per_page = 20
 
     rows, total = list_journal(
@@ -83,6 +86,7 @@ def journal_page(
         date_to=date_to,
         template=template,
         counterparty_id=counterparty_id,
+        facsimile=facsimile,
         page=page,
         per_page=per_page,
     )
@@ -107,6 +111,7 @@ def journal_page(
                 "to": request.query_params.get("to") or "",
                 "template": template or "",
                 "counterparty_id": cp_raw,
+                "facsimile": facsimile or "",
             },
         ),
     )
@@ -120,7 +125,7 @@ def journal_rows(
 ):
     """HTMX-фрагмент следующей страницы журнала (W-31)."""
     org_id = require_org_id(user)
-    date_from, date_to, template, counterparty_id, cp_raw, page = _journal_filters(request)
+    date_from, date_to, template, counterparty_id, cp_raw, facsimile, page = _journal_filters(request)
     per_page = 20
     rows, total = list_journal(
         db,
@@ -129,6 +134,7 @@ def journal_rows(
         date_to=date_to,
         template=template,
         counterparty_id=counterparty_id,
+        facsimile=facsimile,
         page=page,
         per_page=per_page,
     )
@@ -151,6 +157,7 @@ def journal_rows(
                 "to": request.query_params.get("to") or "",
                 "template": template or "",
                 "counterparty_id": cp_raw,
+                "facsimile": facsimile or "",
             },
         },
     )

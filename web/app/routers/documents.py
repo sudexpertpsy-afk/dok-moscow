@@ -265,9 +265,11 @@ async def document_generate(
     policy = facsimile_policy(template_name)
     want_pdf = bool(form.get("facsimile_pdf"))
     want_docx = bool(form.get("facsimile_docx"))
-    if policy == FacsimilePolicy.forbidden:
-        want_pdf = False
-        want_docx = False
+    if policy == FacsimilePolicy.forbidden and (want_pdf or want_docx):
+        raise HTTPException(
+            status_code=400,
+            detail="Для этого шаблона факсимиле запрещено",
+        )
     prefs = get_facsimile_prefs(ensure_requisites(org))
     if want_docx and not prefs.get("embed_docx") and not form.get("facsimile_docx"):
         want_docx = False
@@ -330,10 +332,34 @@ def document_view(
 ):
     org = get_org_for_user(db, user)
     doc = get_document_for_org(db, require_org_id(user), doc_id)
+    from app.services.facsimile import (
+        doc_has_facsimile,
+        facsimile_feature_enabled,
+        facsimile_policy,
+        FacsimilePolicy,
+        onboarding_tip_visible,
+        org_has_any_branding,
+    )
+    from app.services.settings_svc import ensure_requisites
+
+    fax_on = doc_has_facsimile(doc)
+    policy = facsimile_policy(doc.template)
+    feature_on = facsimile_feature_enabled()
+    can_toggle = feature_on and policy != FacsimilePolicy.forbidden
     return templates.TemplateResponse(
         request=request,
         name="cabinet/document_view.html",
-        context=_page(request, user, org, db, doc=doc),
+        context=_page(
+            request,
+            user,
+            org,
+            db,
+            doc=doc,
+            facsimile_on=fax_on,
+            facsimile_badge=feature_on and policy != FacsimilePolicy.forbidden,
+            facsimile_can_toggle=can_toggle and org_has_any_branding(org.id),
+            facsimile_onboarding=onboarding_tip_visible(ensure_requisites(org), org.id),
+        ),
     )
 
 
@@ -343,6 +369,7 @@ def document_download(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    org = get_org_for_user(db, user)
     doc = get_document_for_org(db, require_org_id(user), doc_id)
     try:
         path = absolute_file(doc)
@@ -350,10 +377,111 @@ def document_download(
         raise HTTPException(status_code=404, detail="Файл не найден") from exc
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Файл не найден")
-    return FileResponse(
-        path,
-        filename=path.name,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+
+    # Д-4: после скачивания PDF без настроенного branding — отметить для онбординга
+    if doc.format == DocumentFormat.pdf:
+        from app.services.facsimile import (
+            get_facsimile_prefs,
+            org_has_any_branding,
+            set_facsimile_prefs,
+        )
+        from app.services.settings_svc import ensure_requisites
+
+        prefs = get_facsimile_prefs(ensure_requisites(org))
+        if not prefs.get("onboarding_dismissed") and not org_has_any_branding(org.id):
+            req = ensure_requisites(org)
+            set_facsimile_prefs(req, pdf_seen_without_branding=True)
+            org.requisites = dict(req)
+            db.add(org)
+            db.commit()
+
+    media = (
+        "application/pdf"
+        if doc.format == DocumentFormat.pdf
+        else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    return FileResponse(path, filename=path.name, media_type=media)
+
+
+@router.post("/{doc_id}/regenerate-facsimile")
+async def document_regenerate_facsimile(
+    doc_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    """Д-2: перегенерировать PDF с/без факсимиле без повторного заполнения формы."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from app.models import JobType
+    from app.services.facsimile import (
+        FacsimilePolicy,
+        facsimile_feature_enabled,
+        facsimile_policy,
+        org_has_any_branding,
+    )
+    from app.services.jobs import enqueue_job
+
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+    if not facsimile_feature_enabled():
+        raise HTTPException(status_code=400, detail="Факсимиле временно выключено")
+
+    org = get_org_for_user(db, user)
+    org_id = require_org_id(user)
+    doc = get_document_for_org(db, org_id, doc_id)
+    if facsimile_policy(doc.template) == FacsimilePolicy.forbidden:
+        raise HTTPException(status_code=400, detail="Для этого шаблона факсимиле запрещено")
+    want = str(form.get("with_facsimile") or "") in {"1", "true", "on", "yes"}
+    if want and not org_has_any_branding(org.id):
+        raise HTTPException(status_code=400, detail="Сначала загрузите печать/подписи")
+
+    ctx = dict(doc.context or {})
+    ctx["_facsimile_pdf"] = want
+    if not want:
+        ctx["_facsimile_docx"] = False
+    doc.context = ctx
+    flag_modified(doc, "context")
+    db.add(doc)
+    db.commit()
+
+    # Для DOCX — ставим задачу PDF; для PDF — пересобираем через задачу от «парного» DOCX или себя
+    source_id = doc.id
+    if doc.format == DocumentFormat.pdf:
+        # ищем исходный DOCX того же шаблона/номера
+        from sqlalchemy import select
+
+        sibling = db.scalar(
+            select(Document)
+            .where(
+                Document.org_id == org_id,
+                Document.template == doc.template,
+                Document.format == DocumentFormat.docx,
+                Document.number == doc.number,
+            )
+            .order_by(Document.id.desc())
+            .limit(1)
+        )
+        if sibling is not None:
+            sctx = dict(sibling.context or {})
+            sctx["_facsimile_pdf"] = want
+            sibling.context = sctx
+            flag_modified(sibling, "context")
+            db.add(sibling)
+            db.commit()
+            source_id = sibling.id
+
+    job = enqueue_job(
+        db,
+        org_id=org_id,
+        user_id=user.id,
+        job_type=JobType.document_pdf,
+        payload={"document_id": source_id},
+    )
+    return RedirectResponse(
+        f"/cabinet/jobs/{job.id}",
+        status_code=status.HTTP_303_SEE_OTHER,
     )
 
 

@@ -12,7 +12,7 @@
       </p>
       {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
       {% if egrul_warning %}<div class="alert alert-warn">{{ egrul_warning }}</div>{% endif %}
-      <form method="post" action="/cabinet/package/step3" class="doc-form">
+      <form method="post" action="/cabinet/package/step3" class="doc-form" id="package-step3-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1rem 0 0.35rem">Контрагент</h2>
         {% for f in core_names %}
@@ -25,21 +25,38 @@
         {% endfor %}
         {% endif %}
         <p class="muted" style="margin-top:0.8rem">Пустой номер — взять следующий из счётчика (см. placeholder).</p>
-        {% if facsimile_rows %}
+        {% if facsimile_summary and facsimile_summary.any_toggle %}
         <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1rem 0 0.35rem">Печать и подпись в PDF</h2>
-        <p class="muted">По документам комплекта (DOCX остаётся без факсимиле). Загрузка изображений — в <a href="/cabinet/settings/branding">Настройки → Печать и подписи</a>.</p>
-        {% for row in facsimile_rows %}
+        <p class="muted">DOCX остаётся без факсимиле. Загрузка — в <a href="/cabinet/settings/branding">Настройки → Печать и подписи</a>.</p>
+        {% if facsimile_summary.text %}
+        <p class="facsimile-summary" style="margin:0.5rem 0;line-height:1.45">{{ facsimile_summary.text }}</p>
+        {% endif %}
+        <label style="display:flex;gap:0.5rem;align-items:center;margin:0.6rem 0">
+          <input type="checkbox" id="fax-master" style="width:auto"
+                 {% if facsimile_summary.master_default and facsimile_has_images %}checked{% endif %}
+                 {% if not facsimile_has_images %}disabled{% endif %}>
+          <strong>Печать и подпись в PDF</strong> (на весь комплект)
+        </label>
+        <div class="facsimile-rows" style="margin-left:0.25rem">
+        {% for row in facsimile_summary.rows %}
           {% if row.show %}
-          <label style="display:flex;gap:0.5rem;align-items:flex-start;margin:0.4rem 0">
-            <input type="checkbox" name="fax_{{ row.name }}" value="1" style="width:auto;margin-top:0.2rem"
+          <label style="display:flex;gap:0.5rem;align-items:flex-start;margin:0.35rem 0"
+                 data-policy="{{ row.policy }}">
+            <input type="checkbox" class="fax-doc" name="fax_{{ row.name }}" value="1"
+                   style="width:auto;margin-top:0.2rem"
+                   data-default-on="{{ '1' if row.checked else '0' }}"
                    {% if row.checked and facsimile_has_images %}checked{% endif %}
                    {% if not facsimile_has_images %}disabled{% endif %}>
-            <span>{{ display_name(row.name) }}
+            <span>{{ row.title }}
               {% if row.warn %}<span class="badge warn" style="white-space:normal;display:inline">{{ row.warn }}</span>{% endif %}
             </span>
           </label>
           {% endif %}
         {% endfor %}
+        </div>
+        {% if not facsimile_has_images %}
+        <p class="muted">Сначала загрузите изображения печати/подписей.</p>
+        {% endif %}
         {% endif %}
         <div class="actions">
           <a class="btn secondary" href="/cabinet/package/step2">Назад</a>
@@ -47,5 +64,29 @@
         </div>
       </form>
     </section>
+<script>
+(function () {
+  var master = document.getElementById("fax-master");
+  if (!master) return;
+  var boxes = Array.prototype.slice.call(document.querySelectorAll(".fax-doc"));
+  master.addEventListener("change", function () {
+    boxes.forEach(function (cb) {
+      if (cb.disabled) return;
+      if (master.checked) {
+        cb.checked = cb.getAttribute("data-default-on") === "1" ||
+                     cb.closest("label").getAttribute("data-policy") === "allowed";
+        // при включении мастера: allowed — вкл; warn — оставляем пользователю (вкл если default)
+        if (cb.closest("label").getAttribute("data-policy") === "warn") {
+          cb.checked = false; // предупреждение — только вручную
+        } else {
+          cb.checked = true;
+        }
+      } else {
+        cb.checked = false;
+      }
+    });
+  });
+})();
+</script>
   {% include "cabinet/_layout_end.html" %}
 {% endblock %}

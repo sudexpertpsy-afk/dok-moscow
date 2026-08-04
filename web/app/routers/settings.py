@@ -364,6 +364,31 @@ async def settings_branding_prefs(
     return RedirectResponse("/cabinet/settings/branding?ok=Настройки+сохранены", status_code=303)
 
 
+@router.post("/branding/onboarding-dismiss", response_class=HTMLResponse)
+async def settings_branding_onboarding_dismiss(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    """Д-4: закрыть онбординг-плашку навсегда."""
+    from app.services.facsimile import set_facsimile_prefs
+    from app.services.settings_svc import ensure_requisites
+
+    org = get_org_for_user(db, user)
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+    req = ensure_requisites(org)
+    set_facsimile_prefs(req, onboarding_dismissed=True)
+    org.requisites = dict(req)
+    db.add(org)
+    db.commit()
+    referer = request.headers.get("referer") or "/cabinet/"
+    if "/cabinet/" not in referer:
+        referer = "/cabinet/"
+    return RedirectResponse(referer, status_code=303)
+
+
 @router.post("/branding/{slot}/upload", response_class=HTMLResponse)
 async def settings_branding_upload(
     slot: str,
@@ -483,11 +508,17 @@ async def settings_branding_check(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
-    """Мгновенная проверка файла (HTMX) — вердикт без сохранения."""
+    """Мгновенная проверка файла (HTMX) — вердикт + предпросмотр ДО/ПОСЛЕ."""
     denied = _require_org_settings_admin(request, user, db)
     if denied is not None:
         return denied
-    from app.services.branding import BrandingError, SLOTS, VerdictLevel, evaluate_image
+    from app.services.branding import (
+        BrandingError,
+        SLOTS,
+        VerdictLevel,
+        evaluate_image,
+        preview_pair_uris,
+    )
 
     form = await request.form()
     if not check_csrf(request, form.get("csrf_token")):
@@ -500,8 +531,18 @@ async def settings_branding_check(
         return PlainTextResponse("Нет файла", status_code=400)
     data = await upload.read()
     kind = SLOTS[slot]["kind"]
+    remove_bg = bool(form.get("remove_bg"))
     try:
-        verdict = evaluate_image(data, kind=kind)
+        bg_threshold = int(form.get("bg_threshold") or 240)
+    except (TypeError, ValueError):
+        bg_threshold = 240
+    try:
+        verdict = evaluate_image(
+            data,
+            kind=kind,
+            simulate_remove_bg=remove_bg,
+            bg_threshold=bg_threshold,
+        )
     except BrandingError as exc:
         return HTMLResponse(
             f'<p class="badge danger">✗ Не принято — {exc}</p>', status_code=200
@@ -512,11 +553,38 @@ async def settings_branding_check(
         cls, mark = "warn", "⚠ Пригодно, но…"
     else:
         cls, mark = "danger", "✗ Не принято"
-    return HTMLResponse(
+    html = (
         f'<p class="badge {cls}">{mark} — {verdict.message}</p>'
         f'<p class="muted">{verdict.width}×{verdict.height} px ≈ '
         f"{verdict.print_w_mm}×{verdict.print_h_mm} мм при 300 dpi</p>"
     )
+    if verdict.level != VerdictLevel.rejected:
+        try:
+            previews = preview_pair_uris(
+                data, remove_bg=remove_bg, bg_threshold=bg_threshold
+            )
+            html += (
+                '<div style="display:flex;flex-wrap:wrap;gap:0.75rem;margin-top:0.5rem">'
+                f'<div><span class="muted" style="font-size:0.8rem">ДО (серый)</span>'
+                f'<img src="{previews["before_gray"]}" alt="до серый" '
+                f'style="display:block;max-width:120px;background:#e8e8e8;padding:4px"></div>'
+                f'<div><span class="muted" style="font-size:0.8rem">ДО (белый)</span>'
+                f'<img src="{previews["before_white"]}" alt="до белый" '
+                f'style="display:block;max-width:120px;border:1px solid #ddd;padding:4px"></div>'
+                f'<div><span class="muted" style="font-size:0.8rem">ПОСЛЕ (серый)</span>'
+                f'<img src="{previews["after_gray"]}" alt="после серый" '
+                f'style="display:block;max-width:120px;background:#e8e8e8;padding:4px"></div>'
+                f'<div><span class="muted" style="font-size:0.8rem">ПОСЛЕ (белый)</span>'
+                f'<img src="{previews["after_white"]}" alt="после белый" '
+                f'style="display:block;max-width:120px;border:1px solid #ddd;padding:4px"></div>'
+                f'<div><span class="muted" style="font-size:0.8rem">Как в документе</span>'
+                f'<img src="{previews["in_document"]}" alt="в документе" '
+                f'style="display:block;max-width:220px;border:1px solid #ddd"></div>'
+                "</div>"
+            )
+        except BrandingError:
+            pass
+    return HTMLResponse(html)
 
 
 @router.get("/price", response_class=HTMLResponse)

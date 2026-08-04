@@ -195,7 +195,13 @@ def _contrast_after_clean(img: Image.Image) -> float:
     return min(1.0, (var ** 0.5) / 64.0)
 
 
-def evaluate_image(data: bytes, *, kind: str) -> ImageVerdict:
+def evaluate_image(
+    data: bytes,
+    *,
+    kind: str,
+    simulate_remove_bg: bool = False,
+    bg_threshold: int = 240,
+) -> ImageVerdict:
     """Вердикт до сохранения: excellent / usable / rejected."""
     try:
         img = _open_verified(data)
@@ -221,7 +227,7 @@ def evaluate_image(data: bytes, *, kind: str) -> ImageVerdict:
                 has_alpha,
             )
         if side < STAMP_RECOMMENDED_PX:
-            return ImageVerdict(
+            verdict = ImageVerdict(
                 VerdictLevel.usable,
                 f"Пригодно, но печать может быть «мыльной»: {w}×{h} px ≈ "
                 f"{print_w}×{print_h} мм при 300 dpi. Рекомендуем ≥ "
@@ -232,50 +238,118 @@ def evaluate_image(data: bytes, *, kind: str) -> ImageVerdict:
                 print_h,
                 has_alpha,
             )
-        return ImageVerdict(
-            VerdictLevel.excellent,
-            "Отлично — разрешение достаточное для печати 40 мм.",
-            w,
-            h,
-            print_w,
-            print_h,
-            has_alpha,
-        )
+        else:
+            verdict = ImageVerdict(
+                VerdictLevel.excellent,
+                "Отлично — разрешение достаточное для печати 40 мм.",
+                w,
+                h,
+                print_w,
+                print_h,
+                has_alpha,
+            )
+    else:
+        # signature
+        if w < SIGN_MIN_W_PX or h < SIGN_MIN_H_PX:
+            return ImageVerdict(
+                VerdictLevel.rejected,
+                f"Слишком малое разрешение подписи ({w}×{h} px). "
+                f"Нужно не менее {SIGN_MIN_W_PX}×{SIGN_MIN_H_PX} px "
+                f"(до {SIGN_MAX_W_MM:.0f}×{SIGN_MAX_H_MM:.0f} мм при 300 dpi).",
+                w,
+                h,
+                print_w,
+                print_h,
+                has_alpha,
+            )
+        if w < SIGN_RECOMMENDED_W_PX or h < SIGN_RECOMMENDED_H_PX:
+            verdict = ImageVerdict(
+                VerdictLevel.usable,
+                f"Пригодно, но подпись может быть нечёткой: {w}×{h} px ≈ "
+                f"{print_w}×{print_h} мм при 300 dpi. Рекомендуем ≥ "
+                f"{SIGN_RECOMMENDED_W_PX}×{SIGN_RECOMMENDED_H_PX} px.",
+                w,
+                h,
+                print_w,
+                print_h,
+                has_alpha,
+            )
+        else:
+            verdict = ImageVerdict(
+                VerdictLevel.excellent,
+                "Отлично — разрешение достаточное для подписи в документе.",
+                w,
+                h,
+                print_w,
+                print_h,
+                has_alpha,
+            )
 
-    # signature
-    if w < SIGN_MIN_W_PX or h < SIGN_MIN_H_PX:
-        return ImageVerdict(
-            VerdictLevel.rejected,
-            f"Слишком малое разрешение подписи ({w}×{h} px). "
-            f"Нужно не менее {SIGN_MIN_W_PX}×{SIGN_MIN_H_PX} px "
-            f"(до {SIGN_MAX_W_MM:.0f}×{SIGN_MAX_H_MM:.0f} мм при 300 dpi).",
-            w,
-            h,
-            print_w,
-            print_h,
-            has_alpha,
-        )
-    if w < SIGN_RECOMMENDED_W_PX or h < SIGN_RECOMMENDED_H_PX:
-        return ImageVerdict(
-            VerdictLevel.usable,
-            f"Пригодно, но подпись может быть нечёткой: {w}×{h} px ≈ "
-            f"{print_w}×{print_h} мм при 300 dpi. Рекомендуем ≥ "
-            f"{SIGN_RECOMMENDED_W_PX}×{SIGN_RECOMMENDED_H_PX} px.",
-            w,
-            h,
-            print_w,
-            print_h,
-            has_alpha,
-        )
-    return ImageVerdict(
-        VerdictLevel.excellent,
-        "Отлично — разрешение достаточное для подписи в документе.",
-        w,
-        h,
-        print_w,
-        print_h,
-        has_alpha,
-    )
+    if simulate_remove_bg and verdict.level != VerdictLevel.rejected:
+        cleaned = remove_near_white_bg(img, threshold=bg_threshold)
+        if _contrast_after_clean(cleaned) < 0.25:
+            return ImageVerdict(
+                VerdictLevel.usable,
+                "Пригодно, но после очистки фона контраст низкий "
+                "(возможны тени или бледные штрихи). Проверьте предпросмотр.",
+                w,
+                h,
+                print_w,
+                print_h,
+                True,
+            )
+    return verdict
+
+
+def _png_data_uri(img: Image.Image, *, max_side: int = 280) -> str:
+    import base64
+
+    out = img.convert("RGBA")
+    out.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
+    buf = io.BytesIO()
+    out.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{b64}"
+
+
+def compose_on_bg(img: Image.Image, bg: tuple[int, int, int]) -> Image.Image:
+    rgba = img.convert("RGBA")
+    canvas = Image.new("RGBA", rgba.size, (*bg, 255))
+    return Image.alpha_composite(canvas, rgba)
+
+
+def preview_pair_uris(
+    data: bytes,
+    *,
+    remove_bg: bool = True,
+    bg_threshold: int = 240,
+) -> dict[str, str]:
+    """ДО/ПОСЛЕ на сером и белом + миниатюра «как в документе»."""
+    img = _open_verified(data)
+    before = img.convert("RGBA")
+    after = remove_near_white_bg(before, threshold=bg_threshold) if remove_bg else before
+    after = trim_transparent(after)
+
+    # миниатюра «фрагмент счёта»: белый лист + линия подписи + изображение
+    doc_w, doc_h = 420, 160
+    doc = Image.new("RGBA", (doc_w, doc_h), (255, 255, 255, 255))
+    # линия подписи
+    for x in range(40, 380):
+        doc.putpixel((x, 110), (180, 180, 180, 255))
+        doc.putpixel((x, 111), (180, 180, 180, 255))
+    stamp = after.copy()
+    stamp.thumbnail((140, 90), Image.Resampling.LANCZOS)
+    ox = 200
+    oy = 110 - stamp.height + 8
+    doc.paste(stamp, (ox, max(10, oy)), stamp)
+
+    return {
+        "before_gray": _png_data_uri(compose_on_bg(before, (232, 232, 232))),
+        "before_white": _png_data_uri(compose_on_bg(before, (255, 255, 255))),
+        "after_gray": _png_data_uri(compose_on_bg(after, (232, 232, 232))),
+        "after_white": _png_data_uri(compose_on_bg(after, (255, 255, 255))),
+        "in_document": _png_data_uri(doc, max_side=420),
+    }
 
 
 def process_and_save(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime, time, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import Document
@@ -43,6 +43,7 @@ def list_journal(
     date_to: date | None = None,
     template: str | None = None,
     counterparty_id: int | None = None,
+    facsimile: str | None = None,
     page: int = 1,
     per_page: int = 20,
 ) -> tuple[list[Document], int]:
@@ -57,6 +58,13 @@ def list_journal(
         filters.append(Document.template == template)
     if counterparty_id:
         filters.append(Document.counterparty_id == counterparty_id)
+    if facsimile in ("yes", "no"):
+        # JSON path: context._facsimile_pdf
+        flag = Document.context["_facsimile_pdf"].as_boolean()
+        if facsimile == "yes":
+            filters.append(flag.is_(True))
+        else:
+            filters.append(or_(flag.is_(False), flag.is_(None)))
 
     total = int(db.scalar(select(func.count()).select_from(Document).where(*filters)) or 0)
     rows = list(
