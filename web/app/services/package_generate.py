@@ -90,8 +90,15 @@ def generate_package(
     core_values: dict,
     additional_values: dict,
     counterparty_id: int | None,
+    facsimile_by_template: dict[str, bool] | None = None,
 ) -> dict:
     """Сгенерировать все документы комплекта, вернуть метаданные."""
+    from app.services.facsimile import (
+        FacsimilePolicy,
+        apply_facsimile_context_flags,
+        facsimile_policy,
+    )
+
     selected = selected_templates(contract_template, extras)
     if not selected:
         raise ValueError("Не выбран ни один шаблон")
@@ -105,6 +112,7 @@ def generate_package(
 
     cp = upsert_counterparty(db, org.id, тип, core_values, counterparty_id)
     contexts = build_contexts(selected, core_values, additional_values, org_id=org.id)
+    fax_map = facsimile_by_template or {}
 
     docs: list[Document] = []
     for tpl in selected:
@@ -118,6 +126,12 @@ def generate_package(
             if ctx.get(field):
                 number = str(ctx[field])
                 break
+        want = bool(fax_map.get(tpl))
+        if facsimile_policy(tpl) == FacsimilePolicy.forbidden:
+            want = False
+        ctx = apply_facsimile_context_flags(
+            ctx, template_name=tpl, want_pdf=want, want_docx_embed=False
+        )
         doc = generate_docx(
             db=db,
             org=org,
@@ -125,6 +139,7 @@ def generate_package(
             template_name=tpl,
             context=ctx,
             number=number,
+            with_facsimile=False,
         )
         doc.counterparty_id = cp.id
         db.add(doc)
@@ -166,17 +181,47 @@ def build_zip(docs: list[Document], zip_path: Path) -> Path:
 
 
 def build_merged_pdf(docs: list[Document], pdf_path: Path) -> Path:
+    import tempfile
+
+    from app.models import Organization
+    from app.services.facsimile import should_use_images_for_pdf
+    from app.services.templates import fill_docx_with_facsimile
+    from sqlalchemy.orm import object_session
+
     pdfs: list[Path] = []
-    for doc in docs:
-        src = absolute_file(doc)
-        if doc.format == DocumentFormat.pdf:
-            pdfs.append(src)
-            continue
-        out = src.with_suffix(".pdf")
-        if not out.is_file():
-            convert_docx_to_pdf(src, out)
-        pdfs.append(out)
-    return merge_pdfs(pdfs, pdf_path)
+    tmp_files: list[Path] = []
+    try:
+        for doc in docs:
+            src = absolute_file(doc)
+            if doc.format == DocumentFormat.pdf:
+                pdfs.append(src)
+                continue
+            out = src.with_suffix(".pdf")
+            if should_use_images_for_pdf(doc.context):
+                db = object_session(doc)
+                org = db.get(Organization, doc.org_id) if db is not None else None
+                if org is not None:
+                    tmp = Path(tempfile.mkstemp(suffix=".docx")[1])
+                    tmp_files.append(tmp)
+                    fill_docx_with_facsimile(
+                        org=org,
+                        template_name=doc.template,
+                        context=doc.context or {},
+                        output_path=tmp,
+                    )
+                    convert_docx_to_pdf(tmp, out)
+                elif not out.is_file():
+                    convert_docx_to_pdf(src, out)
+            elif not out.is_file():
+                convert_docx_to_pdf(src, out)
+            pdfs.append(out)
+        return merge_pdfs(pdfs, pdf_path)
+    finally:
+        for t in tmp_files:
+            try:
+                t.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def package_export_dir(org_id: int) -> Path:

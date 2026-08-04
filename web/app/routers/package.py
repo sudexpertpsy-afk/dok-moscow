@@ -330,6 +330,20 @@ def package_step3_get(
             data["egrul_warning"] = egrul_warning
             _save(request, data)
 
+    from app.services.facsimile import facsimile_ui, org_has_any_branding
+
+    facsimile_rows = []
+    for name in selected:
+        ui = facsimile_ui(name)
+        facsimile_rows.append(
+            {
+                "name": name,
+                "show": ui["show_checkbox"],
+                "checked": ui["default_on"],
+                "warn": ui["warn_text"],
+            }
+        )
+
     return templates.TemplateResponse(
         request=request,
         name="cabinet/package_step3.html",
@@ -343,6 +357,8 @@ def package_step3_get(
             selected=selected,
             display_name=display_name,
             egrul_warning=egrul_warning,
+            facsimile_rows=facsimile_rows,
+            facsimile_has_images=org_has_any_branding(org.id),
         ),
     )
 
@@ -404,6 +420,7 @@ async def package_step3_post(
         )
 
     try:
+        fax_map = {t: bool(form.get(f"fax_{t}")) for t in selected}
         result = generate_package(
             db=db,
             org=org,
@@ -414,6 +431,7 @@ async def package_step3_post(
             core_values=core_values,
             additional_values=additional_values,
             counterparty_id=data.get("counterparty_id"),
+            facsimile_by_template=fax_map,
         )
     except Exception as exc:
         return templates.TemplateResponse(

@@ -61,7 +61,9 @@ def documents_index(
     db: Session = Depends(get_db),
 ):
     org = get_org_for_user(db, user)
-    items = list_templates_for_org(org.id)
+    from app.services.facsimile import attach_facsimile_policy
+
+    items = attach_facsimile_policy(list_templates_for_org(org.id))
     return templates.TemplateResponse(
         request=request,
         name="cabinet/documents_index.html",
@@ -109,6 +111,13 @@ def document_form(
             "(Банк → расчётный счёт, БИК, корр. счёт). Без них в счёте останутся пустые поля. "
             "Заполните раздел «Настройки → Банк»."
         )
+    from app.services.facsimile import facsimile_ui, get_facsimile_prefs, org_has_any_branding
+
+    fax = facsimile_ui(template_name)
+    prefs = get_facsimile_prefs(ensure_requisites(org))
+    fax_checked = bool(fax["default_on"] and prefs.get("pdf_default", True) and org_has_any_branding(org.id))
+    if fax["policy"] == "warn":
+        fax_checked = False
     return templates.TemplateResponse(
         request=request,
         name="cabinet/document_form.html",
@@ -126,6 +135,10 @@ def document_form(
             org_vars=assist["org_vars"],
             normative_links=normative_links,
             flash_error=flash_error,
+            facsimile=fax,
+            facsimile_checked=fax_checked,
+            facsimile_embed_docx=bool(prefs.get("embed_docx")),
+            facsimile_has_images=org_has_any_branding(org.id),
         ),
     )
 
@@ -240,6 +253,36 @@ async def document_generate(
             if number is None:
                 number = formatted
 
+    from app.services.facsimile import (
+        FACSIMILE_CLAUSE_TEXT,
+        FacsimilePolicy,
+        apply_facsimile_context_flags,
+        facsimile_policy,
+        get_facsimile_prefs,
+    )
+    from app.services.settings_svc import ensure_requisites
+
+    policy = facsimile_policy(template_name)
+    want_pdf = bool(form.get("facsimile_pdf"))
+    want_docx = bool(form.get("facsimile_docx"))
+    if policy == FacsimilePolicy.forbidden:
+        want_pdf = False
+        want_docx = False
+    prefs = get_facsimile_prefs(ensure_requisites(org))
+    if want_docx and not prefs.get("embed_docx") and not form.get("facsimile_docx"):
+        want_docx = False
+    context = apply_facsimile_context_flags(
+        context,
+        template_name=template_name,
+        want_pdf=want_pdf,
+        want_docx_embed=want_docx,
+    )
+    # Опциональный пункт договора (плейсхолдер {{ признают_факсимиле }})
+    if form.get("признают_факсимиле") and policy == FacsimilePolicy.warn:
+        context["признают_факсимиле"] = FACSIMILE_CLAUSE_TEXT
+    else:
+        context["признают_факсимиле"] = ""
+
     try:
         doc = generate_docx(
             db=db,
@@ -248,6 +291,7 @@ async def document_generate(
             template_name=template_name,
             context=context,
             number=number,
+            with_facsimile=bool(context.get("_facsimile_docx")),
         )
     except Exception as exc:
         assist = enrich_form_context(db, org.id, variables, context, template_name=template_name)

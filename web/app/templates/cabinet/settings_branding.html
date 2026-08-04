@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Печать и подписи — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "cabinet/_layout_start.html" %}
+<section class="panel">
+  <h1>Настройки</h1>
+  <nav class="steps" style="display:flex;gap:0.4rem;flex-wrap:wrap;margin:0.8rem 0 1rem">
+    {% for key, label, href in sections %}
+      <a href="{{ href }}" style="padding:0.35rem 0.75rem;border-radius:999px;text-decoration:none;
+        {% if section == key %}background:var(--accent);color:#fff{% else %}background:rgba(255,255,255,0.55);color:var(--ink){% endif %}">
+        {{ label }}
+      </a>
+    {% endfor %}
+  </nav>
+  {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+  {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+
+  <h2 style="font-family:var(--font-display);font-size:1.35rem;margin:0 0 0.5rem">Печать и подписи</h2>
+  <p class="muted">Изображения встраиваются в PDF при генерации (DOCX для скачивания по умолчанию остаётся без факсимиле). Ответственность за правомерность применения факсимиле несёт пользователь.</p>
+
+  {% if not branding_allowed %}
+  <div class="alert alert-error">{{ branding_reason }} <a href="/cabinet/billing/">Тарифы</a></div>
+  {% else %}
+
+  <form method="post" action="/cabinet/settings/branding/prefs" class="stack" style="margin:1rem 0" hx-boost="false">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label style="display:flex;gap:0.5rem;align-items:center">
+      <input type="checkbox" name="pdf_default" value="1" {% if prefs.pdf_default %}checked{% endif %} style="width:auto">
+      По умолчанию включать «Печать и подпись в PDF» на форме документа
+    </label>
+    <label style="display:flex;gap:0.5rem;align-items:center">
+      <input type="checkbox" name="embed_docx" value="1" {% if prefs.embed_docx %}checked{% endif %} style="width:auto">
+      Встраивать факсимиле и в DOCX (по умолчанию выкл.)
+    </label>
+    <div class="actions"><button type="submit" class="secondary">Сохранить настройки</button></div>
+  </form>
+
+  <p class="muted" style="margin:0.5rem 0 1rem">
+    PNG или JPEG до 2 МБ. Печать — скан 300 dpi, не менее 600×600 px; подпись — на белой бумаге чёрной или синей ручкой,
+    скан или ровное фото сверху без теней. Белый фон уберём автоматически.
+  </p>
+
+  {% for s in slots %}
+  <div class="branding-slot" style="border-top:1px solid var(--line);padding:1rem 0">
+    <h3 style="margin:0 0 0.35rem;font-size:1.05rem">{{ s.label }}</h3>
+    <p class="muted mono" style="margin:0 0 0.5rem">{{ '{{ ' ~ s.placeholder ~ ' }}' }}</p>
+    {% if s.exists %}
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start;margin:0.5rem 0">
+      <div style="background:#e8e8e8;padding:0.5rem;border-radius:6px">
+        <img src="/cabinet/settings/branding/{{ s.slot }}/preview.png?v={{ s.info.updated_at or '' }}" alt="предпросмотр" style="max-width:160px;max-height:120px;display:block">
+        <span class="muted" style="font-size:0.8rem">на сером</span>
+      </div>
+      <div style="background:#fff;border:1px solid var(--line);padding:0.5rem;border-radius:6px">
+        <img src="/cabinet/settings/branding/{{ s.slot }}/preview.png?v={{ s.info.updated_at or '' }}" alt="предпросмотр" style="max-width:160px;max-height:120px;display:block">
+        <span class="muted" style="font-size:0.8rem">на белом</span>
+      </div>
+    </div>
+    {% if s.info.message %}<p class="muted">{{ s.info.message }}</p>{% endif %}
+    <form method="post" action="/cabinet/settings/branding/{{ s.slot }}/delete" style="display:inline" hx-boost="false"
+          onsubmit="return confirm('Удалить изображение?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="danger">Удалить</button>
+    </form>
+    {% endif %}
+
+    <form method="post" action="/cabinet/settings/branding/{{ s.slot }}/upload" enctype="multipart/form-data"
+          class="branding-upload" style="margin-top:0.75rem" hx-boost="false"
+          data-slot="{{ s.slot }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Файл PNG/JPEG</label>
+      <input type="file" name="file" accept="image/png,image/jpeg" required class="branding-file">
+      <div class="branding-verdict muted" style="margin:0.35rem 0"></div>
+      <label style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem">
+        <input type="checkbox" name="remove_bg" value="1" checked style="width:auto">
+        Удалить белый фон
+      </label>
+      <label>Порог яркости фона (0–255)</label>
+      <input type="range" name="bg_threshold" min="200" max="250" value="240" oninput="this.nextElementSibling.textContent=this.value">
+      <span class="muted">240</span>
+      <div class="actions" style="margin-top:0.5rem"><button type="submit">Загрузить</button></div>
+    </form>
+  </div>
+  {% endfor %}
+
+  {% endif %}
+</section>
+
+<script>
+(function () {
+  document.querySelectorAll(".branding-upload").forEach(function (form) {
+    var fileInput = form.querySelector(".branding-file");
+    var box = form.querySelector(".branding-verdict");
+    if (!fileInput || !box) return;
+    fileInput.addEventListener("change", function () {
+      if (!fileInput.files || !fileInput.files[0]) { box.innerHTML = ""; return; }
+      var fd = new FormData();
+      fd.append("csrf_token", form.querySelector("[name=csrf_token]").value);
+      fd.append("slot", form.getAttribute("data-slot"));
+      fd.append("file", fileInput.files[0]);
+      box.textContent = "Проверка…";
+      fetch("/cabinet/settings/branding/check", { method: "POST", body: fd, credentials: "same-origin" })
+        .then(function (r) { return r.text(); })
+        .then(function (html) { box.innerHTML = html; })
+        .catch(function () { box.textContent = "Не удалось проверить файл"; });
+    });
+  });
+})();
+</script>
+{% include "cabinet/_layout_end.html" %}
+{% endblock %}

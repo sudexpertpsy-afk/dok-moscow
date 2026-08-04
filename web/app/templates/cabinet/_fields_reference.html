@@ -25,6 +25,30 @@
   {% endif %}
 
   <details style="margin-top:1rem">
+    <summary>Факсимиле (печать и подписи)</summary>
+    <p class="muted" style="margin:0.5rem 0">Зарезервированные имена — загрузите изображения в «Настройки → Печать и подписи». Не создавайте одноимённые поля организации.</p>
+    <table class="table" style="margin-top:0.5rem">
+      <thead><tr><th>Имя</th><th>Назначение</th><th></th></tr></thead>
+      <tbody>
+        {% for f in facsimile_fields|default([
+          {'name':'факсимиле_печать','label':'Оттиск печати'},
+          {'name':'факсимиле_директор','label':'Подпись руководителя'},
+          {'name':'факсимиле_бухгалтер','label':'Подпись главного бухгалтера'},
+          {'name':'факсимиле_кассир','label':'Подпись кассира'}
+        ]) %}
+        <tr>
+          <td class="mono">{{ f.name }}</td>
+          <td>{{ f.label }}</td>
+          <td>
+            <button type="button" class="secondary btn-copy-ph" data-ph="{{ '{{ ' ~ f.name ~ ' }}' }}">Копировать</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+
+  <details style="margin-top:1rem">
     <summary>Стандартные имена полей сервиса</summary>
     <table class="table" style="margin-top:0.5rem">
       <thead><tr><th>Имя</th><th>Подпись</th><th></th></tr></thead>

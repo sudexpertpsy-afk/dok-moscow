@@ -165,8 +165,13 @@ def generate_docx(
     template_name: str,
     context: dict,
     number: str | None = None,
+    with_facsimile: bool = False,
 ) -> Document:
-    """Сгенерировать DOCX, сохранить файл и запись documents."""
+    """Сгенерировать DOCX, сохранить файл и запись documents.
+
+    with_facsimile=True — встроить изображения (только если явно запрошено
+    «встроить и в DOCX»; обычная выдача всегда без факсимиле).
+    """
     ensure_core_on_path()
     from docfiller_core.filler import fill_template
     from docfiller_core.utils import safe_filename
@@ -183,14 +188,27 @@ def generate_docx(
         out_path = out_dir / out_name
         n += 1
 
+    from app.services.facsimile import images_for_fill, should_use_images_for_docx
     from app.services.settings_svc import ensure_requisites
 
     # Полные реквизиты с каноническими ключами банка (ё/алиасы), не «сырой» JSONB.
-    fill_template(src, out_path, context, settings=ensure_requisites(org))
+    images = None
+    if with_facsimile or should_use_images_for_docx(context):
+        images = images_for_fill(org.id) or None
+    fill_context = {k: v for k, v in context.items() if not str(k).startswith("_")}
+    fill_template(
+        src,
+        out_path,
+        fill_context,
+        settings=ensure_requisites(org),
+        images=images,
+    )
 
     rel = str(out_path.relative_to(Path(get_settings().files_root)))
     # не храним ПДн-тяжёлый полный контекст как есть? ТЗ: контекст JSONB — нужен для повтора.
     # Маскируем при логировании, в БД храним как в Шаблонере.
+    # служебные флаги факсимиле сохраняем для PDF-конвертации
+    stored_ctx = dict(context)
     doc = Document(
         org_id=org.id,
         contract_id=None,
@@ -199,13 +217,40 @@ def generate_docx(
         number=number or str(context.get("номер_договора") or "") or None,
         file_path=rel,
         format=DocumentFormat.docx,
-        context=dict(context),
+        context=stored_ctx,
         created_by=user_id,
     )
     db.add(doc)
     db.commit()
     db.refresh(doc)
     return doc
+
+
+def fill_docx_with_facsimile(
+    *,
+    org: Organization,
+    template_name: str,
+    context: dict,
+    output_path: Path,
+) -> Path:
+    """Временный DOCX с InlineImage для конвертации в PDF (W-43)."""
+    ensure_core_on_path()
+    from docfiller_core.filler import fill_template
+
+    from app.services.facsimile import images_for_fill
+    from app.services.settings_svc import ensure_requisites
+
+    src = resolve_template_path(template_name, org.id)
+    fill_context = {k: v for k, v in (context or {}).items() if not str(k).startswith("_")}
+    images = images_for_fill(org.id) or None
+    fill_template(
+        src,
+        output_path,
+        fill_context,
+        settings=ensure_requisites(org),
+        images=images,
+    )
+    return output_path
 
 
 def absolute_file(doc: Document) -> Path:

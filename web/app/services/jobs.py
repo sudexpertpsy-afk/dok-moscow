@@ -125,6 +125,12 @@ def _execute(db: Session, job: Job) -> dict[str, Any]:
 
 
 def _run_document_pdf(db: Session, job: Job, payload: dict) -> dict[str, Any]:
+    import tempfile
+
+    from app.models import Organization
+    from app.services.facsimile import should_use_images_for_pdf
+    from app.services.templates import fill_docx_with_facsimile
+
     doc_id = int(payload["document_id"])
     doc = db.get(Document, doc_id)
     if doc is None or doc.org_id != job.org_id:
@@ -133,7 +139,32 @@ def _run_document_pdf(db: Session, job: Job, payload: dict) -> dict[str, Any]:
     pdf_path = docx_path.with_suffix(".pdf")
     job.progress = 30
     db.commit()
-    convert_docx_to_pdf(docx_path, pdf_path)
+
+    convert_src = docx_path
+    tmp_path = None
+    if should_use_images_for_pdf(doc.context):
+        org = db.get(Organization, job.org_id)
+        if org is not None:
+            tmp = tempfile.NamedTemporaryFile(suffix=".docx", delete=False)
+            tmp.close()
+            tmp_path = Path(tmp.name)
+            fill_docx_with_facsimile(
+                org=org,
+                template_name=doc.template,
+                context=doc.context or {},
+                output_path=tmp_path,
+            )
+            convert_src = tmp_path
+
+    try:
+        convert_docx_to_pdf(convert_src, pdf_path)
+    finally:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
     job.progress = 70
     db.commit()
     if needs_watermark(db, job.org_id):

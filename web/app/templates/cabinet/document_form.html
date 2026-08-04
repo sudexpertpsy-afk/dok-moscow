@@ -21,6 +21,38 @@
           {{ field_input(var, values, field_meta, number_peeks, 'f') }}
         {% endfor %}
         {% endif %}
+        {% if facsimile is defined and facsimile.show_checkbox %}
+        <fieldset class="facsimile-opts" style="margin-top:1.25rem;border:1px solid var(--line);border-radius:8px;padding:0.75rem 1rem">
+          <legend>Печать и подпись</legend>
+          {% if not facsimile_has_images %}
+          <p class="muted">Сначала загрузите изображения в <a href="/cabinet/settings/branding">Настройки → Печать и подписи</a>.</p>
+          {% endif %}
+          <label style="display:flex;gap:0.5rem;align-items:center">
+            <input type="checkbox" name="facsimile_pdf" value="1" style="width:auto"
+                   {% if facsimile_checked and facsimile_has_images %}checked{% endif %}
+                   {% if not facsimile_has_images %}disabled{% endif %}>
+            Печать и подпись в PDF
+          </label>
+          {% if facsimile.warn_text %}
+          <p class="badge warn" style="margin-top:0.5rem;white-space:normal;display:block">{{ facsimile.warn_text }}</p>
+          {% endif %}
+          {% if facsimile.policy == 'warn' and 'договор' in (template_name|lower) %}
+          <label style="display:flex;gap:0.5rem;align-items:flex-start;margin-top:0.5rem">
+            <input type="checkbox" name="признают_факсимиле" value="1" style="width:auto;margin-top:0.2rem"
+                   {% if not facsimile_has_images %}disabled{% endif %}>
+            <span>Включить в договор пункт «Стороны признают юридическую силу факсимиле»
+              <span class="muted">(подставляется в {% raw %}<code>{{ признают_факсимиле }}</code>{% endraw %}, если плейсхолдер есть в шаблоне)</span>
+            </span>
+          </label>
+          {% endif %}
+          <label style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem">
+            <input type="checkbox" name="facsimile_docx" value="1" style="width:auto"
+                   {% if facsimile_embed_docx and facsimile_has_images %}checked{% endif %}
+                   {% if not facsimile_has_images %}disabled{% endif %}>
+            Встроить и в DOCX (по умолчанию выкл.; DOCX обычно без факсимиле)
+          </label>
+        </fieldset>
+        {% endif %}
         <div class="actions">
           <button type="submit">Сгенерировать DOCX</button>
           <a class="btn secondary" href="/cabinet/documents/">К списку</a>

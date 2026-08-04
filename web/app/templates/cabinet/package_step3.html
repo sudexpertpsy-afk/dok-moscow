@@ -25,6 +25,22 @@
         {% endfor %}
         {% endif %}
         <p class="muted" style="margin-top:0.8rem">Пустой номер — взять следующий из счётчика (см. placeholder).</p>
+        {% if facsimile_rows %}
+        <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1rem 0 0.35rem">Печать и подпись в PDF</h2>
+        <p class="muted">По документам комплекта (DOCX остаётся без факсимиле). Загрузка изображений — в <a href="/cabinet/settings/branding">Настройки → Печать и подписи</a>.</p>
+        {% for row in facsimile_rows %}
+          {% if row.show %}
+          <label style="display:flex;gap:0.5rem;align-items:flex-start;margin:0.4rem 0">
+            <input type="checkbox" name="fax_{{ row.name }}" value="1" style="width:auto;margin-top:0.2rem"
+                   {% if row.checked and facsimile_has_images %}checked{% endif %}
+                   {% if not facsimile_has_images %}disabled{% endif %}>
+            <span>{{ display_name(row.name) }}
+              {% if row.warn %}<span class="badge warn" style="white-space:normal;display:inline">{{ row.warn }}</span>{% endif %}
+            </span>
+          </label>
+          {% endif %}
+        {% endfor %}
+        {% endif %}
         <div class="actions">
           <a class="btn secondary" href="/cabinet/package/step2">Назад</a>
           <button type="submit">Сгенерировать комплект</button>
