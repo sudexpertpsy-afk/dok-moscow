@@ -29,23 +29,42 @@ git -C "$ROOT" pull --ff-only
 # Шаблоны DOCX в core/Шаблоны отслеживаются git'ом: checkout/pull возвращает
 # файлы, удалённые через /admin/templates. Tombstone (.deleted_templates.json)
 # хранит список удалений — снимаем вернувшиеся файлы до перезапуска контейнеров.
+# Только stdlib: на хосте деплоя может не быть зависимостей приложения.
 TEMPLATES_DIR="${TEMPLATES_DIR:-$ROOT/core/Шаблоны}"
 if [[ -f "$TEMPLATES_DIR/.deleted_templates.json" ]]; then
   echo "→ scrub удалённых шаблонов (tombstone)"
-  TEMPLATES_DIR="$TEMPLATES_DIR" CORE_PATH="$ROOT/core" \
-    PYTHONPATH="$ROOT/web${PYTHONPATH:+:$PYTHONPATH}" \
-    python3 - <<'PY' || echo "⚠ не удалось применить tombstone шаблонов (продолжаем деплой)"
-import os
-import sys
+  TEMPLATES_DIR="$TEMPLATES_DIR" python3 - <<'PY' || echo "⚠ не удалось применить tombstone шаблонов (продолжаем деплой)"
+import json, os
 from pathlib import Path
 
-sys.path.insert(0, str(Path(os.environ["PYTHONPATH"].split(":")[0])))
-os.environ.setdefault("TEMPLATES_DIR", os.environ["TEMPLATES_DIR"])
-os.environ.setdefault("CORE_PATH", os.environ.get("CORE_PATH", ""))
-from app.config import get_settings
-get_settings.cache_clear()
-from app.services.template_admin import apply_deleted_templates
-removed = apply_deleted_templates(Path(os.environ["TEMPLATES_DIR"]))
+root = Path(os.environ["TEMPLATES_DIR"])
+data = json.loads((root / ".deleted_templates.json").read_text(encoding="utf-8"))
+deleted = [str(x) for x in (data.get("deleted") or []) if str(x).endswith(".docx")]
+removed = []
+for name in deleted:
+    name = Path(name).name
+    docx = root / name
+    if docx.is_file():
+        docx.unlink()
+        removed.append(name)
+    manifest = root / f"{Path(name).stem}.manifest.yaml"
+    if manifest.is_file():
+        manifest.unlink()
+reg_path = root / "contracts_registry.json"
+if reg_path.is_file() and deleted:
+    try:
+        reg = json.loads(reg_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        reg = None
+    if isinstance(reg, dict):
+        contracts = reg.get("contracts")
+        if isinstance(contracts, dict):
+            for key, vals in list(contracts.items()):
+                if isinstance(vals, list):
+                    contracts[key] = [x for x in vals if x not in deleted]
+        if isinstance(reg.get("self_contained"), list):
+            reg["self_contained"] = [x for x in reg["self_contained"] if x not in deleted]
+        reg_path.write_text(json.dumps(reg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 print(f"  убрано файлов: {len(removed)}")
 for name in removed:
     print(f"  - {name}")
