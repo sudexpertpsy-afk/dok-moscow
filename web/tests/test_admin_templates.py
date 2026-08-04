@@ -98,10 +98,11 @@ def test_upload_rename_delete(app, tmp_path, monkeypatch):
         follow_redirects=False,
     )
     assert r.status_code == 303
-    assert not (root / "Договор_рецензия_тест_юрлицо.docx").exists()
+    # W-45: файл остаётся на диске для /obraztsy; кабинет скрывает через tombstone
+    assert (root / "Договор_рецензия_тест_юрлицо.docx").exists()
     reg = load_registry(root)
     assert "Договор_рецензия_тест_юрлицо.docx" not in reg["contracts"]["Юрлицо"]
-    # Tombstone: git pull не должен вернуть шаблон в каталог
+    # Tombstone: каталог кабинета не показывает шаблон
     from app.services.template_admin import (
         apply_deleted_templates,
         load_deleted_templates,
@@ -109,13 +110,14 @@ def test_upload_rename_delete(app, tmp_path, monkeypatch):
     from app.services.templates import list_templates
 
     assert "Договор_рецензия_тест_юрлицо.docx" in load_deleted_templates(root)
-    # имитация git checkout — файл снова на диске
-    (root / "Договор_рецензия_тест_юрлицо.docx").write_bytes(_minimal_docx())
     names = {i["name"] for i in list_templates()}
     assert "Договор_рецензия_тест_юрлицо.docx" not in names
-    removed = apply_deleted_templates(root)
-    assert "Договор_рецензия_тест_юрлицо.docx" in removed
-    assert not (root / "Договор_рецензия_тест_юрлицо.docx").exists()
+    # публичный каталог видит файл
+    names_pub = {i["name"] for i in list_templates(include_deleted=True)}
+    assert "Договор_рецензия_тест_юрлицо.docx" in names_pub
+    touched = apply_deleted_templates(root)
+    assert "Договор_рецензия_тест_юрлицо.docx" in touched
+    assert (root / "Договор_рецензия_тест_юрлицо.docx").exists()
 
 
 def test_upload_rejects_non_docx(app, tmp_path, monkeypatch):

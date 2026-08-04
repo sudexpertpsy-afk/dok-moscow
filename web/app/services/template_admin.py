@@ -104,22 +104,25 @@ def _unlink_template_files(root: Path, name: str) -> bool:
 
 
 def apply_deleted_templates(root: Path | None = None) -> list[str]:
-    """Повторно убрать с диска и из реестра шаблоны из tombstone (после git pull)."""
+    """После git pull: убрать tombstone-шаблоны из реестра кабинета.
+
+    W-45: DOCX на диске не удаляем — /obraztsy читает файлы с include_deleted=True;
+    кабинет скрывает их через load_deleted_templates.
+    """
     ensure_core_on_path()
     from docfiller_core.contracts_registry import remove_from_registry
 
     root = root or _root()
-    removed: list[str] = []
+    touched: list[str] = []
     for name in sorted(load_deleted_templates(root)):
-        if _unlink_template_files(root, name):
-            removed.append(name)
         try:
             remove_from_registry(root, name)
+            touched.append(name)
         except OSError:
             pass
-    if removed:
+    if touched:
         invalidate_templates_cache()
-    return removed
+    return touched
 
 
 def _safe_stem(raw: str) -> str:
@@ -254,7 +257,7 @@ def rename_template(db: Session, *, old_name: str, new_title: str) -> str:
 
 
 def delete_template(db: Session, *, name: str) -> None:
-    """Удалить шаблон с диска и запомнить в tombstone (чтобы git pull не вернул файл)."""
+    """Скрыть шаблон в кабинете (tombstone + реестр). Файл на диске оставляем (W-45 /obraztsy)."""
     ensure_core_on_path()
     from docfiller_core.contracts_registry import remove_from_registry
 
@@ -264,7 +267,6 @@ def delete_template(db: Session, *, name: str) -> None:
     root = _root()
     # existence check
     template_path(safe)
-    _unlink_template_files(root, safe)
     mark_template_deleted(safe, root)
     remove_from_registry(root, safe)
     invalidate_templates_cache()

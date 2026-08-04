@@ -26,13 +26,12 @@ fi
 echo "→ git pull"
 git -C "$ROOT" pull --ff-only
 
-# Шаблоны DOCX в core/Шаблоны отслеживаются git'ом: checkout/pull возвращает
-# файлы, удалённые через /admin/templates. Tombstone (.deleted_templates.json)
-# хранит список удалений — снимаем вернувшиеся файлы до перезапуска контейнеров.
-# Только stdlib: на хосте деплоя может не быть зависимостей приложения.
+# Шаблоны DOCX в core/Шаблоны отслеживаются git'ом. Tombstone
+# (.deleted_templates.json) скрывает их в кабинете; файлы на диске
+# оставляем для публичной витрины /obraztsy (W-45).
 TEMPLATES_DIR="${TEMPLATES_DIR:-$ROOT/core/Шаблоны}"
 if [[ -f "$TEMPLATES_DIR/.deleted_templates.json" ]]; then
-  echo "→ scrub удалённых шаблонов (tombstone)"
+  echo "→ scrub реестра tombstone-шаблонов (файлы не удаляем)"
   TEMPLATES_DIR="$TEMPLATES_DIR" python3 - <<'PY' || echo "⚠ не удалось применить tombstone шаблонов (продолжаем деплой)"
 import json, os
 from pathlib import Path
@@ -40,16 +39,6 @@ from pathlib import Path
 root = Path(os.environ["TEMPLATES_DIR"])
 data = json.loads((root / ".deleted_templates.json").read_text(encoding="utf-8"))
 deleted = [str(x) for x in (data.get("deleted") or []) if str(x).endswith(".docx")]
-removed = []
-for name in deleted:
-    name = Path(name).name
-    docx = root / name
-    if docx.is_file():
-        docx.unlink()
-        removed.append(name)
-    manifest = root / f"{Path(name).stem}.manifest.yaml"
-    if manifest.is_file():
-        manifest.unlink()
 reg_path = root / "contracts_registry.json"
 if reg_path.is_file() and deleted:
     try:
@@ -64,10 +53,11 @@ if reg_path.is_file() and deleted:
                     contracts[key] = [x for x in vals if x not in deleted]
         if isinstance(reg.get("self_contained"), list):
             reg["self_contained"] = [x for x in reg["self_contained"] if x not in deleted]
-        reg_path.write_text(json.dumps(reg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-print(f"  убрано файлов: {len(removed)}")
-for name in removed:
-    print(f"  - {name}")
+        try:
+            reg_path.write_text(json.dumps(reg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except PermissionError:
+            print("  ⚠ нет прав на contracts_registry.json — пропуск")
+print(f"  tombstone entries: {len(deleted)} (DOCX сохранены для /obraztsy)")
 PY
 fi
 
