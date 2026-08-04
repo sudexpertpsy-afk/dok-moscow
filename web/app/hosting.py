@@ -30,10 +30,15 @@ _PUBLIC_EXACT = frozenset(
         "/requisites",
         "/tariffs",
         "/contacts",
+        "/bezopasnost",
+        "/novoe",
+        "/dlya-ekspertov",
+        "/dlya-organizatsiy",
+        "/dlya-uchebnykh-tsentrov",
         "/sitemap.xml",
     }
 )
-_PUBLIC_PREFIXES = ("/zakon",)
+_PUBLIC_PREFIXES = ("/zakon", "/obraztsy")
 
 # Каталоги с trailing-slash роутами: без слэша → один 301, не второй hop после host-редиректа.
 _DIRECTORY_INDEX_PATHS = frozenset({"/zakon", "/cabinet/zakon"})

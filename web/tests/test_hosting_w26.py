@@ -8,6 +8,11 @@ from app.hosting import host_role, path_surface, redirect_url_for_path, request_
 def test_path_surface_matrix():
     assert path_surface("/") == "public"
     assert path_surface("/zakon/foo") == "public"
+    assert path_surface("/obraztsy") == "public"
+    assert path_surface("/obraztsy/dogovor-na-ekspertizu") == "public"
+    assert path_surface("/dlya-ekspertov") == "public"
+    assert path_surface("/bezopasnost") == "public"
+    assert path_surface("/novoe") == "public"
     assert path_surface("/robots.txt") == "shared"
     assert path_surface("/login") == "app"
     assert path_surface("/cabinet/documents/") == "app"

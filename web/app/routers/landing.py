@@ -282,6 +282,92 @@ def contacts_page(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/obraztsy", response_class=HTMLResponse)
+def obraztsy_index(request: Request, db: Session = Depends(get_db)):
+    from app.services.public_catalog import catalog_grouped, list_catalog_items
+
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/obraztsy_index.html",
+        context=_public_ctx(
+            request,
+            db,
+            groups=catalog_grouped(),
+            total=len(list_catalog_items()),
+        ),
+    )
+
+
+@router.get("/obraztsy/{slug}", response_class=HTMLResponse)
+def obraztsy_detail(slug: str, request: Request, db: Session = Depends(get_db)):
+    from app.services.public_catalog import get_catalog_item, normative_acts_for_item
+
+    item = get_catalog_item(slug)
+    if item is None:
+        return templates.TemplateResponse(
+            request=request,
+            name="landing/404.html",
+            context=_public_ctx(request, db),
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/obraztsy_detail.html",
+        context=_public_ctx(
+            request,
+            db,
+            item=item,
+            normative_acts=normative_acts_for_item(db, item),
+            seo_year=2026,
+        ),
+    )
+
+
+@router.get("/dlya-ekspertov", response_class=HTMLResponse)
+def segment_ekspertov(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/segment_ekspertov.html",
+        context=_public_ctx(request, db),
+    )
+
+
+@router.get("/dlya-organizatsiy", response_class=HTMLResponse)
+def segment_organizatsiy(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/segment_organizatsiy.html",
+        context=_public_ctx(request, db),
+    )
+
+
+@router.get("/dlya-uchebnykh-tsentrov", response_class=HTMLResponse)
+def segment_uchebnykh(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/segment_uchebnykh.html",
+        context=_public_ctx(request, db),
+    )
+
+
+@router.get("/bezopasnost", response_class=HTMLResponse)
+def bezopasnost_page(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/bezopasnost.html",
+        context=_public_ctx(request, db),
+    )
+
+
+@router.get("/novoe", response_class=HTMLResponse)
+def novoe_page(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/novoe.html",
+        context=_public_ctx(request, db),
+    )
+
+
 @router.get("/robots.txt", response_class=PlainTextResponse)
 def robots_txt(request: Request):
     from app.hosting import host_role, request_host
@@ -315,8 +401,24 @@ def sitemap_xml(request: Request, db: Session = Depends(get_db)):
     if role == "app":
         return RedirectResponse(redirect_url_for_path("/sitemap.xml"), status_code=301)
 
+    from app.services.public_catalog import all_obraztsy_paths
+
     base = get_settings().public_base_url.rstrip("/")
-    paths = ["/", "/privacy", "/offer", "/requisites", "/tariffs", "/contacts", "/zakon/"]
+    paths = [
+        "/",
+        "/privacy",
+        "/offer",
+        "/requisites",
+        "/tariffs",
+        "/contacts",
+        "/bezopasnost",
+        "/novoe",
+        "/dlya-ekspertov",
+        "/dlya-organizatsiy",
+        "/dlya-uchebnykh-tsentrov",
+        "/zakon/",
+        *all_obraztsy_paths(),
+    ]
     body = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',

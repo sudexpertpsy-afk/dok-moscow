@@ -39,6 +39,12 @@ CONTENT_SLOT_KEYS: tuple[str, ...] = (
     "faq",
     "contacts",
     "footer_text",
+    # W-44 волна 2 — сегменты, доверие, лента релизов (Markdown)
+    "segment_ekspertov",
+    "segment_organizatsiy",
+    "segment_uchebnykh",
+    "bezopasnost",
+    "novoe",
 )
 INLINE_SLOTS = {
     "hero_headline",

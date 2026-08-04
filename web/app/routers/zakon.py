@@ -149,12 +149,15 @@ def zakon_act(slug: str, request: Request, db: Session = Depends(get_db)):
             context=_ctx(request),
             status_code=404,
         )
+    from app.services.public_catalog import templates_for_act_slug
+
     published = published_for(act)
     archives = archived_versions(act)
     fragments = sorted(act.fragments or [], key=lambda f: f.sort_order)
     pdf_url = None
     if act.eo_number:
         pdf_url = PublicationClient().pdf_url(act.eo_number)
+    related_templates = templates_for_act_slug(act.slug)
     return templates.TemplateResponse(
         request=request,
         name="zakon/act.html",
@@ -169,5 +172,6 @@ def zakon_act(slug: str, request: Request, db: Session = Depends(get_db)):
             mode_fragments=LegalActMode.fragments,
             mode_card=LegalActMode.card,
             pdf_url=pdf_url,
+            related_templates=related_templates,
         ),
     )

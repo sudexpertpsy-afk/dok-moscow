@@ -1,0 +1,46 @@
+{% extends "landing/base.html" %}
+{% block title %}Для учебных центров ДПО — {{ app_name }}{% endblock %}
+{% block meta_description %}Договоры на обучение СПЭ и полиграфу, счета и акты — шаблоны для учебных центров ДПО в Док.Москва.{% endblock %}
+{% block canonical %}{{ public_base_url }}/dlya-uchebnykh-tsentrov{% endblock %}
+{% block og_title %}Для учебных центров ДПО — {{ app_name }}{% endblock %}
+{% block og_url %}{{ public_base_url }}/dlya-uchebnykh-tsentrov{% endblock %}
+
+{% block content %}
+<article class="lp-legal lp-segment">
+  <div class="lp-wrap">
+    <p class="zk-eyebrow"><a href="/">Главная</a> · Учебные центры</p>
+    <h1>Для учебных центров ДПО</h1>
+
+    {% if content_slots.segment_uchebnykh %}
+      {{ content_slots.segment_uchebnykh }}
+    {% else %}
+    <p class="lp-section-lead">Договоры на обучение и комплекты к ним — по тем же правилам, что и экспертная практика.</p>
+
+    <h2>Боль</h2>
+    <p>Набор на курс СПЭ или полиграфа — десятки однотипных договоров. Реквизиты слушателей и юрлиц путаются, акты закрытия отстают от оплаты.</p>
+
+    <h2>Сценарий за 3 шага</h2>
+    <ol class="lp-seg-steps">
+      <li>Выберите шаблон договора на обучение (ФЛ или юрлицо).</li>
+      <li>Заполните карточку заказчика / слушателя — реквизиты юрлица из ЕГРЮЛ.</li>
+      <li>Выпустите счёт и акт в том же комплекте, с вашей нумерацией.</li>
+    </ol>
+
+    <h2>Что особенно полезно</h2>
+    <ul>
+      <li>Шаблоны договоров на обучение СПЭ и полиграфу</li>
+      <li>Счета и акты в связке с договором</li>
+      <li>Общая картотека на тарифе организации</li>
+    </ul>
+
+    <h2>Тариф</h2>
+    <p>Для одного менеджера — <a href="/tariffs">«Специалист»</a>; для команды набора — <a href="/tariffs">«Организация»</a>.</p>
+    {% endif %}
+
+    <p class="lp-section-foot">
+      <a class="lp-btn" href="/#apply" data-ym-goal="cta_apply">Оставить заявку</a>
+      <a class="lp-btn lp-btn-ghost" href="/obraztsy">Образцы договоров на обучение</a>
+    </p>
+  </div>
+</article>
+{% endblock %}

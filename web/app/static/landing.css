@@ -690,6 +690,100 @@ a:hover { color: var(--lp-accent-hot); }
 }
 .lp-contacts span { color: var(--lp-muted); }
 
+/* W-44 волна 2: /obraztsy, сегменты, /bezopasnost, /novoe */
+.lp-obraztsy-group { margin: 2rem 0 1.25rem; }
+.lp-obraztsy-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+.lp-obraztsy-list a {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--lp-line);
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  background: var(--lp-card);
+}
+.lp-obraztsy-list a:hover { border-color: var(--lp-accent); }
+.lp-obraztsy-list strong {
+  font-family: var(--lp-display);
+  font-size: 1.05rem;
+  color: var(--lp-ink);
+}
+.lp-obraztsy-list span {
+  color: var(--lp-muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+.lp-obraztsy-meta {
+  display: grid;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.lp-obraztsy-meta dt {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--lp-muted);
+  margin: 0 0 0.2rem;
+}
+.lp-obraztsy-meta dd {
+  margin: 0;
+  color: var(--lp-ink);
+  line-height: 1.5;
+}
+.lp-obraztsy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1.25rem 0 1.5rem;
+}
+.lp-obraztsy-thumb {
+  margin: 0 0 1.75rem;
+  max-width: 16rem;
+}
+.lp-obraztsy-thumb img {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--lp-line);
+  border-radius: 8px;
+  background: #fff;
+}
+.lp-obraztsy-thumb figcaption {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--lp-muted);
+}
+.lp-obraztsy-fields {
+  columns: 2;
+  gap: 1.25rem;
+  margin: 0.75rem 0 1.5rem;
+  padding-left: 1.1rem;
+}
+.lp-obraztsy-fields code {
+  font-size: 0.9em;
+}
+.lp-obraztsy-norm {
+  padding-left: 1.1rem;
+  line-height: 1.7;
+}
+.lp-seg-steps {
+  margin: 0.75rem 0 1.25rem;
+  padding-left: 1.25rem;
+  color: var(--lp-muted);
+  line-height: 1.65;
+}
+.lp-release { margin: 1.75rem 0; }
+.lp-release h2 { margin-bottom: 0.5rem; }
+@media (max-width: 720px) {
+  .lp-obraztsy-fields { columns: 1; }
+}
+
 .lp-footer {
   background: var(--lp-night);
   color: rgba(244, 239, 230, 0.75);

@@ -88,7 +88,7 @@ def test_landing_assets_present(app):
 
 
 def test_w44_scope_public_surface_only():
-    """W-44: относительно tip W-43 меняем только публичную витрину."""
+    """W-44: относительно tip W-43 — публичная витрина (+ роуты/CMS/hosting для новых страниц)."""
     import subprocess
     from pathlib import Path
 
@@ -105,13 +105,27 @@ def test_w44_scope_public_surface_only():
         "web/app/static/landing.css",
         "web/app/static/img/",
         "web/app/static/samples/",
+        "web/app/services/public_catalog.py",
+        "web/app/routers/landing.py",
+        "web/app/routers/zakon.py",
+        "web/app/services/cms.py",
+        "web/app/hosting.py",
+        "web/app/navigation.py",
         "web/tests/test_landing.py",
+        "web/tests/test_hosting_w26.py",
         "scripts/make_samples.py",
         "docs/",
     )
     allowed_exact = {
         "web/app/static/landing.css",
+        "web/app/services/public_catalog.py",
+        "web/app/routers/landing.py",
+        "web/app/routers/zakon.py",
+        "web/app/services/cms.py",
+        "web/app/hosting.py",
+        "web/app/navigation.py",
         "web/tests/test_landing.py",
+        "web/tests/test_hosting_w26.py",
         "scripts/make_samples.py",
     }
 
@@ -159,6 +173,47 @@ def test_robots_and_sitemap(app):
     assert r.status_code == 200
     assert "application/xml" in r.headers.get("content-type", "")
     assert "/privacy" in r.text
+    assert "/obraztsy" in r.text
+    assert "/bezopasnost" in r.text
+    assert "/novoe" in r.text
+    assert "/dlya-ekspertov" in r.text
+    assert "/obraztsy/dogovor-na-ekspertizu" in r.text
+
+
+def test_w44_obraztsy_and_public_pages(app):
+    client, _ = app
+    r = client.get("/obraztsy")
+    assert r.status_code == 200
+    assert "Образцы документов" in r.text
+    assert "/obraztsy/dogovor-na-ekspertizu" in r.text
+    assert "Заключения эксперта" in r.text or "заключение" in r.text.casefold()
+
+    r = client.get("/obraztsy/dogovor-na-ekspertizu")
+    assert r.status_code == 200
+    assert "образец 2026" in r.text
+    assert "Нормативная база" in r.text
+    assert "/zakon/" in r.text
+    assert "Заполняемые поля" in r.text
+    assert 'rel="canonical"' in r.text or "canonical" in r.text
+    assert "/static/samples/dogovor-fl.pdf" in r.text
+
+    assert client.get("/obraztsy/net-takogo-slug").status_code == 404
+
+    for path, needle in (
+        ("/dlya-ekspertov", "Для частных экспертов"),
+        ("/dlya-organizatsiy", "Для экспертных организаций"),
+        ("/dlya-uchebnykh-tsentrov", "Для учебных центров"),
+        ("/bezopasnost", "Мы не читаем ваши документы"),
+        ("/novoe", "Август 2026"),
+    ):
+        page = client.get(path)
+        assert page.status_code == 200, path
+        assert needle in page.text, path
+
+    home = client.get("/")
+    assert "/dlya-ekspertov" in home.text
+    assert "/bezopasnost" in home.text
+    assert 'href="/obraztsy"' in home.text
 
 
 def test_favicon_and_html_404(app):

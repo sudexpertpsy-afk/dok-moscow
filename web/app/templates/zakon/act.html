@@ -48,6 +48,15 @@
       <p style="margin:0 0 0.5rem;font-weight:600">Создавайте документы по этой норме в Док.Москва</p>
       <p class="muted" style="margin:0 0 0.75rem">Онлайн-кабинет экспертной организации: договоры, счета и акты по шаблонам.</p>
       <a class="lp-btn" href="{{ app_base_url }}/login" data-ym-goal="zakon_cta">Войти в кабинет</a>
+      {% if related_templates %}
+      <p style="margin:1rem 0 0.35rem;font-weight:600">Связанные образцы</p>
+      <ul class="lp-obraztsy-norm" style="margin:0;padding-left:1.1rem">
+        {% for it in related_templates[:8] %}
+        <li><a href="/obraztsy/{{ it.slug }}">{{ it.title }}</a></li>
+        {% endfor %}
+      </ul>
+      <p class="muted" style="margin:0.5rem 0 0"><a href="/obraztsy">Все образцы →</a></p>
+      {% endif %}
     </aside>
 
     {% if act.mode == mode_card %}

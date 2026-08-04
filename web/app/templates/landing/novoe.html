@@ -1,0 +1,43 @@
+{% extends "landing/base.html" %}
+{% block title %}Что нового — {{ app_name }}{% endblock %}
+{% block meta_description %}Лента обновлений Док.Москва: заключения эксперта, печать и подпись в PDF, публичные образцы и другие релизы.{% endblock %}
+{% block canonical %}{{ public_base_url }}/novoe{% endblock %}
+{% block og_title %}Что нового — {{ app_name }}{% endblock %}
+{% block og_url %}{{ public_base_url }}/novoe{% endblock %}
+
+{% block content %}
+<article class="lp-legal lp-novoe">
+  <div class="lp-wrap">
+    <p class="zk-eyebrow"><a href="/">Главная</a> · Что нового</p>
+    <h1>Что нового</h1>
+    <p class="lp-section-lead">Короткая лента релизов — чтобы было видно, что продукт живой.</p>
+
+    {% if content_slots.novoe %}
+      {{ content_slots.novoe }}
+    {% else %}
+    <section class="lp-release">
+      <h2>Август 2026</h2>
+      <ul>
+        <li>Шаблоны <strong>заключений эксперта</strong> по ГПК и УПК</li>
+        <li><strong>Печать и подпись в PDF</strong> (факсимиле) для счетов и писем</li>
+        <li>Свои шаблоны с <strong>собственными полями</strong> на тарифе «Организация»</li>
+        <li>Слежение за изменениями НПА в разделе «Законодательство»</li>
+        <li>Публичная библиотека <a href="/obraztsy">образцов</a>, страницы для экспертов и организаций</li>
+      </ul>
+    </section>
+    <section class="lp-release">
+      <h2>Ранее</h2>
+      <ul>
+        <li>Комплект документов экспертизы, реквизиты из ЕГРЮЛ</li>
+        <li>Раздел <a href="/zakon/">«Законодательство»</a>, тарифы и закрытая бета</li>
+      </ul>
+    </section>
+    {% endif %}
+
+    <p class="lp-section-foot">
+      <a class="lp-btn" href="/#apply" data-ym-goal="cta_apply">Оставить заявку</a>
+      <a class="lp-btn lp-btn-ghost" href="/obraztsy">Образцы документов</a>
+    </p>
+  </div>
+</article>
+{% endblock %}
