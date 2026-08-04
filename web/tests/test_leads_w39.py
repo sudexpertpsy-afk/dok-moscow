@@ -407,3 +407,147 @@ def test_org_detail_shows_source_lead(app):
     assert "Из заявки" in r.text
     assert "srclead@example.com" in r.text
     assert "/admin/leads#lead-1" in r.text
+
+
+def test_edit_reopen_and_delete_lead(app):
+    client, dbmod = app
+    assert _apply(
+        client,
+        "editme@example.com",
+        profile="Другое",
+        comment="исходный комментарий",
+    ).status_code == 201
+    _admin(client)
+
+    r = client.get("/admin/leads")
+    assert r.status_code == 200
+    assert "Правка данных" in r.text
+    assert "Удалить заявку" in r.text
+    assert 'action="/admin/leads/1/edit"' in r.text
+
+    token = csrf_from(client, "/admin/leads")
+    r = client.post(
+        "/admin/leads/1/edit",
+        data={
+            "csrf_token": token,
+            "email": "editme-fixed@example.com",
+            "profile": "Юридическая компания",
+            "inn": "7707083893",
+            "comment": "исходный комментарий\nдополнено админом",
+            "admin_note": "проверить реквизиты",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "ok=" in r.headers["location"]
+    assert "#lead-1" in r.headers["location"]
+    db = dbmod.SessionLocal()
+    try:
+        lead = db.get(Lead, 1)
+        assert lead.email == "editme-fixed@example.com"
+        assert lead.profile == "Юридическая компания"
+        assert lead.inn == "7707083893"
+        assert "дополнено админом" in (lead.comment or "")
+        assert lead.admin_note == "проверить реквизиты"
+        ev = db.scalar(select(Event).where(Event.type == "lead_updated").order_by(Event.id.desc()))
+        assert ev is not None
+    finally:
+        db.close()
+
+    token = csrf_from(client, "/admin/leads")
+    client.post(
+        "/admin/leads/1/spam",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
+    token = csrf_from(client, "/admin/leads")
+    r = client.post(
+        "/admin/leads/1/reopen",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    db = dbmod.SessionLocal()
+    try:
+        assert db.get(Lead, 1).status == LeadStatus.new
+        assert db.scalar(select(Event).where(Event.type == "lead_reopened")) is not None
+    finally:
+        db.close()
+
+    # создаём орг из заявки, затем удаляем заявку — source_lead обнуляется
+    token = csrf_from(client, "/admin/leads")
+    with patch("app.services.leads.send_email", return_value=True):
+        client.post(
+            "/admin/leads/1/create-org",
+            data={
+                "csrf_token": token,
+                "org_name": "Орг из editme",
+                "tariff_code": "organization",
+                "months": "3",
+                "send_email_now": "1",
+            },
+            follow_redirects=False,
+        )
+    db = dbmod.SessionLocal()
+    try:
+        org_id = db.get(Lead, 1).org_id
+        assert org_id is not None
+    finally:
+        db.close()
+
+    token = csrf_from(client, "/admin/leads")
+    r = client.post(
+        "/admin/leads/1/delete",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "ok=" in r.headers["location"]
+    db = dbmod.SessionLocal()
+    try:
+        assert db.get(Lead, 1) is None
+        org = db.get(Organization, org_id)
+        assert org is not None
+        assert org.source_lead_id is None
+        assert db.scalar(select(Event).where(Event.type == "lead_deleted")) is not None
+    finally:
+        db.close()
+
+
+def test_edit_lead_rejects_bad_inn_and_duplicate_email(app):
+    client, dbmod = app
+    assert _apply(client, "a@example.com").status_code == 201
+    assert _apply(client, "b@example.com").status_code == 201
+    _admin(client)
+
+    token = csrf_from(client, "/admin/leads")
+    r = client.post(
+        "/admin/leads/1/edit",
+        data={
+            "csrf_token": token,
+            "email": "a@example.com",
+            "profile": "Другое",
+            "inn": "123",
+            "comment": "",
+            "admin_note": "",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 400
+    assert "ИНН" in r.text
+
+    token = csrf_from(client, "/admin/leads")
+    r = client.post(
+        "/admin/leads/1/edit",
+        data={
+            "csrf_token": token,
+            "email": "b@example.com",
+            "profile": "Другое",
+            "inn": "",
+            "comment": "",
+            "admin_note": "",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 400
+    assert "уже есть" in r.text

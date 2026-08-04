@@ -21,7 +21,7 @@ from app.services.cms import (
     tariff_features,
     tariff_price_label,
 )
-from app.services.leads import create_lead, normalize_lead_inn, notify_admin_new_lead
+from app.services.leads import create_lead, normalize_lead_inn, notify_admin_new_lead, LEAD_PROFILES
 from app.templating import templates
 
 router = APIRouter(tags=["landing"])
@@ -30,13 +30,7 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _INN_RE = re.compile(r"^(\d{10}|\d{12})$")
 lead_limiter = LoginRateLimiter(limit=5, window_sec=60 * 60, name="lead")
 
-PROFILES = (
-    "Экспертная организация (СРО)",
-    "Судебно-экспертное учреждение",
-    "Независимый эксперт / ИП",
-    "Юридическая компания",
-    "Другое",
-)
+PROFILES = LEAD_PROFILES
 
 
 def _public_ctx(request: Request, db: Session | None = None, **extra):

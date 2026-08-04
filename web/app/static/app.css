@@ -880,6 +880,26 @@ body.gs-open { overflow: hidden; }
   font-size: 0.85rem;
   color: #7a4b10;
 }
+.lead-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+  max-width: 22rem;
+}
+.lead-edit-form label {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+}
+.lead-edit-form input,
+.lead-edit-form select,
+.lead-edit-form textarea {
+  margin: 0;
+  width: 100%;
+}
+.lead-delete-form {
+  margin-top: 0.15rem;
+}
 .lead-row-new td:first-child {
   box-shadow: inset 3px 0 0 #e8a23a;
 }

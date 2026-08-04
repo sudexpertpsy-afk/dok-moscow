@@ -550,6 +550,7 @@ def _leads_page_ctx(
     from app.services.leads import (
         STATUS_FILTERS,
         STATUS_LABELS,
+        LEAD_PROFILES,
         beta_defaults,
         default_org_name,
         lead_view,
@@ -580,6 +581,7 @@ def _leads_page_ctx(
         status_filter=status_filter,
         status_filters=STATUS_FILTERS,
         status_labels=STATUS_LABELS,
+        lead_profiles=LEAD_PROFILES,
         default_tariff=def_tariff,
         default_months=def_months,
         default_org_name=default_org_name,
@@ -790,6 +792,107 @@ def note_lead_route(
     save_admin_note(db, lead=lead, actor=actor, note=admin_note)
     return RedirectResponse(
         f"/admin/leads?ok=Заметка+сохранена#lead-{lead_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/leads/{lead_id}/edit", response_class=HTMLResponse)
+def edit_lead_route(
+    lead_id: int,
+    request: Request,
+    email: str = Form(""),
+    profile: str = Form(""),
+    inn: str = Form(""),
+    comment: str = Form(""),
+    admin_note: str = Form(""),
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from app.models import User as UserModel
+    from app.services.leads import LeadError, update_lead
+
+    lead = db.get(Lead, lead_id)
+    if lead is None:
+        return RedirectResponse("/admin/leads", status_code=status.HTTP_303_SEE_OTHER)
+    actor = db.get(UserModel, user.id)
+    assert actor is not None
+    try:
+        update_lead(
+            db,
+            lead=lead,
+            actor=actor,
+            email=email,
+            profile=profile,
+            inn=inn,
+            comment=comment,
+            admin_note=admin_note,
+        )
+    except LeadError as exc:
+        db.rollback()
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/leads.html",
+            context=_leads_page_ctx(request, user, db, flash_error=str(exc)),
+            status_code=400,
+        )
+    return RedirectResponse(
+        f"/admin/leads?ok=Данные+заявки+сохранены#lead-{lead_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/leads/{lead_id}/reopen", response_class=HTMLResponse)
+def reopen_lead_route(
+    lead_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from app.models import User as UserModel
+    from app.services.leads import LeadError, reopen_lead
+
+    lead = db.get(Lead, lead_id)
+    if lead is None:
+        return RedirectResponse("/admin/leads", status_code=status.HTTP_303_SEE_OTHER)
+    actor = db.get(UserModel, user.id)
+    assert actor is not None
+    try:
+        reopen_lead(db, lead=lead, actor=actor)
+    except LeadError as exc:
+        db.rollback()
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/leads.html",
+            context=_leads_page_ctx(request, user, db, flash_error=str(exc)),
+            status_code=400,
+        )
+    return RedirectResponse(
+        f"/admin/leads?ok=Заявка+возвращена+в+новые#lead-{lead_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/leads/{lead_id}/delete", response_class=HTMLResponse)
+def delete_lead_route(
+    lead_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from app.models import User as UserModel
+    from app.services.leads import delete_lead
+
+    lead = db.get(Lead, lead_id)
+    if lead is None:
+        return RedirectResponse("/admin/leads", status_code=status.HTTP_303_SEE_OTHER)
+    actor = db.get(UserModel, user.id)
+    assert actor is not None
+    delete_lead(db, lead=lead, actor=actor)
+    return RedirectResponse(
+        "/admin/leads?ok=Заявка+удалена",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
