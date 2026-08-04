@@ -70,15 +70,21 @@ def test_landing_assets_present(app):
         "/static/img/sample-dogovor.webp",
         "/static/img/sample-schet.webp",
         "/static/img/sample-akt.webp",
+        "/static/img/sample-zaklyuchenie.webp",
+        "/static/img/sample-schet-faksimile.webp",
         "/static/img/og-default.png",
         "/static/img/og-zakon.png",
+        "/static/samples/zaklyuchenie-fragment.pdf",
+        "/static/samples/schet-faksimile.pdf",
     ):
         r = client.get(path)
         assert r.status_code == 200, path
         if path.endswith(".webp"):
             assert r.content[:4] == b"RIFF", path
-        else:
+        elif path.endswith(".png"):
             assert r.content[:8] == b"\x89PNG\r\n\x1a\n", path
+        elif path.endswith(".pdf"):
+            assert r.content[:5] == b"%PDF-", path
 
 
 def test_w44_scope_public_surface_only():
