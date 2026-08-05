@@ -51,7 +51,8 @@ def reconcile_stale_payments(db: Session, *, older_than_min: int = 15) -> int:
             )
         ).all()
     )
-    # Добираем чек для уже confirmed/refunded без receipt_status
+    # Добираем чек только для недавних confirmed/refunded без receipt
+    recent_cut = utcnow() - timedelta(days=7)
     need_receipt = db.scalars(
         select(Payment).where(
             Payment.status.in_(
@@ -62,6 +63,7 @@ def reconcile_stale_payments(db: Session, *, older_than_min: int = 15) -> int:
                 ]
             ),
             Payment.tbank_payment_id.is_not(None),
+            Payment.created_at >= recent_cut,
         )
     ).all()
     for pay in need_receipt:

@@ -244,8 +244,16 @@ def test_reconcile_getstate_mocked(app):
 def test_confirmed_without_receipt_is_incomplete(app):
     """W-45/G-03: confirmed без receipt_status — незавершённая цепочка 54-ФЗ."""
     from app.billing.payments import flag_incomplete_receipts, payment_receipt_complete
+    from app.services.ops import ops_dir
 
     _, dbmod = app
+    # сброс маркеров алертов между прогонами
+    d = ops_dir()
+    for p in d.glob("billing_receipt*.json"):
+        p.unlink()
+    for p in d.glob("alert_billing_receipt*.json"):
+        p.unlink()
+
     _org_id, _sub_id, pay_id, _password = _seed_org_payment(dbmod)
     db = dbmod.SessionLocal()
     try:
@@ -257,10 +265,45 @@ def test_confirmed_without_receipt_is_incomplete(app):
         assert payment_receipt_complete(pay) is False
         flagged = flag_incomplete_receipts(db)
         assert str(pay_id) in flagged
+        # повторно те же id — без нового алерта
+        assert flag_incomplete_receipts(db) == []
         pay.receipt_status = "DONE"
         db.commit()
         assert payment_receipt_complete(pay) is True
         assert flag_incomplete_receipts(db) == []
+        pay.receipt_status = "legacy"
+        db.commit()
+        assert payment_receipt_complete(pay) is True
+    finally:
+        db.close()
+
+
+def test_old_incomplete_receipt_not_flagged(app):
+    """Исторические платежи без чека не должны спамить алертами."""
+    from datetime import timedelta
+
+    from app.billing.payments import flag_incomplete_receipts
+    from app.models import utcnow
+    from app.services.ops import ops_dir
+
+    _, dbmod = app
+    d = ops_dir()
+    for p in d.glob("billing_receipt*.json"):
+        p.unlink()
+    for p in d.glob("alert_billing_receipt*.json"):
+        p.unlink()
+
+    _org_id, _sub_id, pay_id, _password = _seed_org_payment(dbmod)
+    db = dbmod.SessionLocal()
+    try:
+        pay = db.get(Payment, pay_id)
+        pay.status = PaymentStatus.confirmed
+        pay.receipt_status = None
+        old = utcnow() - timedelta(days=10)
+        pay.created_at = old
+        pay.updated_at = old
+        db.commit()
+        assert flag_incomplete_receipts(db, newer_than_hours=72) == []
     finally:
         db.close()
 
