@@ -27,6 +27,11 @@ from app.models import (
     User,
     UserRole,
 )
+
+try:
+    from app.models import OrgField as _OrgField
+except ImportError:  # pragma: no cover
+    _OrgField = None  # type: ignore
 from app.services.audit import record_event
 
 log = logging.getLogger("dok.admin_delete")
@@ -56,7 +61,7 @@ def delete_organization(
 
     # contracts → counterparties (FK RESTRICT на counterparty_id)
     db.execute(delete(Contract).where(Contract.org_id == org_id))
-    for model in (
+    models = [
         Document,
         Job,
         PartyCheck,
@@ -67,7 +72,10 @@ def delete_organization(
         Invite,
         Payment,
         Subscription,
-    ):
+    ]
+    if _OrgField is not None:
+        models.insert(0, _OrgField)
+    for model in models:
         db.execute(delete(model).where(model.org_id == org_id))
 
     # заявки: отвязать, не удалять историю лидов
