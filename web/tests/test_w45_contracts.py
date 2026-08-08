@@ -82,14 +82,26 @@ def test_contract_no_verify_false_in_app_code():
         re.compile(r"CERT_NONE"),
     )
     for path in WEB_APP.rglob("*.py"):
-        text = path.read_text(encoding="utf-8")
-        for i, line in enumerate(text.splitlines(), 1):
-            if line.strip().startswith("#"):
-                continue
-            for pat in patterns:
-                if pat.search(line):
-                    bad.append(f"{path.relative_to(REPO)}:{i}:{line.strip()}")
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            # только исполняемый код, не docstring/комментарии
+            if isinstance(node, ast.keyword) and node.arg == "verify":
+                if isinstance(node.value, ast.Constant) and node.value.value is False:
+                    bad.append(f"{path.relative_to(REPO)}:verify=False")
+            if isinstance(node, ast.Attribute) and node.attr == "_create_unverified_context":
+                bad.append(f"{path.relative_to(REPO)}:ssl._create_unverified_context")
+            if isinstance(node, ast.Attribute) and node.attr == "CERT_NONE":
+                bad.append(f"{path.relative_to(REPO)}:CERT_NONE")
     assert not bad, "запрещённый TLS-обход:\n" + "\n".join(bad)
+    # Russian Trusted CA для Т-Банка (G-08)
+    from app.ssl_util import RUSSIAN_BUNDLE, ssl_verify_context
+    import ssl
+
+    assert RUSSIAN_BUNDLE.is_file()
+    assert isinstance(ssl_verify_context(), ssl.SSLContext)
 
 
 def test_contract_obraztsy_and_zakon_slugs_resolve(app):

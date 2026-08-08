@@ -131,7 +131,20 @@ async def lifespan(_app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title=settings.app_name, docs_url=None, redoc_url=None, lifespan=lifespan)
+
+    def _unique_id(route) -> str:
+        # W-45/F-12: стабильные operation_id без коллизий по имени функции
+        tag = route.tags[0] if route.tags else "api"
+        name = route.name or route.endpoint.__name__
+        return f"{tag}_{name}".replace(" ", "_").lower()
+
+    app = FastAPI(
+        title=settings.app_name,
+        docs_url=None,
+        redoc_url=None,
+        lifespan=lifespan,
+        generate_unique_id_function=_unique_id,
+    )
 
     session_kw: dict = {
         "secret_key": settings.secret_key,

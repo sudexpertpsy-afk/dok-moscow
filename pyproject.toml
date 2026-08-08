@@ -1,0 +1,18 @@
+[tool.deptry]
+known_first_party = ["app", "docfiller_core"]
+
+[tool.deptry.package_module_name_map]
+docfiller-core = "docfiller_core"
+
+[tool.deptry.per_rule_ignores]
+DEP001 = ["docfiller_core"]
+DEP002 = ["pytest", "pytest-cov", "playwright", "ruff", "vulture", "deptry"]
+
+[tool.coverage.run]
+source = ["web/app"]
+branch = true
+omit = ["web/app/templates/*", "web/app/static/*"]
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = true

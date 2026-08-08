@@ -103,7 +103,7 @@ def resolve_template_path(templates_dir, name):
 
 def get_widget_value(widget):
     """Прочитать значение Entry или Text."""
-    # TODO(этап 4+): vulture — возможно мёртвый хелпер после FieldSet.
+    # Desktop UI helper (tk); оставляем для локального docfiller.
     import tkinter as tk
     if isinstance(widget, tk.Text):
         return widget.get('1.0', 'end-1c')

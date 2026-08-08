@@ -84,16 +84,13 @@ class TBankClient:
 
     def _http(self) -> httpx.Client:
         if self._client is None:
-            # Явный CA bundle (certifi), без verify=False — W-45/G-08
-            verify: bool | ssl.SSLContext = True
-            try:
-                import ssl
-                import certifi
+            # certifi + Russian Trusted CA; без verify=False — W-45/G-08
+            from app.ssl_util import ssl_verify_context
 
-                verify = ssl.create_default_context(cafile=certifi.where())
-            except ImportError:
-                verify = True
-            self._client = httpx.Client(timeout=self.config.timeout, verify=verify)
+            self._client = httpx.Client(
+                timeout=self.config.timeout,
+                verify=ssl_verify_context(),
+            )
         return self._client
 
     def _call(self, method: str, payload: dict[str, Any]) -> dict[str, Any]:
