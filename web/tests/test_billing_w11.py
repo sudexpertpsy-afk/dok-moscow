@@ -15,6 +15,7 @@ from app.defaults import empty_requisites
 from app.models import (
     Organization,
     Payment,
+    PaymentMode,
     PaymentSettings,
     PaymentSource,
     PaymentStatus,
@@ -192,6 +193,43 @@ def test_webhook_bad_token_rejected(app):
         assert pay.status == PaymentStatus.created
     finally:
         db.close()
+
+
+def test_webhook_unknown_order_id_ok_warning(app, caplog):
+    """HOTFIX: валидная подпись + несуществующий OrderId → 200 OK, WARNING, без exception."""
+    import logging
+
+    from app.services.ops import ops_dir, read_marker
+
+    client, dbmod = app
+    billing_router.webhook_limiter.clear()
+    for p in ops_dir().glob("*.json"):
+        p.unlink()
+
+    password = "WebhookProbeSecret"
+    db = dbmod.SessionLocal()
+    try:
+        row = db.get(PaymentSettings, 1) or PaymentSettings(id=1)
+        row.terminal_key = "TestTerminalKey"
+        row.password_encrypted = encrypt_secret(password)
+        row.mode = PaymentMode.test
+        db.add(row)
+        db.commit()
+    finally:
+        db.close()
+
+    # как probe Init: не UUID → «Неизвестный OrderId»
+    missing = f"probe-{uuid.uuid4()}"
+    payload = _signed_payload(missing, password, Status="CANCELED", Success=True)
+    with caplog.at_level(logging.WARNING, logger="dok.billing.webhook"):
+        r = client.post("/billing/webhook", json=payload)
+    assert r.status_code == 200
+    assert r.text == "OK"
+    assert any("order_id=" in m and missing in m and "payment_id=" in m for m in caplog.messages)
+    marker = read_marker("webhook_fail") or {}
+    assert int(marker.get("ops_count") or 0) >= 1
+    assert int(marker.get("streak") or 0) == 0
+    assert "Неизвестный OrderId" in str(marker.get("ops_reason") or "")
 
 
 def test_webhook_rejected_status(app):

@@ -86,6 +86,43 @@ def test_delete_user_from_list(app):
         db.close()
 
 
+def test_cannot_delete_org_with_pending_tbank_payment(app):
+    import uuid
+
+    from app.models import Payment, PaymentSource, PaymentStatus
+    from app.services.admin_delete import AdminDeleteError, delete_organization
+
+    client, dbmod = app
+    assert login(client, "admin@dok.moscow", "AdminPass123!").status_code == 303
+    org_id, _user_id = _seed_org_user(dbmod, email="pending-pay@example.com")
+
+    db = dbmod.SessionLocal()
+    try:
+        org = db.get(Organization, org_id)
+        db.add(
+            Payment(
+                id=uuid.uuid4(),
+                org_id=org_id,
+                amount_kop=1000,
+                purpose="pending",
+                status=PaymentStatus.created,
+                tbank_payment_id="9000000001",
+                source=PaymentSource.card,
+                raw_events=[],
+            )
+        )
+        db.commit()
+        admin = db.scalar(select(User).where(User.email == "admin@dok.moscow"))
+        try:
+            delete_organization(db, org=org, actor=admin)
+            raise AssertionError("ожидался AdminDeleteError")
+        except AdminDeleteError as exc:
+            assert "незавершённые платежи" in str(exc)
+        assert db.get(Organization, org_id) is not None
+    finally:
+        db.close()
+
+
 def test_cannot_delete_self(app):
     client, dbmod = app
     assert login(client, "admin@dok.moscow", "AdminPass123!").status_code == 303

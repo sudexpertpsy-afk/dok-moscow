@@ -62,6 +62,8 @@ def payment_settings_page(
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
 ):
+    from app.services.ops import get_webhook_alert_settings
+
     row = db.get(PaymentSettings, 1)
     status = terminal_status(db)
     return templates.TemplateResponse(
@@ -78,6 +80,7 @@ def payment_settings_page(
             taxation_value=status.taxation,
             vat_value=status.vat_rate,
             terminal_ready=status.ready,
+            webhook_alerts=get_webhook_alert_settings(),
         ),
     )
 
@@ -97,10 +100,15 @@ def payment_settings_save(
     yandex_login_enabled: str | None = Form(None),
     beta_default_tariff: str = Form("organization"),
     beta_default_months: str = Form("3"),
+    webhook_alerts_enabled: str | None = Form(None),
+    webhook_alert_threshold: str = Form("3"),
+    webhook_alert_quiet_hours: str = Form("6"),
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf),
 ):
+    from app.services.ops import save_webhook_alert_settings
+
     row = db.get(PaymentSettings, 1)
     if row is None:
         row = PaymentSettings(id=1)
@@ -135,6 +143,19 @@ def payment_settings_save(
         months = 3
     row.beta_default_months = months
     row.updated_by_user_id = user.id
+    try:
+        wh_threshold = int(str(webhook_alert_threshold).strip() or "3")
+    except ValueError:
+        wh_threshold = 3
+    try:
+        wh_quiet = float(str(webhook_alert_quiet_hours).strip() or "6")
+    except ValueError:
+        wh_quiet = 6.0
+    wh_cfg = save_webhook_alert_settings(
+        enabled=bool(webhook_alerts_enabled),
+        threshold=wh_threshold,
+        quiet_hours=wh_quiet,
+    )
     record_event(
         db,
         type="payment_settings_changed",
@@ -152,6 +173,7 @@ def payment_settings_save(
             "yandex_login_enabled": row.yandex_login_enabled,
             "beta_default_tariff": row.beta_default_tariff,
             "beta_default_months": row.beta_default_months,
+            "webhook_alerts": wh_cfg,
         },
         commit=False,
     )
@@ -177,11 +199,12 @@ def payment_settings_test(
         status_probe = terminal_status(db)
         try:
             # Как в кабинете: Init с Receipt — ловит неверные Taxation/Tax до оплаты пользователем
+            # Без NotificationURL: probe OrderId не в БД — вебхук банка давал ложные алерты.
             init = client.init(
                 amount_kop=1000,
                 order_id=f"probe-{uuid.uuid4()}",
                 description="Проверка подключения Док.Москва",
-                notification_url=f"{get_settings().app_base_url.rstrip('/')}/billing/webhook",
+                notification_url=None,
                 success_url=f"{get_settings().app_base_url.rstrip('/')}/admin/payment-settings",
                 fail_url=f"{get_settings().app_base_url.rstrip('/')}/admin/payment-settings",
                 email=row.default_receipt_email or "probe@dok.moscow",
@@ -217,6 +240,8 @@ def payment_settings_test(
             user_id=user.id,
             details={"ok": False, "error": str(exc)},
         )
+    from app.services.ops import get_webhook_alert_settings
+
     status_view = terminal_status(db)
     return templates.TemplateResponse(
         request=request,
@@ -232,6 +257,7 @@ def payment_settings_test(
             taxation_value=status_view.taxation,
             vat_value=status_view.vat_rate,
             terminal_ready=status_view.ready,
+            webhook_alerts=get_webhook_alert_settings(),
             flash_ok=flash_ok,
             flash_error=flash_error,
         ),

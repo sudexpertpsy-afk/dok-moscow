@@ -137,7 +137,7 @@ class TBankClient:
         amount_kop: int,
         order_id: str,
         description: str,
-        notification_url: str,
+        notification_url: str | None = None,
         success_url: str,
         fail_url: str,
         customer_key: str | None = None,
@@ -150,11 +150,13 @@ class TBankClient:
             "Amount": int(amount_kop),
             "OrderId": order_id,
             "Description": description[:250],
-            "NotificationURL": notification_url,
             "SuccessURL": success_url,
             "FailURL": fail_url,
             "PayType": "O",  # одностадийный
         }
+        # Probe Init без NotificationURL — иначе банк шлёт вебхук по OrderId вне БД.
+        if notification_url:
+            payload["NotificationURL"] = notification_url
         if recurrent and customer_key:
             payload["Recurrent"] = "Y"
             payload["CustomerKey"] = customer_key

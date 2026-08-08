@@ -23,6 +23,7 @@ from app.models import (
     Organization,
     PartyCheck,
     Payment,
+    PaymentStatus,
     Subscription,
     User,
     UserRole,
@@ -57,6 +58,25 @@ def delete_organization(
     if actor.id in user_ids:
         raise AdminDeleteError(
             "Нельзя удалить организацию, к которой привязана ваша учётная запись."
+        )
+
+    # HOTFIX: незавершённые платежи у банка — сначала Cancel/GetState, потом удаление.
+    pending = list(
+        db.scalars(
+            select(Payment).where(
+                Payment.org_id == org_id,
+                Payment.status.in_((PaymentStatus.created, PaymentStatus.authorized)),
+                Payment.tbank_payment_id.is_not(None),
+            )
+        ).all()
+    )
+    if pending:
+        sample = ", ".join(str(p.id) for p in pending[:3])
+        more = f" и ещё {len(pending) - 3}" if len(pending) > 3 else ""
+        raise AdminDeleteError(
+            "Нельзя удалить организацию: есть незавершённые платежи Т-Кассы "
+            f"({len(pending)} шт.: {sample}{more}). "
+            "Сначала отмените или доведите их у банка (GetState/Cancel)."
         )
 
     # contracts → counterparties (FK RESTRICT на counterparty_id)

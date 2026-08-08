@@ -110,7 +110,7 @@ def test_webhook_fail_streak_and_alerts(app):
         p.unlink()
     write_marker("backup_ok")  # W-45: иначе сработает backup_missing
     for _ in range(3):
-        record_webhook_fail("token")
+        record_webhook_fail("Неверная подпись Token")
     db = dbmod.SessionLocal()
     try:
         fired = check_alerts(db)
@@ -118,6 +118,71 @@ def test_webhook_fail_streak_and_alerts(app):
         assert "backup_missing" not in fired
     finally:
         db.close()
+
+
+def test_webhook_operational_no_email_security_alerts(app, monkeypatch):
+    """HOTFIX: 100 неизвестных OrderId → 0 писем; 1 bad token → алерт; тихий период."""
+    from app.services import ops as ops_mod
+    from app.services.ops import (
+        get_webhook_alert_settings,
+        read_marker,
+        save_webhook_alert_settings,
+    )
+
+    sent: list[str] = []
+
+    def _fake_send(settings, *, to_addr, subject, body):
+        sent.append(subject)
+        return True
+
+    monkeypatch.setattr(ops_mod, "send_email", _fake_send)
+
+    _, dbmod = app
+    d = ops_dir()
+    for p in d.glob("*.json"):
+        p.unlink()
+    write_marker("backup_ok")
+    save_webhook_alert_settings(enabled=True, threshold=1, quiet_hours=6)
+
+    for _ in range(100):
+        record_webhook_fail("Неизвестный OrderId", ip="1.2.3.4")
+    db = dbmod.SessionLocal()
+    try:
+        fired = check_alerts(db)
+        assert "webhook_fail" not in fired
+        assert "webhook_fail_rate" not in fired
+        assert sent == []
+        snap = status_snapshot(db)
+        assert snap["webhook"]["ops_count"] == 100
+        assert snap["webhook"]["fail_streak"] == 0
+    finally:
+        db.close()
+
+    record_webhook_fail("Неверная подпись Token", ip="9.9.9.9")
+    db = dbmod.SessionLocal()
+    try:
+        fired = check_alerts(db)
+        assert "webhook_fail" in fired
+        assert len(sent) == 1
+        assert (d / "alert_webhook_fail.json").is_file()
+    finally:
+        db.close()
+
+    # повтор в тихий период — без второго письма
+    record_webhook_fail("Неверная подпись Token", ip="9.9.9.9")
+    marker_before = read_marker("alert_webhook_fail")
+    db = dbmod.SessionLocal()
+    try:
+        fired = check_alerts(db)
+        assert "webhook_fail" in fired
+        assert len(sent) == 1
+        assert read_marker("alert_webhook_fail") == marker_before
+    finally:
+        db.close()
+
+    cfg = get_webhook_alert_settings()
+    assert cfg["quiet_hours"] == 6.0
+    assert cfg["threshold"] == 1
 
 
 def test_backup_marker_stale_and_fresh(app):
