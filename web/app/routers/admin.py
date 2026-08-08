@@ -171,6 +171,9 @@ def admin_organizations(
 ):
     orgs = list(db.scalars(select(Organization).order_by(Organization.id.desc())).all())
     extra = _subscription_list_context(db, orgs)
+    ok = request.query_params.get("ok")
+    err = request.query_params.get("err")
+    flash_ok = "Организация удалена." if ok == "org-deleted" else ok
     return templates.TemplateResponse(
         request=request,
         name="admin/organizations.html",
@@ -180,8 +183,8 @@ def admin_organizations(
             "orgs",
             orgs=orgs,
             org_stats=_org_stats(db),
-            flash_ok=request.query_params.get("ok"),
-            flash_error=request.query_params.get("err"),
+            flash_ok=flash_ok,
+            flash_error=err,
             **extra,
         ),
     )
@@ -430,6 +433,34 @@ def rename_organization(
     return RedirectResponse(f"/admin/organizations/{org_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/organizations/{org_id}/delete", response_class=HTMLResponse)
+def delete_organization_route(
+    org_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from app.services.admin_delete import AdminDeleteError, delete_organization
+
+    org = db.get(Organization, org_id)
+    if org is None:
+        return RedirectResponse("/admin/organizations", status_code=status.HTTP_303_SEE_OTHER)
+    try:
+        delete_organization(db, org=org, actor=user)
+    except AdminDeleteError as exc:
+        from urllib.parse import quote
+
+        return RedirectResponse(
+            f"/admin/organizations?err={quote(str(exc))}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    return RedirectResponse(
+        "/admin/organizations?ok=org-deleted",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
 @router.get("/users", response_class=HTMLResponse)
 def admin_users(
     request: Request,
@@ -438,10 +469,28 @@ def admin_users(
 ):
     users = db.scalars(select(User).order_by(User.id.desc()).limit(200)).all()
     orgs = {o.id: o.name for o in db.scalars(select(Organization)).all()}
+    ok = request.query_params.get("ok")
+    err = request.query_params.get("err")
+    flash_ok = None
+    flash_error = None
+    if ok == "user-deleted":
+        flash_ok = "Пользователь удалён."
+    elif ok:
+        flash_ok = ok
+    if err:
+        flash_error = err
     return templates.TemplateResponse(
         request=request,
         name="admin/users.html",
-        context=_ctx(request, user, "users", users=users, org_names=orgs),
+        context=_ctx(
+            request,
+            user,
+            "users",
+            users=users,
+            org_names=orgs,
+            flash_ok=flash_ok,
+            flash_error=flash_error,
+        ),
     )
 
 
@@ -503,6 +552,34 @@ def toggle_user(
     target.is_active = not target.is_active
     db.commit()
     return RedirectResponse(f"/admin/users/{user_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/users/{user_id}/delete", response_class=HTMLResponse)
+def delete_user_route(
+    user_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from urllib.parse import quote
+
+    from app.services.admin_delete import AdminDeleteError, delete_user
+
+    target = db.get(User, user_id)
+    if target is None:
+        return RedirectResponse("/admin/users", status_code=status.HTTP_303_SEE_OTHER)
+    try:
+        delete_user(db, target=target, actor=user)
+    except AdminDeleteError as exc:
+        return RedirectResponse(
+            f"/admin/users?err={quote(str(exc))}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    return RedirectResponse(
+        "/admin/users?ok=user-deleted",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
 @router.post("/users/{user_id}/reset-2fa", response_class=HTMLResponse)

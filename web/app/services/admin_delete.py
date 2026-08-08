@@ -1,0 +1,142 @@
+"""Удаление организаций и пользователей из админки сервиса."""
+
+from __future__ import annotations
+
+import logging
+import shutil
+from pathlib import Path
+
+from sqlalchemy import delete, func, select
+from sqlalchemy.orm import Session
+
+from app.config import get_settings
+from app.models import (
+    CalendarEvent,
+    Contract,
+    Counter,
+    Counterparty,
+    Document,
+    Event,
+    Invite,
+    Job,
+    Lead,
+    Organization,
+    PartyCheck,
+    Payment,
+    Subscription,
+    User,
+    UserRole,
+)
+from app.services.audit import record_event
+
+log = logging.getLogger("dok.admin_delete")
+
+
+class AdminDeleteError(Exception):
+    """Ошибка удаления с текстом для UI."""
+
+
+def delete_organization(
+    db: Session,
+    *,
+    org: Organization,
+    actor: User,
+) -> None:
+    """Удалить организацию и связанные данные (необратимо)."""
+    org_id = org.id
+    org_name = org.name
+    user_ids = list(
+        db.scalars(select(User.id).where(User.org_id == org_id)).all()
+    )
+    # Нельзя удалить орг, если среди её пользователей — текущий админ
+    if actor.id in user_ids:
+        raise AdminDeleteError(
+            "Нельзя удалить организацию, к которой привязана ваша учётная запись."
+        )
+
+    # contracts → counterparties (FK RESTRICT на counterparty_id)
+    db.execute(delete(Contract).where(Contract.org_id == org_id))
+    for model in (
+        Document,
+        Job,
+        PartyCheck,
+        CalendarEvent,
+        Counterparty,
+        Counter,
+        Event,
+        Invite,
+        Payment,
+        Subscription,
+    ):
+        db.execute(delete(model).where(model.org_id == org_id))
+
+    # заявки: отвязать, не удалять историю лидов
+    for lead in db.scalars(select(Lead).where(Lead.org_id == org_id)).all():
+        lead.org_id = None
+        lead.invite_id = None
+
+    # пользователи организации (oauth/reset каскадом)
+    if user_ids:
+        db.execute(delete(User).where(User.id.in_(user_ids)))
+
+    if org.source_lead_id:
+        org.source_lead_id = None
+        db.flush()
+
+    record_event(
+        db,
+        type="org_deleted",
+        org_id=None,
+        user_id=actor.id,
+        details={"org_id": org_id, "name": org_name, "users": user_ids},
+        commit=False,
+    )
+    db.delete(org)
+    db.commit()
+
+    files_root = Path(get_settings().files_root)
+    org_dir = files_root / str(org_id)
+    if org_dir.is_dir():
+        try:
+            shutil.rmtree(org_dir)
+        except OSError:
+            log.exception("Не удалось удалить каталог файлов org=%s", org_id)
+
+
+def delete_user(
+    db: Session,
+    *,
+    target: User,
+    actor: User,
+) -> None:
+    """Удалить учётную запись (необратимо)."""
+    if target.id == actor.id:
+        raise AdminDeleteError("Нельзя удалить свою учётную запись.")
+
+    if target.role == UserRole.service_admin:
+        others = db.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(
+                User.role == UserRole.service_admin,
+                User.id != target.id,
+                User.is_active.is_(True),
+            )
+        ) or 0
+        if others < 1:
+            raise AdminDeleteError(
+                "Нельзя удалить последнего активного администратора сервиса."
+            )
+
+    email = target.email
+    org_id = target.org_id
+    record_event(
+        db,
+        type="user_deleted",
+        org_id=org_id,
+        user_id=actor.id,
+        details={"deleted_user_id": target.id, "email": email},
+        commit=False,
+    )
+    db.delete(target)
+    db.commit()

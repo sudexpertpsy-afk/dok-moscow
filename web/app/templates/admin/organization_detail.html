@@ -104,5 +104,15 @@
   </section>
 </div>
 
+<section class="panel" style="margin-top:1rem">
+  <h1>Удаление</h1>
+  <p class="muted">Удалит организацию, всех её пользователей, документы, приглашения и подписку. Заявки (лиды) сохранятся без привязки к организации.</p>
+  <form method="post" action="/admin/organizations/{{ org.id }}/delete" hx-boost="false"
+        onsubmit="return confirm('Удалить организацию «{{ org.name|e }}» (ID {{ org.id }}) вместе со всеми данными? Это необратимо.');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="danger">Удалить организацию</button>
+  </form>
+</section>
+
 {% include "admin/_layout_end.html" %}
 {% endblock %}

@@ -53,9 +53,15 @@
         <td>{{ org_stats.get(o.id, {}).get('users', 0) }}</td>
         <td>{{ org_stats.get(o.id, {}).get('open_invites', 0) }}</td>
         <td class="muted">{{ o.created_at }}</td>
-        <td>
+        <td style="white-space:nowrap">
           <button type="button" class="btn secondary sub-open-btn"
                   data-dlg="dlg-sub-{{ o.id }}">Подписка…</button>
+          <form class="inline-form" method="post" action="/admin/organizations/{{ o.id }}/delete"
+                hx-boost="false"
+                onsubmit="return confirm('Удалить организацию «{{ o.name|e }}» (ID {{ o.id }}) вместе с пользователями, документами и подпиской? Это необратимо.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="danger">Удалить</button>
+          </form>
         </td>
       </tr>
       {% else %}
