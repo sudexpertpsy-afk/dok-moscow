@@ -55,7 +55,7 @@ CABINET_GET_REDIRECT_ADMIN = (
     "/cabinet/documents/",
     "/cabinet/package",
     "/cabinet/counterparties",
-    "/cabinet/journal/",
+    "/cabinet/journal",
     "/cabinet/calendar/",
     "/cabinet/help/",
     "/cabinet/settings",

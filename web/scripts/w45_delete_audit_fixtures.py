@@ -76,26 +76,19 @@ def main() -> int:
         if args.dry_run:
             return 0
 
+        # contracts → counterparties (FK)
         for model in (
-            LawWatchNotice,
-            LawWatch,
-            LawNote,
-            LawBookmark,
-            LawView,
             CalendarEvent,
             PartyCheck,
             Document,
             Job,
-            Counterparty,
             Contract,
+            Counterparty,
             OrgField,
             Counter,
             Event,
             Invite,
         ):
-            col = getattr(model, "org_id", None)
-            if col is None:
-                continue
             n = db.execute(delete(model).where(model.org_id.in_(org_ids))).rowcount
             print(f"delete {model.__tablename__}: {n}")
         n = db.execute(delete(Payment).where(Payment.org_id.in_(org_ids))).rowcount
@@ -105,6 +98,12 @@ def main() -> int:
         if user_ids:
             from app.models import OAuthIdentity, PasswordResetToken
 
+            for model in (LawWatchNotice, LawWatch, LawNote, LawBookmark, LawView):
+                col = getattr(model, "user_id", None)
+                if col is None:
+                    continue
+                n = db.execute(delete(model).where(model.user_id.in_(user_ids))).rowcount
+                print(f"delete {model.__tablename__}: {n}")
             db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id.in_(user_ids)))
             db.execute(delete(OAuthIdentity).where(OAuthIdentity.user_id.in_(user_ids)))
         n = db.execute(delete(User).where(User.org_id.in_(org_ids))).rowcount

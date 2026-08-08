@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""W-45: удалить фикстуры АУДИТ-* (org 5/6 и связанные).
-
-Безопасно только для организаций с requisites._audit.delete_after_audit=true
-или именем, начинающимся на «АУДИТ-».
+"""W-45: удалить фикстуры АУДИТ-* (org с маркером / именем АУДИТ-).
 
   python scripts/w45_delete_audit_fixtures.py --dry-run
   python scripts/w45_delete_audit_fixtures.py --yes
@@ -42,13 +39,22 @@ def main() -> int:
     from app.config import get_settings
     from app.db import SessionLocal
     from app.models import (
+        CalendarEvent,
+        Contract,
+        Counter,
         Counterparty,
         Document,
+        Event,
         Invite,
         Job,
+        LawBookmark,
+        LawNote,
+        LawView,
+        LawWatch,
+        LawWatchNotice,
         Organization,
-        OrgContract,
         OrgField,
+        PartyCheck,
         Payment,
         Subscription,
         User,
@@ -65,18 +71,41 @@ def main() -> int:
         org_ids = [o.id for o in orgs]
         print("orgs:", [(o.id, o.name) for o in orgs])
         users = db.scalars(select(User).where(User.org_id.in_(org_ids))).all()
+        user_ids = [u.id for u in users]
         print("users:", [(u.id, u.email) for u in users])
         if args.dry_run:
             return 0
 
-        # порядок: документы/jobs → cp/contracts/fields → payments/subs → users → orgs
-        for model in (Document, Job, Counterparty, OrgContract, OrgField, Invite):
+        # contracts → counterparties (FK)
+        for model in (
+            CalendarEvent,
+            PartyCheck,
+            Document,
+            Job,
+            Contract,
+            Counterparty,
+            OrgField,
+            Counter,
+            Event,
+            Invite,
+        ):
             n = db.execute(delete(model).where(model.org_id.in_(org_ids))).rowcount
             print(f"delete {model.__tablename__}: {n}")
         n = db.execute(delete(Payment).where(Payment.org_id.in_(org_ids))).rowcount
         print(f"delete payments: {n}")
         n = db.execute(delete(Subscription).where(Subscription.org_id.in_(org_ids))).rowcount
         print(f"delete subscriptions: {n}")
+        if user_ids:
+            from app.models import OAuthIdentity, PasswordResetToken
+
+            for model in (LawWatchNotice, LawWatch, LawNote, LawBookmark, LawView):
+                col = getattr(model, "user_id", None)
+                if col is None:
+                    continue
+                n = db.execute(delete(model).where(model.user_id.in_(user_ids))).rowcount
+                print(f"delete {model.__tablename__}: {n}")
+            db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id.in_(user_ids)))
+            db.execute(delete(OAuthIdentity).where(OAuthIdentity.user_id.in_(user_ids)))
         n = db.execute(delete(User).where(User.org_id.in_(org_ids))).rowcount
         print(f"delete users: {n}")
         n = db.execute(delete(Organization).where(Organization.id.in_(org_ids))).rowcount
