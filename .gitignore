@@ -19,3 +19,6 @@ deploy/.env.*
 deploy/backup.key
 !.env.example
 !deploy/.env.example
+
+.coverage
+*.coverage
