@@ -73,8 +73,10 @@ class Settings(BaseSettings):
     hostland_panel_url: str = "https://hostland.ru/"
     hostland_pay_url: str = "https://hostland.ru/"
     hostland_console_url: str = "https://hostland.ru/"
-    # W-43: глобальный выключатель факсимиле (инцидент) — плейсхолдеры пустые, генерация жива
-    faksimile_enabled: bool = True
+    # Лендинг: полоса цифр (ENV, без правки кода). docs=-1 → считать из БД.
+    landing_stats_templates: int = 26
+    landing_stats_docs: int = -1
+    landing_stats_practice_since: int = 2014
 
 
 @lru_cache

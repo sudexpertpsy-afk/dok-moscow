@@ -3,11 +3,7 @@
 {% block meta_description %}{{ act.title }}. {{ meta_line }}. Справочный текст по официальным источникам РФ на {{ app_name }}.{% endblock %}
 {% block canonical %}{{ public_base_url }}/zakon/{{ act.slug }}{% endblock %}
 {% block og_title %}{{ act.title }} — {{ app_name }}{% endblock %}
-{% block og_description %}{{ act.title }}. {{ meta_line }}. Справочный текст на {{ app_name }}.{% endblock %}
 {% block og_url %}{{ public_base_url }}/zakon/{{ act.slug }}{% endblock %}
-{% block og_image %}{{ public_base_url }}/static/img/og-zakon.png{% endblock %}
-{% block twitter_title %}{{ act.title }} — {{ app_name }}{% endblock %}
-{% block twitter_image %}{{ public_base_url }}/static/img/og-zakon.png{% endblock %}
 
 {% block content %}
 <article class="lp-legal zk-act">
@@ -47,16 +43,8 @@
     <aside class="zk-cta" style="margin:1.25rem 0;padding:1rem 1.15rem;border-radius:12px;background:rgba(20,80,60,0.06)">
       <p style="margin:0 0 0.5rem;font-weight:600">Создавайте документы по этой норме в Док.Москва</p>
       <p class="muted" style="margin:0 0 0.75rem">Онлайн-кабинет экспертной организации: договоры, счета и акты по шаблонам.</p>
-      <a class="lp-btn" href="{{ app_base_url }}/login" data-ym-goal="zakon_cta">Войти в кабинет</a>
-      {% if related_templates %}
-      <p style="margin:1rem 0 0.35rem;font-weight:600">Связанные образцы</p>
-      <ul class="lp-obraztsy-norm" style="margin:0;padding-left:1.1rem">
-        {% for it in related_templates[:8] %}
-        <li><a href="/obraztsy/{{ it.slug }}">{{ it.title }}</a></li>
-        {% endfor %}
-      </ul>
-      <p class="muted" style="margin:0.5rem 0 0"><a href="/obraztsy">Все образцы →</a></p>
-      {% endif %}
+      <a class="lp-btn" href="/#apply">Собрать комплект за 5 минут → заявка</a>
+      <a class="lp-btn lp-btn-ghost" href="{{ app_base_url }}/login" style="margin-left:0.5rem">Войти в кабинет</a>
     </aside>
 
     {% if act.mode == mode_card %}

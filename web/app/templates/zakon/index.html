@@ -3,11 +3,7 @@
 {% block meta_description %}Справочник нормативных актов о судебной экспертизе: 73-ФЗ, процессуальные кодексы, постановления пленумов и ведомственные приказы. Тексты по официальным источникам РФ.{% endblock %}
 {% block canonical %}{{ public_base_url }}/zakon/{% if query %}?q={{ query|urlencode }}{% endif %}{% endblock %}
 {% block og_title %}Законодательство о судебной экспертизе — {{ app_name }}{% endblock %}
-{% block og_description %}Справочник НПА о судебной экспертизе: 73-ФЗ, кодексы, пленумы и приказы — в актуальных редакциях.{% endblock %}
 {% block og_url %}{{ public_base_url }}/zakon/{% endblock %}
-{% block og_image %}{{ public_base_url }}/static/img/og-zakon.png{% endblock %}
-{% block twitter_title %}Законодательство о судебной экспертизе — {{ app_name }}{% endblock %}
-{% block twitter_image %}{{ public_base_url }}/static/img/og-zakon.png{% endblock %}
 
 {% block content %}
 <section class="lp-legal zk-hero">
@@ -125,6 +121,8 @@
 </section>
 {% endfor %}
 {% endif %}
+
+{% include "partials/lp_cross_cta.html" %}
 
 <section class="lp-section">
   <div class="lp-wrap">

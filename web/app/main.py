@@ -24,7 +24,6 @@ from app.routers import (
     admin_billing,
     admin_cms,
     admin_legal,
-    admin_security,
     admin_server,
     admin_templates,
     auth,
@@ -41,9 +40,11 @@ from app.routers import (
     global_search,
     jobs,
     journal,
+    demo_api,
     landing,
     package,
     party_check,
+    praktika,
     staff,
     yandex_auth,
     zakon,
@@ -131,20 +132,7 @@ async def lifespan(_app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
-
-    def _unique_id(route) -> str:
-        # W-45/F-12: стабильные operation_id без коллизий по имени функции
-        tag = route.tags[0] if route.tags else "api"
-        name = route.name or route.endpoint.__name__
-        return f"{tag}_{name}".replace(" ", "_").lower()
-
-    app = FastAPI(
-        title=settings.app_name,
-        docs_url=None,
-        redoc_url=None,
-        lifespan=lifespan,
-        generate_unique_id_function=_unique_id,
-    )
+    app = FastAPI(title=settings.app_name, docs_url=None, redoc_url=None, lifespan=lifespan)
 
     session_kw: dict = {
         "secret_key": settings.secret_key,
@@ -237,7 +225,9 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     app.include_router(landing.router)
+    app.include_router(demo_api.router)
     app.include_router(zakon.router)
+    app.include_router(praktika.router)
     app.include_router(auth.router)
     app.include_router(yandex_auth.router)
     app.include_router(billing.router)
@@ -261,7 +251,6 @@ def create_app() -> FastAPI:
     app.include_router(admin_billing.router)
     app.include_router(admin_cms.router)
     app.include_router(admin_legal.router)
-    app.include_router(admin_security.router)
     app.include_router(admin_server.router)
     app.include_router(admin_templates.router)
 

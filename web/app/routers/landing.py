@@ -16,14 +16,18 @@ from app.services.cms import (
     active_announcement,
     format_price_rub,
     get_content_slots,
-    launch_offer_public,
     list_public_tariffs,
-    published_reviews,
     tariff_blurb,
     tariff_features,
     tariff_price_label,
 )
-from app.services.leads import create_lead, normalize_lead_inn, notify_admin_new_lead, LEAD_PROFILES
+from app.services.landing_demo import (
+    beta_promo_copy,
+    landing_stats,
+    load_content_hooks,
+    load_demo_examples,
+)
+from app.services.leads import create_lead, normalize_lead_inn, notify_admin_new_lead
 from app.templating import templates
 
 router = APIRouter(tags=["landing"])
@@ -32,7 +36,13 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _INN_RE = re.compile(r"^(\d{10}|\d{12})$")
 lead_limiter = LoginRateLimiter(limit=5, window_sec=60 * 60, name="lead")
 
-PROFILES = LEAD_PROFILES
+PROFILES = (
+    "Экспертная организация (СРО)",
+    "Судебно-экспертное учреждение",
+    "Независимый эксперт / ИП",
+    "Юридическая компания",
+    "Другое",
+)
 
 
 def _public_ctx(request: Request, db: Session | None = None, **extra):
@@ -43,13 +53,9 @@ def _public_ctx(request: Request, db: Session | None = None, **extra):
     content_slots = {}
     announcement = None
     analytics_public = get_analytics_public(db)
-    reviews: list = []
-    launch_offer = None
     if db is not None:
         public_tariffs = list_public_tariffs(db)
         content_slots = get_content_slots(db)
-        reviews = published_reviews(content_slots)
-        launch_offer = launch_offer_public(db)
         announcement = active_announcement(
             db,
             dismissed_id=request.cookies.get("dok_announcement_dismissed"),
@@ -70,13 +76,15 @@ def _public_ctx(request: Request, db: Session | None = None, **extra):
         "form_comment": "",
         "public_tariffs": public_tariffs,
         "content_slots": content_slots,
-        "reviews": reviews,
-        "launch_offer": launch_offer,
         "announcement": announcement,
         "format_price_rub": format_price_rub,
         "tariff_price_label": tariff_price_label,
         "tariff_blurb": tariff_blurb,
         "tariff_features": tariff_features,
+        "beta_promo": beta_promo_copy(db),
+        "landing_stats": landing_stats(db),
+        "demo_examples": load_demo_examples(),
+        "content_hooks": load_content_hooks(),
     }
     data.update(extra)
     return data
@@ -290,142 +298,6 @@ def contacts_page(request: Request, db: Session = Depends(get_db)):
     )
 
 
-@router.get("/obraztsy", response_class=HTMLResponse)
-def obraztsy_index(request: Request, db: Session = Depends(get_db)):
-    from app.services.public_catalog import catalog_grouped, list_catalog_items
-
-    return templates.TemplateResponse(
-        request=request,
-        name="landing/obraztsy_index.html",
-        context=_public_ctx(
-            request,
-            db,
-            groups=catalog_grouped(),
-            total=len(list_catalog_items()),
-        ),
-    )
-
-
-@router.get("/obraztsy/{slug}", response_class=HTMLResponse)
-def obraztsy_detail(slug: str, request: Request, db: Session = Depends(get_db)):
-    from app.services.public_catalog import get_catalog_item, normative_acts_for_item
-
-    item = get_catalog_item(slug)
-    if item is None:
-        return templates.TemplateResponse(
-            request=request,
-            name="landing/404.html",
-            context=_public_ctx(request, db),
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
-    return templates.TemplateResponse(
-        request=request,
-        name="landing/obraztsy_detail.html",
-        context=_public_ctx(
-            request,
-            db,
-            item=item,
-            normative_acts=normative_acts_for_item(db, item),
-            seo_year=2026,
-        ),
-    )
-
-
-@router.get("/dlya-ekspertov", response_class=HTMLResponse)
-def segment_ekspertov(request: Request, db: Session = Depends(get_db)):
-    return templates.TemplateResponse(
-        request=request,
-        name="landing/segment_ekspertov.html",
-        context=_public_ctx(request, db),
-    )
-
-
-@router.get("/dlya-organizatsiy", response_class=HTMLResponse)
-def segment_organizatsiy(request: Request, db: Session = Depends(get_db)):
-    return templates.TemplateResponse(
-        request=request,
-        name="landing/segment_organizatsiy.html",
-        context=_public_ctx(request, db),
-    )
-
-
-@router.get("/dlya-uchebnykh-tsentrov", response_class=HTMLResponse)
-def segment_uchebnykh(request: Request, db: Session = Depends(get_db)):
-    return templates.TemplateResponse(
-        request=request,
-        name="landing/segment_uchebnykh.html",
-        context=_public_ctx(request, db),
-    )
-
-
-@router.get("/bezopasnost", response_class=HTMLResponse)
-def bezopasnost_page(request: Request, db: Session = Depends(get_db)):
-    return templates.TemplateResponse(
-        request=request,
-        name="landing/bezopasnost.html",
-        context=_public_ctx(request, db),
-    )
-
-
-@router.get("/novoe", response_class=HTMLResponse)
-def novoe_page(request: Request, db: Session = Depends(get_db)):
-    return templates.TemplateResponse(
-        request=request,
-        name="landing/novoe.html",
-        context=_public_ctx(request, db),
-    )
-
-
-@router.get("/praktika", response_class=HTMLResponse)
-def praktika_index(request: Request, db: Session = Depends(get_db)):
-    from app.services.praktika import list_praktika_articles
-
-    return templates.TemplateResponse(
-        request=request,
-        name="landing/praktika_index.html",
-        context=_public_ctx(request, db, articles=list_praktika_articles()),
-    )
-
-
-@router.get("/praktika/{slug}", response_class=HTMLResponse)
-def praktika_detail(slug: str, request: Request, db: Session = Depends(get_db)):
-    from app.services.legal_public import get_act_by_slug
-    from app.services.praktika import get_praktika_article
-    from app.services.public_catalog import get_catalog_item
-
-    article = get_praktika_article(slug)
-    if article is None:
-        return templates.TemplateResponse(
-            request=request,
-            name="landing/404.html",
-            context=_public_ctx(request, db),
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
-    obraztsy_links = []
-    for s in article.related_obraztsy:
-        item = get_catalog_item(s)
-        if item is not None:
-            obraztsy_links.append({"slug": item.slug, "title": item.title})
-        # W-45/G-07: не публикуем битые /obraztsy/{slug} в related
-    zakon_links = []
-    for s in article.related_zakon:
-        act = get_act_by_slug(db, s)
-        if act is None:
-            continue
-        zakon_links.append({"slug": s, "title": act.title})
-    return templates.TemplateResponse(
-        request=request,
-        name="landing/praktika_detail.html",
-        context=_public_ctx(
-            request,
-            db,
-            article=article,
-            obraztsy_links=obraztsy_links,
-            zakon_links=zakon_links,
-        ),
-    )
-
-
 @router.get("/robots.txt", response_class=PlainTextResponse)
 def robots_txt(request: Request):
     from app.hosting import host_role, request_host
@@ -459,9 +331,6 @@ def sitemap_xml(request: Request, db: Session = Depends(get_db)):
     if role == "app":
         return RedirectResponse(redirect_url_for_path("/sitemap.xml"), status_code=301)
 
-    from app.services.praktika import all_praktika_paths
-    from app.services.public_catalog import all_obraztsy_paths
-
     base = get_settings().public_base_url.rstrip("/")
     paths = [
         "/",
@@ -470,15 +339,8 @@ def sitemap_xml(request: Request, db: Session = Depends(get_db)):
         "/requisites",
         "/tariffs",
         "/contacts",
-        "/bezopasnost",
-        "/novoe",
-        "/praktika",
-        "/dlya-ekspertov",
-        "/dlya-organizatsiy",
-        "/dlya-uchebnykh-tsentrov",
         "/zakon/",
-        *all_obraztsy_paths(),
-        *all_praktika_paths()[1:],  # /praktika уже выше
+        "/praktika/",
     ]
     body = [
         '<?xml version="1.0" encoding="UTF-8"?>',

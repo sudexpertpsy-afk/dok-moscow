@@ -108,7 +108,8 @@ def build_content_security_policy(
     script = ["'self'", "'unsafe-inline'"]
     img = ["'self'", "data:"]
     connect = ["'self'"]
-    frame: list[str] = []
+    # 'self' — iframe образцов PDF на лендинге; иначе frame-src 'none' ломает модалку.
+    frame: list[str] = ["'self'"]
     style = ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"]
     font = ["'self'", "https://fonts.gstatic.com"]
 
@@ -138,10 +139,7 @@ def build_content_security_policy(
         f"img-src {' '.join(img)}",
         f"connect-src {' '.join(connect)}",
     ]
-    if frame:
-        parts.append(f"frame-src {' '.join(frame)}")
-    else:
-        parts.append("frame-src 'none'")
+    parts.append(f"frame-src {' '.join(frame)}")
     parts.extend(
         [
             "frame-ancestors 'none'",

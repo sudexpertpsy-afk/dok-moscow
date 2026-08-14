@@ -26,22 +26,10 @@ def test_landing_home(app):
     assert 'id="features"' in r.text
     assert 'id="faq"' in r.text
     assert "Оставить заявку" in r.text
+    assert "Попробовать демо" in r.text
     assert "Запросить ранний доступ" not in r.text
     assert 'name="inn"' in r.text
     assert "Популярный" in r.text
-    # W-44: новые карточки и образцы
-    assert "Заключения эксперта по ГПК и УПК" in r.text
-    assert "Печать и подпись — прямо в PDF" in r.text
-    assert "Печать и подпись — сразу в PDF" in r.text
-    assert "/static/samples/zaklyuchenie-fragment.pdf" in r.text
-    assert "/static/samples/schet-faksimile.pdf" in r.text
-    assert "Можно ли поставить печать и подпись без принтера?" in r.text
-    assert "Есть ли шаблон заключения эксперта?" in r.text
-    assert 'property="og:image"' in r.text
-    assert "og-default.png" in r.text
-    assert 'name="twitter:card"' in r.text
-    assert 'data-ym-goal="cta_apply"' in r.text
-    assert 'data-ym-goal="sample_pdf"' in r.text
 
 
 def test_landing_tariffs_comparison(app):
@@ -53,11 +41,6 @@ def test_landing_tariffs_comparison(app):
     assert "lp-tariff-card" in r.text
     assert "Оставить заявку" in r.text
     assert "Запросить доступ" not in r.text
-    assert "Заключения эксперта (ГПК/УПК)" in r.text
-    assert "Печать и подпись в PDF" in r.text
-    assert "Свои шаблоны и свои поля" in r.text
-    assert "Слежение за изменениями НПА" in r.text
-    assert "og-default.png" in r.text
 
 
 def test_landing_assets_present(app):
@@ -70,82 +53,40 @@ def test_landing_assets_present(app):
         "/static/img/sample-dogovor.webp",
         "/static/img/sample-schet.webp",
         "/static/img/sample-akt.webp",
-        "/static/img/sample-zaklyuchenie.webp",
-        "/static/img/sample-schet-faksimile.webp",
-        "/static/img/og-default.png",
-        "/static/img/og-zakon.png",
-        "/static/samples/zaklyuchenie-fragment.pdf",
-        "/static/samples/schet-faksimile.pdf",
     ):
         r = client.get(path)
         assert r.status_code == 200, path
-        if path.endswith(".webp"):
-            assert r.content[:4] == b"RIFF", path
-        elif path.endswith(".png"):
-            assert r.content[:8] == b"\x89PNG\r\n\x1a\n", path
-        elif path.endswith(".pdf"):
-            assert r.content[:5] == b"%PDF-", path
+        assert r.content[:4] == b"RIFF", path
 
 
-def test_w44_scope_public_surface_only():
-    """W-44: относительно tip W-43 — публичная витрина (+ роуты/CMS/hosting для новых страниц).
-
-    После влития W-44 проверка scope относится только к веткам cursor/w44-*.
-    """
+def test_w37_scope_non_landing_templates_untouched():
+    """Исторический guard W-37 — только на ветке w37-landing-redesign."""
     import subprocess
     from pathlib import Path
 
-    import pytest
-
     repo = Path(__file__).resolve().parents[2]
-    try:
-        branch = subprocess.check_output(
-            ["git", "branch", "--show-current"], cwd=repo, text=True
-        ).strip()
-    except Exception:
-        branch = ""
-    if not branch.startswith("cursor/w44"):
-        pytest.skip("исторический scope-тест W-44 — только на ветке cursor/w44-*")
-
-    base = "cursor/w43-facsimile-branding-0030"
+    branch = subprocess.check_output(
+        ["git", "branch", "--show-current"], cwd=repo, text=True
+    ).strip()
+    if "w37-landing" not in branch:
+        return
     out = subprocess.check_output(
-        ["git", "-c", "core.quotepath=false", "diff", "--name-only", f"{base}...HEAD"],
+        ["git", "-c", "core.quotepath=false", "diff", "--name-only", "main...HEAD"],
         cwd=repo,
         text=True,
     )
     allowed_prefixes = (
         "web/app/templates/landing/",
-        "web/app/templates/zakon/",
         "web/app/static/landing.css",
         "web/app/static/img/",
-        "web/app/static/samples/",
-        "web/app/content/praktika/",
-        "web/app/services/public_catalog.py",
-        "web/app/services/praktika.py",
-        "web/app/routers/landing.py",
-        "web/app/routers/zakon.py",
-        "web/app/services/cms.py",
-        "web/app/hosting.py",
-        "web/app/navigation.py",
         "web/tests/test_landing.py",
-        "web/tests/test_hosting_w26.py",
         "scripts/make_samples.py",
         "docs/",
-        "deploy/",
     )
     allowed_exact = {
         "web/app/static/landing.css",
-        "web/app/services/public_catalog.py",
-        "web/app/services/praktika.py",
-        "web/app/routers/landing.py",
-        "web/app/routers/zakon.py",
-        "web/app/services/cms.py",
-        "web/app/hosting.py",
-        "web/app/navigation.py",
         "web/tests/test_landing.py",
-        "web/tests/test_hosting_w26.py",
         "scripts/make_samples.py",
-        "deploy/deploy.sh",
     }
 
     def _norm(path: str) -> str:
@@ -161,7 +102,7 @@ def test_w44_scope_public_surface_only():
     for path in sorted(paths):
         if path in allowed_exact or any(path.startswith(p) for p in allowed_prefixes):
             continue
-        raise AssertionError(f"W-44 вне scope: {path}")
+        raise AssertionError(f"W-37 вне scope: {path}")
 
 
 def test_privacy_and_contacts(app):
@@ -192,101 +133,6 @@ def test_robots_and_sitemap(app):
     assert r.status_code == 200
     assert "application/xml" in r.headers.get("content-type", "")
     assert "/privacy" in r.text
-    assert "/obraztsy" in r.text
-    assert "/bezopasnost" in r.text
-    assert "/novoe" in r.text
-    assert "/praktika" in r.text
-    assert "/dlya-ekspertov" in r.text
-    assert "/obraztsy/dogovor-na-ekspertizu" in r.text
-    assert "/praktika/rekvizity-zaklyucheniya" in r.text
-
-
-def test_w44_obraztsy_and_public_pages(app):
-    client, _ = app
-    r = client.get("/obraztsy")
-    assert r.status_code == 200
-    assert "Образцы документов" in r.text
-    assert "/obraztsy/dogovor-na-ekspertizu" in r.text
-    assert "Заключения эксперта" in r.text or "заключение" in r.text.casefold()
-
-    r = client.get("/obraztsy/dogovor-na-ekspertizu")
-    assert r.status_code == 200
-    assert "образец 2026" in r.text
-    assert "Нормативная база" in r.text
-    assert "/zakon/" in r.text
-    assert "Заполняемые поля" in r.text
-    assert 'rel="canonical"' in r.text or "canonical" in r.text
-    assert "/static/samples/dogovor-fl.pdf" in r.text
-
-    assert client.get("/obraztsy/net-takogo-slug").status_code == 404
-
-    for path, needle in (
-        ("/dlya-ekspertov", "Для частных экспертов"),
-        ("/dlya-organizatsiy", "Для экспертных организаций"),
-        ("/dlya-uchebnykh-tsentrov", "Для учебных центров"),
-        ("/bezopasnost", "Мы не читаем ваши документы"),
-        ("/novoe", "Август 2026"),
-    ):
-        page = client.get(path)
-        assert page.status_code == 200, path
-        assert needle in page.text, path
-
-    home = client.get("/")
-    assert "/dlya-ekspertov" in home.text
-    assert "/bezopasnost" in home.text
-    assert 'href="/obraztsy"' in home.text
-    # W-44.3: без опубликованных отзывов блок скрыт (не выдумывать)
-    assert 'id="reviews"' not in home.text
-
-
-def test_w44_praktika_and_launch_offer(app):
-    client, dbmod = app
-    r = client.get("/praktika")
-    assert r.status_code == 200
-    assert "Практика" in r.text
-    assert "/praktika/rekvizity-zaklyucheniya" in r.text
-    assert "/praktika/faksimile-ekspertnoy-organizatsii" in r.text
-
-    art = client.get("/praktika/rekvizity-zaklyucheniya")
-    assert art.status_code == 200
-    assert "ст. 25" in art.text or "ФЗ" in art.text
-    assert "/obraztsy/" in art.text
-    assert "/zakon/" in art.text
-    assert client.get("/praktika/net-takoy-stati").status_code == 404
-
-    from sqlalchemy import select
-
-    from app.models import PromoCode, PromoCodeType
-    from app.services.cms import launch_offer_public
-
-    with dbmod.SessionLocal() as db:
-        assert launch_offer_public(db) is None
-        db.add(
-            PromoCode(
-                code="BETA50",
-                type=PromoCodeType.percent,
-                value=50,
-                tariff_codes=[],
-                periods=[],
-                max_uses=20,
-                used_count=3,
-                is_active=True,
-            )
-        )
-        db.commit()
-
-    home = client.get("/")
-    assert home.status_code == 200
-    assert "осталось 17 из 20" in home.text
-    assert "50%" in home.text
-
-    with dbmod.SessionLocal() as db:
-        row = db.scalar(select(PromoCode).where(PromoCode.code == "BETA50"))
-        assert row is not None
-        row.used_count = 20
-        db.commit()
-    home2 = client.get("/")
-    assert "Места по акции запуска заняты" in home2.text
 
 
 def test_favicon_and_html_404(app):
