@@ -247,6 +247,7 @@ button:hover, .btn:hover { filter: brightness(1.05); }
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
+  -webkit-user-drag: element;
 }
 .nav-handle:hover { color: rgba(233, 242, 239, 0.95); background: rgba(255,255,255,0.08); }
 .nav-handle:active { cursor: grabbing; }
@@ -261,6 +262,7 @@ button:hover, .btn:hover { filter: brightness(1.05); }
   border-radius: 10px;
   text-decoration: none;
   min-width: 0;
+  -webkit-user-drag: none;
 }
 .nav a:hover, .nav a.active {
   background: rgba(15, 122, 102, 0.35);

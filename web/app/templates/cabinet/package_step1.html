@@ -9,7 +9,7 @@
       {{ steps_bar(step, steps) }}
       {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
       {% if egrul_warning %}<div class="alert alert-warn">{{ egrul_warning }}</div>{% endif %}
-      <form method="post" action="/cabinet/package/step1" class="doc-form">
+      <form method="post" action="/cabinet/package/step1" class="doc-form" hx-boost="false">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="тип">Тип контрагента</label>
         <select id="тип" name="тип" onchange="location.href='/cabinet/package/?тип='+encodeURIComponent(this.value)">

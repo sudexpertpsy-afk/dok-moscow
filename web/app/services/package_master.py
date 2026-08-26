@@ -155,6 +155,85 @@ def field_defaults(
         )
         fields["приложение_пко"] = "—"
 
+    if packages.RKO in doc_names:
+        fields["номер_рко"] = nums.get("номер_рко") or "1"
+        fields["дата_рко"] = today
+        fields["выдано_рко"] = str(c.get("название_заказчика") or c.get("фио_клиента") or "")
+        fields["основание_рко"] = (
+            f"Выдача по договору № {contract_no} от {c.get('дата_договора', '')}"
+            if contract_no
+            else "Выдача денежных средств"
+        )
+        fields["приложение_рко"] = "—"
+        fields["ставка_ндс"] = "Без НДС"
+
+    if packages.PAYMENT in doc_names:
+        from app.services.refs import document_defaults
+
+        defs = document_defaults()
+        fields["номер_платёжки"] = nums.get("номер_платёжки") or contract_no or "1"
+        fields["дата_платёжки"] = today
+        fields["вид_платежа"] = str(defs.get("transfer_order_default_type") or "электронно")
+        fields["статус_составителя"] = str(defs.get("transfer_order_default_budget_status") or "01")
+        fields["очередность_платежа"] = str(defs.get("transfer_order_default_priority") or "5")
+        fields["основание_платежа"] = str(defs.get("transfer_order_default_budget_basis") or "0")
+        fields["назначение_платежа"] = (
+            f"Оплата по договору № {contract_no} от {c.get('дата_договора', '')}"
+            if contract_no
+            else "Оплата по договору"
+        )
+        fields["получатель_название"] = str(
+            c.get("название_заказчика") or c.get("фио_клиента") or ""
+        )
+        fields["ставка_ндс"] = str(defs.get("default_tax_rate") or "20 %")
+
+    if packages.UPD in doc_names:
+        from app.services.refs import document_defaults
+
+        defs = document_defaults()
+        fields["номер_упд"] = nums.get("номер_упд") or contract_no or "1"
+        fields["дата_упд"] = today
+        fields["статус_упд"] = "1"
+        fields["единица_измерения"] = "усл."
+        fields["количество"] = "1"
+        fields["ставка_ндс"] = str(defs.get("default_without_tax_label") or "Без НДС")
+        fields["сумма_ндс"] = "0"
+        fields["покупатель_название"] = str(
+            c.get("название_заказчика") or c.get("фио_клиента") or ""
+        )
+        fields["покупатель_адрес"] = str(
+            c.get("юр_адрес_заказчика") or c.get("адрес_клиента") or ""
+        )
+        fields["покупатель_инн"] = str(c.get("инн_заказчика") or "")
+        fields["покупатель_кпп"] = str(c.get("кпп_заказчика") or "")
+
+    if packages.SF in doc_names:
+        from app.services.refs import document_defaults
+
+        defs = document_defaults()
+        fields["номер_сф"] = nums.get("номер_сф") or contract_no or "1"
+        fields["дата_сф"] = today
+        fields["единица_измерения"] = "усл."
+        fields["количество"] = "1"
+        fields["ставка_ндс"] = str(defs.get("default_tax_rate") or "20 %")
+        fields["страна_происхождения"] = "Россия"
+        fields["покупатель_название"] = str(
+            c.get("название_заказчика") or c.get("фио_клиента") or ""
+        )
+        fields["покупатель_адрес"] = str(
+            c.get("юр_адрес_заказчика") or c.get("адрес_клиента") or ""
+        )
+        fields["покупатель_инн"] = str(c.get("инн_заказчика") or "")
+        fields["покупатель_кпп"] = str(c.get("кпп_заказчика") or "")
+
+    if packages.RECON in doc_names:
+        fields["номер_сверки"] = nums.get("номер_сверки") or "1"
+        fields["дата_сверки"] = today
+        fields["контрагент_название"] = str(
+            c.get("название_заказчика") or c.get("фио_клиента") or ""
+        )
+        fields["задолженность_текст"] = "Задолженность отсутствует."
+
     fields["наименование_услуги"] = packages.default_service_name(contract_template, c)
 
     if str(contract_template) == packages.GPD_CONTRACT:

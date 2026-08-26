@@ -20,7 +20,6 @@ from app.services.package_generate import (
 )
 from app.services.package_master import (
     CP_TO_TYPE,
-    SESSION_KEY,
     TYPE_LABELS,
     TYPE_TO_CP,
     collect_fields,
@@ -32,6 +31,7 @@ from app.services.package_master import (
     infer_type,
     selected_templates,
 )
+from app.services.package_wizard_store import clear_wizard, load_wizard, save_wizard
 from app.services.party_check import refresh_stale_egrul
 from app.templating import templates
 
@@ -39,19 +39,17 @@ router = APIRouter(prefix="/cabinet/package", tags=["package"])
 
 
 def _wizard(request: Request) -> dict:
-    data = request.session.get(SESSION_KEY)
-    if not isinstance(data, dict):
-        data = {}
-        request.session[SESSION_KEY] = data
-    return data
+    # На диске (FILES_ROOT/_wizard), не в cookie: иначе большой core_values
+    # раздувает dok_session и step3 не видит selected после редиректа.
+    return load_wizard(request)
 
 
 def _save(request: Request, data: dict) -> None:
-    request.session[SESSION_KEY] = data
+    save_wizard(request, data)
 
 
 def _clear(request: Request) -> None:
-    request.session.pop(SESSION_KEY, None)
+    clear_wizard(request)
 
 
 def _page(request: Request, user: CurrentUser, org, db, step: int, **extra):
@@ -269,7 +267,10 @@ async def package_step2_post(
         _save(request, data)
         return RedirectResponse("/cabinet/package/step2", status_code=303)
 
-    checked = [name for name, _ in extras_meta if form.get(f"extra_{name}")]
+    # name="extras" value="<stem>" — без пробелов в имени поля (старый extra_<stem> тоже читаем).
+    checked = [str(v) for v in form.getlist("extras") if v]
+    if not checked:
+        checked = [name for name, _ in extras_meta if form.get(f"extra_{name}")]
     data["contract_template"] = contract
     data["extras"] = checked
     selected = selected_templates(contract, checked)

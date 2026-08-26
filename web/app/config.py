@@ -77,6 +77,8 @@ class Settings(BaseSettings):
     landing_stats_templates: int = 26
     landing_stats_docs: int = -1
     landing_stats_practice_since: int = 2014
+    # W-43: глобальный флаг факсимиле (FAKSIMILE_ENABLED)
+    faksimile_enabled: bool = True
 
 
 @lru_cache

@@ -332,6 +332,8 @@ def sitemap_xml(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(redirect_url_for_path("/sitemap.xml"), status_code=301)
 
     base = get_settings().public_base_url.rstrip("/")
+    from app.services.public_catalog import all_obraztsy_paths
+
     paths = [
         "/",
         "/privacy",
@@ -342,6 +344,7 @@ def sitemap_xml(request: Request, db: Session = Depends(get_db)):
         "/zakon/",
         "/praktika/",
     ]
+    paths.extend(all_obraztsy_paths())
     body = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',

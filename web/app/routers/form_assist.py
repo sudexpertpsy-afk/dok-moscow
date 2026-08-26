@@ -86,3 +86,24 @@ def peek_numbers_api(
     org_id = require_org_id(user)
     names = [f.strip() for f in (fields or "").split(",") if f.strip()]
     return JSONResponse(peek_numbers_for(db, org_id, names))
+
+
+@router.get("/refs/{kind}", response_class=HTMLResponse)
+def suggest_ref_api(
+    kind: str,
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    q: str = Query(""),
+):
+    """HTMX-подсказки справочников (ОКЕИ, КБК, НДС, ОКТМО…)."""
+    from app.services.refs import ALLOWED_KINDS, suggest_ref
+
+    _ = user  # auth gate
+    if kind not in ALLOWED_KINDS:
+        return HTMLResponse("")
+    rows = suggest_ref(kind, q)
+    return templates.TemplateResponse(
+        request=request,
+        name="cabinet/partials/suggest_ref.html",
+        context={"items": rows, "kind": kind},
+    )

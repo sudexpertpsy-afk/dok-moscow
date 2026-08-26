@@ -484,6 +484,7 @@ ROUTE_EXCEPTION_NOTES: dict[str, str] = {
     "/cabinet/form-assist/suggest": "HTMX history полей формы",
     "/cabinet/form-assist/linked": "JSON связанные поля",
     "/cabinet/form-assist/peek-numbers": "JSON peek счётчиков",
+    "/cabinet/form-assist/refs": "HTMX справочники ОКЕИ/КБК/НДС",
     "/cabinet/counterparties/{cp_id}": "карточка сущности",
     "/cabinet/counterparties/{cp_id}/edit": "форма сущности",
     "/cabinet/counterparties/{cp_id}/delete": "действие",

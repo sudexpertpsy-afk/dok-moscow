@@ -12,7 +12,7 @@
       </p>
       {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
       {% if egrul_warning %}<div class="alert alert-warn">{{ egrul_warning }}</div>{% endif %}
-      <form method="post" action="/cabinet/package/step3" class="doc-form" id="package-step3-form">
+      <form method="post" action="/cabinet/package/step3" class="doc-form" id="package-step3-form" hx-boost="false">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1rem 0 0.35rem">Контрагент</h2>
         {% for f in core_names %}
@@ -59,7 +59,7 @@
         {% endif %}
         {% endif %}
         <div class="actions">
-          <a class="btn secondary" href="/cabinet/package/step2">Назад</a>
+          <a class="btn secondary" href="/cabinet/package/step2" hx-boost="false">Назад</a>
           <button type="submit">Сгенерировать комплект</button>
         </div>
       </form>

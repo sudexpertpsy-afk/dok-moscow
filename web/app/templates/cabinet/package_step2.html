@@ -7,23 +7,24 @@
       <h1>Договор и пакет</h1>
       {{ steps_bar(step, steps) }}
       {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
-      <form method="post" action="/cabinet/package/step2">
+      {# hx-boost=false: полная навигация, иначе Set-Cookie сессии мастера теряется на 303 step2→step3 #}
+      <form method="post" action="/cabinet/package/step2" hx-boost="false">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="contract_template">Договор</label>
         <select id="contract_template" name="contract_template"
-                onchange="this.form.action='/cabinet/package/step2'; this.form.querySelector('[name=action]').value='refresh'; this.form.submit()">
+                onchange="document.getElementById('pkg-action').value='refresh'; this.form.submit()">
           {% for c in contracts %}
             <option value="{{ c }}" {% if c == chosen %}selected{% endif %}>{{ display_name(c) if c != 'Без договора' else c }}</option>
           {% endfor %}
         </select>
-        <input type="hidden" name="action" value="next">
+        <input type="hidden" name="action" id="pkg-action" value="next">
 
         {% if extras %}
         <h2 style="font-family:var(--font-display);font-size:1.2rem;margin:1.2rem 0 0.4rem">Сопутствующие</h2>
         <div class="package-extras" style="max-width:36rem">
         {% for name, on in extras %}
           <label class="check-row">
-            <input type="checkbox" name="extra_{{ name }}" value="1"
+            <input type="checkbox" name="extras" value="{{ name }}"
               {% if name in (wizard.extras or []) or (not wizard.extras and on) %}checked{% endif %}>
             <span>{{ display_name(name) }}</span>
           </label>
@@ -32,8 +33,8 @@
         {% endif %}
 
         <div class="actions">
-          <a class="btn secondary" href="/cabinet/package/">Назад</a>
-          <button type="submit" onclick="this.form.querySelector('[name=action]').value='next'">Далее</button>
+          <a class="btn secondary" href="/cabinet/package/" hx-boost="false">Назад</a>
+          <button type="submit" name="action" value="next" onclick="document.getElementById('pkg-action').value='next'">Далее</button>
         </div>
       </form>
     </section>

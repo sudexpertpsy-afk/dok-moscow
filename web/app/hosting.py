@@ -33,10 +33,10 @@ _PUBLIC_EXACT = frozenset(
         "/sitemap.xml",
     }
 )
-_PUBLIC_PREFIXES = ("/zakon", "/praktika", "/api/demo/")
+_PUBLIC_PREFIXES = ("/zakon", "/praktika", "/obraztsy", "/api/demo/")
 
 # Каталоги с trailing-slash роутами: без слэша → один 301, не второй hop после host-редиректа.
-_DIRECTORY_INDEX_PATHS = frozenset({"/zakon", "/praktika", "/cabinet/zakon"})
+_DIRECTORY_INDEX_PATHS = frozenset({"/zakon", "/praktika", "/obraztsy", "/cabinet/zakon"})
 
 
 def _hostname(url: str) -> str:

@@ -24,6 +24,7 @@ from app.routers import (
     admin_billing,
     admin_cms,
     admin_legal,
+    admin_security,
     admin_server,
     admin_templates,
     auth,
@@ -44,6 +45,7 @@ from app.routers import (
     landing,
     package,
     party_check,
+    obraztsy,
     praktika,
     staff,
     yandex_auth,
@@ -227,6 +229,7 @@ def create_app() -> FastAPI:
     app.include_router(landing.router)
     app.include_router(demo_api.router)
     app.include_router(zakon.router)
+    app.include_router(obraztsy.router)
     app.include_router(praktika.router)
     app.include_router(auth.router)
     app.include_router(yandex_auth.router)
@@ -251,6 +254,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_billing.router)
     app.include_router(admin_cms.router)
     app.include_router(admin_legal.router)
+    app.include_router(admin_security.router)
     app.include_router(admin_server.router)
     app.include_router(admin_templates.router)
 

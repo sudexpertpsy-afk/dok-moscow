@@ -1,0 +1,18 @@
+{
+  "default_tax_rate": "20 %",
+  "default_without_tax_label": "Без НДС",
+  "transfer_order_default_budget_basis": "0",
+  "transfer_order_default_budget_status": "01",
+  "transfer_order_default_priority": 5,
+  "transfer_order_default_type": "электронно",
+  "tax_rates": [
+    "Без НДС",
+    "0 %",
+    "10 %",
+    "20 %",
+    "10 % / 110 %",
+    "20 % / 120 %",
+    "5 %",
+    "7 %"
+  ]
+}

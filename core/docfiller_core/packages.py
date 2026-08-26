@@ -39,6 +39,11 @@ BILL_JUR = 'Счёт_на_оплату_юрлицо.docx'
 ACT_FIZ  = 'Акт_оказанных_услуг.docx'
 ACT_JUR  = 'Акт_оказанных_услуг_юрлицо.docx'
 PKO      = 'ПКО_КО-1.docx'
+RKO      = 'РКО_КО-2.docx'
+PAYMENT  = 'Платёжное_поручение.docx'
+UPD      = 'УПД.docx'
+SF       = 'Счёт_фактура.docx'
+RECON    = 'Акт_сверки.docx'
 GPD_CONTRACT = 'Договор_ГПД_эксперт.docx'
 ACT_GPD  = 'Акт_ГПД_эксперт.docx'
 CONSENT  = 'Согласие_ПДн.docx'
@@ -128,11 +133,21 @@ def related_documents(template_name, settings=None, templates_dir=None):
             (_pkg(templates_dir, 'bill_jur', BILL_JUR), True),
             (_pkg(templates_dir, 'act_jur', ACT_JUR), True),
             (_pkg(templates_dir, 'pko', PKO), False),
+            (_pkg(templates_dir, 'payment', PAYMENT), True),
+            (_pkg(templates_dir, 'upd', UPD), False),
+            (_pkg(templates_dir, 'sf', SF), False),
+            (_pkg(templates_dir, 'recon', RECON), False),
+            (_pkg(templates_dir, 'rko', RKO), False),
         ]
     return [
         (_pkg(templates_dir, 'bill_fiz', BILL_FIZ), True),
         (_pkg(templates_dir, 'act_fiz', ACT_FIZ), True),
         (_pkg(templates_dir, 'pko', PKO), True),
+        (_pkg(templates_dir, 'rko', RKO), False),
+        (_pkg(templates_dir, 'payment', PAYMENT), False),
+        (_pkg(templates_dir, 'upd', UPD), False),
+        (_pkg(templates_dir, 'sf', SF), False),
+        (_pkg(templates_dir, 'recon', RECON), False),
     ]
 
 
@@ -188,6 +203,53 @@ def suggest_fields(contract_template, contract_context, docs):
         )
         fields['приложение_пко'] = '—'
 
+    if RKO in doc_names:
+        fields['номер_рко'] = counters.suggest_next('номер_рко') or '1'
+        fields['дата_рко'] = today
+        fields['выдано_рко'] = _payer(c)
+        fields['основание_рко'] = (
+            f'Выдача по договору № {contract_no} от {c.get("дата_договора", "")}'
+            if contract_no else 'Выдача денежных средств'
+        )
+        fields['приложение_рко'] = '—'
+        fields['ставка_ндс'] = 'Без НДС'
+
+    if PAYMENT in doc_names:
+        fields['номер_платёжки'] = counters.suggest_next('номер_платёжки') or contract_no or '1'
+        fields['дата_платёжки'] = today
+        fields['вид_платежа'] = 'электронно'
+        fields['статус_составителя'] = '01'
+        fields['очередность_платежа'] = '5'
+        fields['основание_платежа'] = '0'
+        fields['назначение_платежа'] = (
+            f'Оплата по договору № {contract_no} от {c.get("дата_договора", "")}'
+            if contract_no else 'Оплата по договору'
+        )
+        fields['получатель_название'] = _payer(c)
+
+    if UPD in doc_names:
+        fields['номер_упд'] = counters.suggest_next('номер_упд') or contract_no or '1'
+        fields['дата_упд'] = today
+        fields['статус_упд'] = '1'
+        fields['единица_измерения'] = 'усл.'
+        fields['количество'] = '1'
+        fields['ставка_ндс'] = 'Без НДС'
+        fields['сумма_ндс'] = '0'
+
+    if SF in doc_names:
+        fields['номер_сф'] = counters.suggest_next('номер_сф') or contract_no or '1'
+        fields['дата_сф'] = today
+        fields['единица_измерения'] = 'усл.'
+        fields['количество'] = '1'
+        fields['ставка_ндс'] = '20 %'
+        fields['страна_происхождения'] = 'Россия'
+
+    if RECON in doc_names:
+        fields['номер_сверки'] = counters.suggest_next('номер_сверки') or '1'
+        fields['дата_сверки'] = today
+        fields['контрагент_название'] = _payer(c)
+        fields['задолженность_текст'] = 'Задолженность отсутствует.'
+
     fields['наименование_услуги'] = default_service_name(contract_template, c)
 
     if str(contract_template) == GPD_CONTRACT:
@@ -217,10 +279,20 @@ def build_context(doc_template, contract_context, common_fields):
 def number_field_of(doc_template):
     """Имя поля-номера конкретного документа пакета (для имени файла и счётчика)."""
     n = str(doc_template)
+    if n.startswith('Счёт_фактура') or n.startswith('Счет_фактура'):
+        return 'номер_сф'
     if n.startswith('Счёт_'):
         return 'номер_счёта'
+    if n.startswith('Акт_сверки'):
+        return 'номер_сверки'
     if n.startswith('Акт_'):
         return 'номер_акта'
     if n.startswith('ПКО'):
         return 'номер_пко'
+    if n.startswith('РКО'):
+        return 'номер_рко'
+    if n.startswith('Платёжное_') or n.startswith('Платежное_'):
+        return 'номер_платёжки'
+    if n.startswith('УПД'):
+        return 'номер_упд'
     return ''

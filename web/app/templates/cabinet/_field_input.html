@@ -28,7 +28,8 @@
             data-field="{{ var }}"
             {% if meta.required %}required{% endif %}
             {% if meta.history %}data-history="1"{% endif %}
-            {% if meta.dadata %}data-dadata="{{ meta.dadata }}"{% endif %}>{{ val }}</textarea>
+            {% if meta.dadata %}data-dadata="{{ meta.dadata }}"{% endif %}
+            {% if meta.ref %}data-ref="{{ meta.ref }}"{% endif %}>{{ val }}</textarea>
   {% else %}
   <input id="{{ fid }}" name="{{ var }}" value="{{ val }}"
          class="form-field{% if meta.is_money %} field-money{% endif %}"
@@ -39,11 +40,13 @@
          {% if meta.is_number and number_peeks.get(var) %}placeholder="авто: {{ number_peeks[var] }}"{% endif %}
          {% if meta.history %}data-history="1"{% endif %}
          {% if meta.dadata %}data-dadata="{{ meta.dadata }}"{% endif %}
+         {% if meta.ref %}data-ref="{{ meta.ref }}"{% endif %}
          {% if var in (
            'принято_от', 'фио_субъекта', 'паспорт_субъекта', 'адрес_субъекта',
            'плательщик', 'основание_пко', 'предмет_основание', 'дата_начала',
            'фио_подписанта_кратко', 'должность_подписанта_род', 'дата_акта',
-           'приложение_пко'
+           'приложение_пко', 'выдано_рко', 'основание_рко', 'приложение_рко',
+           'назначение_платежа'
          ) %}
          data-linked-target="1" data-linked-auto="{% if val %}0{% else %}1{% endif %}"
          {% endif %}
@@ -59,7 +62,7 @@
   <p class="field-hint muted">В шаблоне можно вывести прописью: <span class="mono">{{ '{{ ' ~ var ~ ' | прописью }}' }}</span></p>
   {% endif %}
   {% endif %}
-  {% if meta.history or meta.dadata %}
+  {% if meta.history or meta.dadata or meta.ref %}
   <div class="suggest-box" id="suggest_{{ fid }}" data-suggest-for="{{ var }}"></div>
   {% endif %}
 </div>

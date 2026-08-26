@@ -12,12 +12,18 @@ from sqlalchemy.orm import Session
 from app.models import Document
 from app.services.counters import peek_number
 from app.services.package_master import ensure_core_on_path
+from app.services.refs import REF_FIELDS
 
 NUMBER_FIELD_KEYS = {
     "номер_договора": "dogovor",
     "номер_счёта": "schet",
     "номер_акта": "akt",
     "номер_пко": "pko",
+    "номер_рко": "rko",
+    "номер_платёжки": "payment",
+    "номер_упд": "upd",
+    "номер_сф": "sf",
+    "номер_сверки": "sverka",
     "номер_допсоглашения": "dopsogl",
     "исх_номер": "ishod",
     # номер_заключения — ключ зависит от шаблона (см. counter_key_for_template)
@@ -74,6 +80,8 @@ DADATA_FIELDS = {
     "банк_заказчика": "bank",
 }
 
+# field → справочник QuickDoc+ (см. app.services.refs.REF_FIELDS)
+
 
 def field_meta(
     var: str,
@@ -127,6 +135,7 @@ def field_meta(
             "org_field": False,
             "history": var in HISTORY_FIELDS,
             "dadata": DADATA_FIELDS.get(var),
+            "ref": REF_FIELDS.get(var),
             "counter_key": ckey,
             "counter_year_suffix": bool(man and man.counter_suffix_year and ftype == "counter"),
         }
@@ -150,6 +159,7 @@ def field_meta(
         "org_field": False,
         "history": var in HISTORY_FIELDS,
         "dadata": DADATA_FIELDS.get(var),
+        "ref": REF_FIELDS.get(var),
         "counter_key": ckey,
         "counter_year_suffix": False,
     }
