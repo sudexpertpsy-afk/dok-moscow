@@ -66,6 +66,8 @@ def test_manual_ul_crud_and_masking(app):
     r = client.get(f"/cabinet/counterparties/{cp_id}")
     assert r.status_code == 200
     assert "7707083893" in r.text
+    assert f'/cabinet/package/?counterparty_id={cp_id}' in r.text
+    assert "Вставить в комплект" in r.text
 
     # чужая org
     _seed(dbmod, email="other-cp@example.com")

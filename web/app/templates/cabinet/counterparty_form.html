@@ -61,7 +61,7 @@
         <label for="address">Адрес</label>
         <input id="address" name="address" value="{{ values.address or '' }}"
           hx-get="/cabinet/counterparties/suggest/address"
-          hx-trigger="keyup changed delay:300ms"
+          hx-trigger="keyup changed delay:150ms"
           hx-target="#address-suggest"
           hx-include="[name='address']">
         <div id="address-suggest" class="suggest-box"></div>

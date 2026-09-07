@@ -46,12 +46,12 @@
                  autocomplete="off"
                  {% if dadata_enabled and f == 'юр_адрес' %}
                  hx-get="/cabinet/counterparties/suggest/address"
-                 hx-trigger="keyup changed delay:300ms"
+                 hx-trigger="keyup changed delay:150ms"
                  hx-target="#org-address-suggest"
                  hx-include="[name='юр_адрес']"
                  {% elif dadata_enabled and f == 'почтовый_адрес' %}
                  hx-get="/cabinet/counterparties/suggest/address"
-                 hx-trigger="keyup changed delay:300ms"
+                 hx-trigger="keyup changed delay:150ms"
                  hx-target="#org-post-address-suggest"
                  hx-include="[name='почтовый_адрес']"
                  {% endif %}>

@@ -166,20 +166,29 @@
   function bindSuggestFetch(el, box, urlBuilder, onPick) {
     var timer = null;
     var seq = 0;
+    var abort = null;
     function load() {
       var q = (el.value || "").trim();
       if (q.length < 1 && el.getAttribute("data-ref") === "territories") {
         box.innerHTML = "";
         return;
       }
-      if (q.length < 1 && el.hasAttribute("data-dadata")) {
+      // DaData address/party/bank: сервер отвечает только от 2 символов
+      if (el.hasAttribute("data-dadata") && q.length < 2) {
+        box.innerHTML = "";
+        return;
+      }
+      if (q.length < 1 && el.hasAttribute("data-ref")) {
         box.innerHTML = "";
         return;
       }
       var my = ++seq;
+      if (abort) abort.abort();
+      abort = typeof AbortController !== "undefined" ? new AbortController() : null;
       fetch(urlBuilder(q), {
         credentials: "same-origin",
         headers: { "HX-Request": "true" },
+        signal: abort ? abort.signal : undefined,
       })
         .then(function (r) {
           return r.text();
@@ -200,14 +209,16 @@
             );
           });
         })
-        .catch(function () {});
+        .catch(function (err) {
+          if (err && err.name === "AbortError") return;
+        });
     }
     el.addEventListener("input", function () {
       clearTimeout(timer);
-      timer = setTimeout(load, 280);
+      timer = setTimeout(load, 150);
     });
     el.addEventListener("focus", function () {
-      if ((el.value || "").trim() || el.hasAttribute("data-ref")) load();
+      if ((el.value || "").trim().length >= 2 || el.hasAttribute("data-ref")) load();
     });
     el.addEventListener("blur", function () {
       setTimeout(function () {

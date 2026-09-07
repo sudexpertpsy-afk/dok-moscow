@@ -9,12 +9,10 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, require_org_user
-from app.models import CounterpartyType
 from app.org_scope import get_org_for_user, list_counterparties
 from app.nav_context import cabinet_nav
 from app.security import check_csrf, get_csrf_token
 from app.services.dadata import PartyCard, parse_party_suggestion
-from app.services.package_master import SESSION_KEY, core_from_counterparty, CP_TO_TYPE
 from app.services.party_check import (
     access_state,
     build_party_card_pdf,
@@ -306,19 +304,11 @@ async def party_check_package(
             raise HTTPException(status_code=400, detail=error or "Нет карточки")
 
     cp, _, _ = upsert_counterparty_from_card(db, org_id=org.id, card=card)
-    тип = CP_TO_TYPE.get(cp.type, "Юрлицо")
-    if cp.type == CounterpartyType.fl and card.party_type == "INDIVIDUAL":
-        тип = "Физлицо"
-    elif cp.type == CounterpartyType.ul:
-        тип = "Юрлицо"
-
-    wizard = {
-        "тип": тип,
-        "counterparty_id": cp.id,
-        "core_values": core_from_counterparty(тип, cp),
-    }
-    request.session[SESSION_KEY] = wizard
-    return RedirectResponse("/cabinet/package/", status_code=status.HTTP_303_SEE_OTHER)
+    # Prefill через query — тот же путь, что и кнопка «Вставить в комплект» в картотеке.
+    return RedirectResponse(
+        f"/cabinet/package/?counterparty_id={cp.id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
 @router.get("/journal", response_class=HTMLResponse)

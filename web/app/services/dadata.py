@@ -246,7 +246,8 @@ def _request(path: str, body: dict) -> list[dict]:
         return []
     url = f"{DADATA_BASE}/{path.lstrip('/')}"
     try:
-        response = httpx.post(url, json=body, headers=headers, timeout=8.0)
+        # Подсказки должны отвечать быстро; 8s давало ощущение «зависания».
+        response = httpx.post(url, json=body, headers=headers, timeout=3.0)
     except httpx.HTTPError:
         return []
     if response.status_code >= 400:
@@ -272,14 +273,14 @@ def suggest(
     if len(q) < 2:
         return []
 
-    settings = get_settings()
-    if usage_today(db, org_id) >= settings.dadata_daily_limit:
-        return []
-
     cache_key = f"{kind}:{q.lower()}:{count}"
     cached = _cache.get(cache_key)
     if cached is not None:
         return cached
+
+    settings = get_settings()
+    if usage_today(db, org_id) >= settings.dadata_daily_limit:
+        return []
 
     path_map = {
         "party": "suggest/party",

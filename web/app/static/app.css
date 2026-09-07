@@ -661,11 +661,17 @@ body.gs-open { overflow: hidden; }
   box-shadow: 0 6px 18px rgba(20, 32, 28, 0.08); max-height: 14rem; overflow: auto;
 }
 .suggest-box:empty { display: none; }
+/* Перебиваем глобальный button { color:#fff; background:accent } — иначе белый текст на белом. */
 .suggest-box button, .suggest-pick {
-  display: block; width: 100%; text-align: left; border: 0; background: transparent;
-  padding: 0.55rem 0.75rem; cursor: pointer; font: inherit;
+  display: block; width: 100%; text-align: left; justify-content: flex-start;
+  border: 0; border-radius: 0; background: #fff; color: var(--ink);
+  padding: 0.55rem 0.75rem; cursor: pointer; font: inherit; font-weight: 500;
+  filter: none;
 }
-.suggest-box button:hover, .suggest-pick:hover { background: #eef5f1; }
+.suggest-box button:hover, .suggest-pick:hover {
+  background: #eef5f1; color: var(--ink); filter: none;
+}
+.suggest-box .muted { color: var(--muted); }
 
 /* W-35: законодательство в кабинете */
 .zk-cab-act .zk-body { line-height: 1.65; }

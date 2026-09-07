@@ -329,9 +329,9 @@ def test_create_package_prefills_step1(app):
             follow_redirects=False,
         )
         assert r.status_code == 303
-        assert "/cabinet/package/" in r.headers["location"]
+        assert f"/cabinet/package/?counterparty_id=" in r.headers["location"]
 
-        step1 = client.get("/cabinet/package/")
+        step1 = client.get(r.headers["location"])
         assert step1.status_code == 200
         assert "7736207543" in step1.text
 
