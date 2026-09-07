@@ -28,16 +28,17 @@ docker compose --env-file .env exec -T postgres \
   > "$WORK/db.dump"
 
 echo "[$STAMP] → архив файлов"
-# том files смонтирован в app:/srv/dok/files (имя проекта compose: dok)
-if docker compose --env-file .env ps --status running -q app >/dev/null 2>&1; then
+# W-46: FILES_ROOT = /srv/dok/data/files (bind host==container)
+FILES_ROOT="${FILES_ROOT:-/srv/dok/data/files}"
+if [[ -d "$FILES_ROOT" ]]; then
+  tar -C "$FILES_ROOT" -czf "$WORK/files.tar.gz" .
+elif docker compose --env-file .env ps --status running -q app >/dev/null 2>&1; then
   docker compose --env-file .env exec -T app \
-    tar -C /srv/dok/files -czf - . > "$WORK/files.tar.gz"
+    tar -C "$FILES_ROOT" -czf - . > "$WORK/files.tar.gz"
 else
-  docker compose --env-file .env run --rm --no-deps \
-    -v dok_files:/data:ro alpine:3.20 \
-    tar -C /data -czf - . > "$WORK/files.tar.gz"
+  echo "✗ Нет каталога $FILES_ROOT и app не запущен" >&2
+  exit 1
 fi
-
 ARCHIVE="$WORK/dok_${STAMP}.tar"
 tar -C "$WORK" -cf "$ARCHIVE" db.dump files.tar.gz
 rm -f "$WORK/db.dump" "$WORK/files.tar.gz"
@@ -99,29 +100,22 @@ echo "[$STAMP] → ротация (30 daily / 12 monthly)"
 ls -1t "$DAILY_DIR"/dok_* 2>/dev/null | tail -n +31 | xargs -r rm -f
 ls -1t "$MONTHLY_DIR"/dok_* 2>/dev/null | tail -n +13 | xargs -r rm -f
 
-# W-45/G-01: маркер в ТОТ ЖЕ named volume, что монтирует app (не host-путь).
-# Host /srv/dok/files ≠ docker volume dok_files — иначе read_marker=None.
-MARKER_FILE="$OUT"
-MARKER_STAMP="$STAMP"
-if docker compose --env-file .env ps --status running -q app >/dev/null 2>&1; then
-  docker compose --env-file .env exec -T app \
-    env MARKER_FILE="$MARKER_FILE" MARKER_STAMP="$MARKER_STAMP" \
-    python - <<'PY'
+# W-46: маркер в FILES_ROOT/.ops — тот же путь на хосте и в контейнере.
+export MARKER_FILE="$OUT"
+export MARKER_STAMP="$STAMP"
+export FILES_ROOT="${FILES_ROOT:-/srv/dok/data/files}"
+mkdir -p "$FILES_ROOT/.ops"
+python3 - <<'PY'
 import json, os
 from datetime import datetime, timezone
 from pathlib import Path
-p = Path("/srv/dok/files/.ops")
-p.mkdir(parents=True, exist_ok=True)
-out = p / "backup_ok.json"
+out = Path(os.environ["FILES_ROOT"]) / ".ops" / "backup_ok.json"
 out.write_text(json.dumps({
     "at": datetime.now(timezone.utc).isoformat(),
     "file": os.environ["MARKER_FILE"],
     "stamp": os.environ["MARKER_STAMP"],
 }, ensure_ascii=False), encoding="utf-8")
-print(f"маркер (volume): {out}")
+print(f"маркер: {out}")
 PY
-else
-  echo "⚠ app не запущен — маркер backup_ok не записан в volume" >&2
-fi
 
 echo "[$STAMP] ✓ бэкап: $OUT"

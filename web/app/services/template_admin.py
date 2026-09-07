@@ -14,6 +14,10 @@ from app.services.docx_upload import DocxUploadError, validate_docx_bytes
 from app.services.templates import (
     ensure_core_on_path,
     invalidate_templates_cache,
+    iter_shared_docx,
+    overrides_templates_dir,
+    registry_templates_dir,
+    resolve_shared_docx,
     template_path,
     templates_dir,
 )
@@ -35,9 +39,19 @@ class TemplateAdminError(Exception):
 
 
 def _root() -> Path:
+    """Корень TEMPLATES_DIR (tombstone, registry)."""
     root = templates_dir()
     root.mkdir(parents=True, exist_ok=True)
     return root
+
+
+def _write_root() -> Path:
+    """Куда админка пишет DOCX (overrides/ или плоский root)."""
+    return overrides_templates_dir()
+
+
+def _registry_root() -> Path:
+    return registry_templates_dir()
 
 
 def deleted_templates_path(root: Path | None = None) -> Path:
@@ -113,10 +127,11 @@ def apply_deleted_templates(root: Path | None = None) -> list[str]:
     from docfiller_core.contracts_registry import remove_from_registry
 
     root = root or _root()
+    reg_root = registry_templates_dir(root)
     touched: list[str] = []
     for name in sorted(load_deleted_templates(root)):
         try:
-            remove_from_registry(root, name)
+            remove_from_registry(reg_root, name)
             touched.append(name)
         except OSError:
             pass
@@ -156,17 +171,16 @@ def list_admin_templates() -> list[dict]:
     from docfiller_core.contracts_registry import load_registry
 
     root = _root()
-    registry = load_registry(root)
+    registry = load_registry(_registry_root())
     contract_of: dict[str, list[str]] = {}
     for ctype, names in registry.get("contracts", {}).items():
         for name in names:
             contract_of.setdefault(name, []).append(ctype)
 
     deleted = load_deleted_templates(root)
+    ovr_names = {p.name for p in overrides_templates_dir().glob("*.docx")}
     items: list[dict] = []
-    for path in sorted(root.glob("*.docx"), key=lambda p: p.name.lower()):
-        if path.name.startswith("~$"):
-            continue
+    for path in iter_shared_docx(root):
         if path.name in deleted:
             continue
         try:
@@ -187,6 +201,7 @@ def list_admin_templates() -> list[dict]:
                 "mtime": mtime,
                 "contract_types": contract_of.get(path.name, []),
                 "is_contract": path.name.startswith("Договор_"),
+                "source": "override" if path.name in ovr_names else "system",
             }
         )
     return items
@@ -214,21 +229,23 @@ def save_upload(
         raise TemplateAdminError(str(exc)) from exc
     stem = _safe_stem(filename)
     name = _docx_name(stem)
-    root = _root()
-    dest = root / name
-    deleted = load_deleted_templates(root)
+    write_root = _write_root()
+    dest = write_root / name
+    deleted = load_deleted_templates(_root())
+    # конфликт: уже есть в overrides или (без tombstone) в system без возможности заменить через upload?
+    # Upload всегда пишет в overrides — перекрывает system. Конфликт только если overrides уже есть.
     if dest.exists() and name not in deleted:
         raise TemplateAdminError(f"Шаблон «{name}» уже есть — переименуйте или удалите старый")
     # повторная загрузка после удаления (в т.ч. если git вернул файл) — снимаем tombstone
     dest.write_bytes(data)
-    unmark_template_deleted(name, root)
+    unmark_template_deleted(name, _root())
     if contract_type:
         ensure_core_on_path()
         from docfiller_core.contracts_registry import CONTRACT_TYPES, add_contract
 
         if contract_type not in CONTRACT_TYPES:
             raise TemplateAdminError("Неверный тип договора для комплекта")
-        add_contract(_root(), name, contract_type)
+        add_contract(_registry_root(), name, contract_type)
     invalidate_templates_cache()
     return name
 
@@ -245,11 +262,24 @@ def rename_template(db: Session, *, old_name: str, new_title: str) -> str:
     new_name = _docx_name(new_stem)
     if new_name == old:
         return old
-    dest = _root() / new_name
-    if dest.exists():
+    write_root = _write_root()
+    dest = write_root / new_name
+    if dest.exists() or resolve_shared_docx(new_name) is not None:
         raise TemplateAdminError(f"Файл «{new_name}» уже существует")
-    src.rename(dest)
-    rename_in_registry(_root(), old, new_name)
+    # если исходник в system — копируем в overrides под новым именем (system не трогаем)
+    if src.parent.resolve() != write_root.resolve():
+        dest.write_bytes(src.read_bytes())
+        man = src.with_suffix("").with_name(src.stem + ".manifest.yaml")
+        if man.is_file():
+            (write_root / man.name).write_bytes(man.read_bytes())
+        # старое имя скрываем tombstone, чтобы system-файл не торчал
+        mark_template_deleted(old, _root())
+    else:
+        src.rename(dest)
+        old_man = write_root / f"{Path(old).stem}.manifest.yaml"
+        if old_man.is_file():
+            old_man.rename(write_root / f"{Path(new_name).stem}.manifest.yaml")
+    rename_in_registry(_registry_root(), old, new_name)
     _rewrite_db_references(db, old, new_name)
     _rewrite_org_packages(db, old, new_name)
     invalidate_templates_cache()
@@ -257,7 +287,10 @@ def rename_template(db: Session, *, old_name: str, new_title: str) -> str:
 
 
 def delete_template(db: Session, *, name: str) -> None:
-    """Скрыть шаблон в кабинете (tombstone + реестр). Файл на диске оставляем (W-45 /obraztsy)."""
+    """Скрыть шаблон в кабинете (tombstone + реестр). Файл system/ не удаляем.
+
+    Override-файл можно убрать с диска — system останется под tombstone.
+    """
     ensure_core_on_path()
     from docfiller_core.contracts_registry import remove_from_registry
 
@@ -267,8 +300,14 @@ def delete_template(db: Session, *, name: str) -> None:
     root = _root()
     # existence check
     template_path(safe)
+    from app.services.templates import is_layered_templates
+
+    # W-45: system/seed-файл не удаляем (витрина /obraztsy).
+    # W-46: override в data/templates/overrides можно снять с диска.
+    if is_layered_templates(root):
+        _unlink_template_files(_write_root(), safe)
     mark_template_deleted(safe, root)
-    remove_from_registry(root, safe)
+    remove_from_registry(_registry_root(), safe)
     invalidate_templates_cache()
 
 
@@ -279,14 +318,15 @@ def set_contract_membership(*, name: str, contract_type: str) -> None:
 
     safe = Path(name).name
     template_path(safe)  # existence
-    data = load_registry(_root())
+    reg_root = _registry_root()
+    data = load_registry(reg_root)
     for ctype in CONTRACT_TYPES:
         data["contracts"][ctype] = [x for x in data["contracts"][ctype] if x != safe]
     if contract_type:
         if contract_type not in CONTRACT_TYPES:
             raise TemplateAdminError("Неверный тип договора")
         data["contracts"][contract_type].append(safe)
-    save_registry(_root(), data)
+    save_registry(reg_root, data)
     invalidate_templates_cache()
 
 
@@ -332,7 +372,7 @@ def _rewrite_org_packages(db: Session, old: str, new: str) -> None:
 
 
 def ensure_writable_templates_dir() -> tuple[bool, str]:
-    root = _root()
+    root = _write_root()
     probe = root / ".write_probe"
     try:
         probe.write_text("ok", encoding="utf-8")
@@ -340,3 +380,26 @@ def ensure_writable_templates_dir() -> tuple[bool, str]:
         return True, str(root)
     except OSError as exc:
         return False, f"{root}: {exc}"
+
+
+def build_overrides_export_zip() -> bytes:
+    """ZIP правок админки (overrides/) + tombstone/registry с корня TEMPLATES_DIR.
+
+    Чтобы осознанно перенести override в репо (system/), без правок git на проде.
+    """
+    import io
+    import zipfile
+
+    ovr = overrides_templates_dir()
+    ovr.mkdir(parents=True, exist_ok=True)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for path in sorted(ovr.iterdir()):
+            if path.is_file() and not path.name.startswith("."):
+                zf.write(path, arcname=f"overrides/{path.name}")
+        root = _root()
+        for extra in (DELETED_TEMPLATES_FILENAME, "contracts_registry.json"):
+            p = root / extra
+            if p.is_file():
+                zf.write(p, arcname=extra)
+    return buf.getvalue()

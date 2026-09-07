@@ -99,13 +99,14 @@ def field_meta(
     from docfiller_core import labels, utils
     from docfiller_core.system_fields import get_standard_field
     from docfiller_core.template_manifest import counter_key_for, load_manifest
-    from app.services.templates import templates_dir
+    from app.services.templates import resolve_shared_docx, templates_dir
 
     std = get_standard_field(var)
     man = None
     man_spec = None
     if template_name:
-        man = load_manifest(templates_dir() / Path(template_name).name)
+        tpl_path = resolve_shared_docx(Path(template_name).name)
+        man = load_manifest(tpl_path) if tpl_path else None
         if man and var in man.fields:
             man_spec = man.fields[var]
 

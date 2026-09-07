@@ -5,10 +5,14 @@
 
 <section class="panel">
   <h1>Шаблоны документов</h1>
-  <p class="muted">Файлы .docx для кабинета: загрузка, переименование (как видно в комплекте) и удаление. Договоры комплекта нужно привязать к типу контрагента.</p>
-  <p><a href="/admin/templates/fields">Системный реестр полей</a> — подписи и типы стандартных плейсхолдеров.</p>
+  <p class="muted">Загрузка и правки пишутся в <span class="mono">overrides/</span> поверх системного seed. Договоры комплекта привяжите к типу контрагента.</p>
+  <p>
+    <a href="/admin/templates/fields">Системный реестр полей</a>
+    ·
+    <a href="/admin/templates/export-overrides">Экспорт правок шаблонов (zip)</a>
+  </p>
   {% if not writable %}
-  <div class="alert alert-error">Каталог шаблонов недоступен для записи: {{ write_detail }}. Проверьте том Docker (Шаблоны должны быть RW).</div>
+  <div class="alert alert-error">Каталог overrides недоступен для записи: {{ write_detail }}.</div>
   {% endif %}
 </section>
 
@@ -43,6 +47,7 @@
       <tr>
         <th>Название</th>
         <th>Файл</th>
+        <th>Источник</th>
         <th>Комплект</th>
         <th>Размер</th>
         <th>Изменён</th>
@@ -66,6 +71,7 @@
           </form>
         </td>
         <td class="mono muted">{{ t.name }}</td>
+        <td class="muted">{% if t.source == 'override' %}override{% else %}system{% endif %}</td>
         <td>
           <form method="post" action="/admin/templates/role" style="display:flex; gap:0.35rem; align-items:center; flex-wrap:wrap">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -90,7 +96,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="muted">Шаблонов нет</td></tr>
+      <tr><td colspan="7" class="muted">Шаблонов нет</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -24,10 +24,10 @@ services:
     env_file: .env
     environment:
       DB_URL: postgresql+psycopg://dok:${POSTGRES_PASSWORD}@postgres:5432/dok
-      FILES_ROOT: /srv/dok/files
+      FILES_ROOT: /srv/dok/data/files
       GOTENBERG_URL: http://gotenberg:3000
       CORE_PATH: /app/core
-      TEMPLATES_DIR: /app/core/Шаблоны
+      TEMPLATES_DIR: /srv/dok/data/templates
       BILLING_WORKER: "0"
       JOBS_INLINE: "0"
       OPS_AGENT_URL: http://ops-agent:9100
@@ -44,10 +44,10 @@ services:
       - "--forwarded-allow-ips"
       - "*"
     volumes:
-      - files:/srv/dok/files
+      # W-46: host-путь == контейнер (вместо named volume dok_files)
+      - /srv/dok/data/files:/srv/dok/data/files
+      - /srv/dok/data/templates:/srv/dok/data/templates
       - ../core:/app/core:ro
-      # Каталог шаблонов — RW для загрузки/переименования/удаления из админки
-      - ../core/Шаблоны:/app/core/Шаблоны
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,14 +64,14 @@ services:
       dockerfile: Dockerfile
     env_file: .env
     environment:
-      FILES_ROOT: /srv/dok/files
+      FILES_ROOT: /srv/dok/data/files
       OPS_REPO_ROOT: /srv/dok
       BACKUP_DIR: ${BACKUP_DIR:-/var/backups/dok}
       COMPOSE_PROJECT_NAME: dok
     # без docker-entrypoint (не нужна БД/миграции)
     entrypoint: ["python", "-m", "app.ops_agent"]
     volumes:
-      - files:/srv/dok/files
+      - /srv/dok/data/files:/srv/dok/data/files
       - ../:/srv/dok
       - ${BACKUP_DIR:-/var/backups/dok}:${BACKUP_DIR:-/var/backups/dok}
       - /var/run/docker.sock:/var/run/docker.sock
@@ -89,18 +89,18 @@ services:
     env_file: .env
     environment:
       DB_URL: postgresql+psycopg://dok:${POSTGRES_PASSWORD}@postgres:5432/dok
-      FILES_ROOT: /srv/dok/files
+      FILES_ROOT: /srv/dok/data/files
       GOTENBERG_URL: http://gotenberg:3000
       CORE_PATH: /app/core
-      TEMPLATES_DIR: /app/core/Шаблоны
+      TEMPLATES_DIR: /srv/dok/data/templates
       BILLING_WORKER: "1"
       JOBS_INLINE: "0"
       SKIP_MIGRATIONS: "1"
     command: ["python", "-m", "app.worker"]
     volumes:
-      - files:/srv/dok/files
+      - /srv/dok/data/files:/srv/dok/data/files
+      - /srv/dok/data/templates:/srv/dok/data/templates
       - ../core:/app/core:ro
-      - ../core/Шаблоны:/app/core/Шаблоны
     depends_on:
       postgres:
         condition: service_healthy
@@ -147,4 +147,5 @@ volumes:
   caddy_data: {}
   caddy_config: {}
   pgdata: {}
-  files: {}
+  # W-46: named volume files убран; данные в /srv/dok/data/files (bind).
+  # Старый dok_files держать ≥7 дней, затем docker volume rm dok_files.

@@ -20,7 +20,84 @@ def ensure_core_on_path() -> None:
 
 
 def templates_dir() -> Path:
+    """Корень каталога шаблонов (TEMPLATES_DIR).
+
+    W-46: на проде — `/srv/dok/data/templates` с подкаталогами `system/` и
+    `overrides/`. Локально/в тестах может оставаться плоский `core/Шаблоны`.
+    """
     return Path(get_settings().templates_dir)
+
+
+def is_layered_templates(root: Path | None = None) -> bool:
+    root = root or templates_dir()
+    return (root / "system").is_dir()
+
+
+def system_templates_dir(root: Path | None = None) -> Path:
+    root = root or templates_dir()
+    layered = root / "system"
+    return layered if layered.is_dir() else root
+
+
+def overrides_templates_dir(root: Path | None = None) -> Path:
+    """Каталог записи админки: overrides/ в layered, иначе плоский root."""
+    root = root or templates_dir()
+    if is_layered_templates(root):
+        ovr = root / "overrides"
+        ovr.mkdir(parents=True, exist_ok=True)
+        return ovr
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def registry_templates_dir(root: Path | None = None) -> Path:
+    """Где лежит contracts_registry.json (корень TEMPLATES_DIR или system/)."""
+    root = root or templates_dir()
+    if (root / "contracts_registry.json").is_file():
+        return root
+    sys_dir = system_templates_dir(root)
+    if (sys_dir / "contracts_registry.json").is_file():
+        return sys_dir
+    return root
+
+
+def resolve_shared_docx(name: str, root: Path | None = None) -> Path | None:
+    """Путь к общему DOCX: overrides перекрывает system (или плоский root)."""
+    safe = Path(name).name
+    if safe != name or not safe.endswith(".docx") or safe.startswith("~$"):
+        return None
+    root = root or templates_dir()
+    if is_layered_templates(root):
+        ovr = overrides_templates_dir(root) / safe
+        if ovr.is_file():
+            return ovr
+        sys_p = system_templates_dir(root) / safe
+        if sys_p.is_file():
+            return sys_p
+        return None
+    path = root / safe
+    return path if path.is_file() else None
+
+
+def iter_shared_docx(root: Path | None = None) -> list[Path]:
+    """Список общих DOCX: union имён, при коллизии — файл из overrides."""
+    root = root or templates_dir()
+    by_name: dict[str, Path] = {}
+    if is_layered_templates(root):
+        for path in sorted(system_templates_dir(root).glob("*.docx")):
+            if path.name.startswith("~$"):
+                continue
+            by_name[path.name] = path
+        for path in sorted(overrides_templates_dir(root).glob("*.docx")):
+            if path.name.startswith("~$"):
+                continue
+            by_name[path.name] = path
+    else:
+        for path in sorted(root.glob("*.docx")):
+            if path.name.startswith("~$"):
+                continue
+            by_name[path.name] = path
+    return [by_name[k] for k in sorted(by_name.keys(), key=str.lower)]
 
 
 _templates_cache: tuple[float, list[dict]] | None = None
@@ -29,6 +106,16 @@ _templates_cache: tuple[float, list[dict]] | None = None
 def invalidate_templates_cache() -> None:
     global _templates_cache
     _templates_cache = None
+
+
+def _templates_stamp(root: Path) -> float:
+    stamps = []
+    for p in (root, system_templates_dir(root), overrides_templates_dir(root)):
+        try:
+            stamps.append(p.stat().st_mtime)
+        except OSError:
+            pass
+    return max(stamps) if stamps else 0.0
 
 
 def list_templates(*, include_deleted: bool = False) -> list[dict]:
@@ -48,10 +135,7 @@ def list_templates(*, include_deleted: bool = False) -> list[dict]:
     )
 
     root = templates_dir()
-    try:
-        stamp = root.stat().st_mtime
-    except OSError:
-        stamp = 0.0
+    stamp = _templates_stamp(root)
     # кэш только для кабинетного режима (без удалённых)
     if (
         not include_deleted
@@ -64,15 +148,13 @@ def list_templates(*, include_deleted: bool = False) -> list[dict]:
 
     deleted = set() if include_deleted else load_deleted_templates(root)
     items = []
-    for path in sorted(root.glob("*.docx")):
-        if path.name.startswith("~$"):
-            continue
+    for path in iter_shared_docx(root):
         if path.name in deleted:
             continue
         man = load_manifest(path)
         group = infer_group(path.name, man)
         desc = (man.description if man and man.description else None) or describe_template(path) or path.stem.replace("_", " ")
-        kind = (man.kind if man else None) or document_kind(path.name, templates_dir=root)
+        kind = (man.kind if man else None) or document_kind(path.name, templates_dir=system_templates_dir(root))
         items.append(
             {
                 "name": path.name,
@@ -127,7 +209,7 @@ def templates_grouped(items: list[dict]) -> list[tuple[str, list[dict]]]:
 
 
 def template_path(name: str) -> Path:
-    """Безопасный путь к общему шаблону (без path traversal)."""
+    """Безопасный путь к общему шаблону (без path traversal). Override wins."""
     safe = Path(name).name
     if safe != name or not safe.endswith(".docx"):
         raise FileNotFoundError("Шаблон не найден")
@@ -135,8 +217,8 @@ def template_path(name: str) -> Path:
 
     if safe in load_deleted_templates():
         raise FileNotFoundError("Шаблон не найден")
-    path = templates_dir() / safe
-    if not path.is_file():
+    path = resolve_shared_docx(safe)
+    if path is None:
         raise FileNotFoundError("Шаблон не найден")
     return path
 

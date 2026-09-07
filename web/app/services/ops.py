@@ -427,7 +427,8 @@ def check_alerts(db: Session) -> list[str]:
         fired.append(key)
 
     backup_age = marker_age_sec("backup_ok")
-    # W-45/G-01: нет маркера в FILES_ROOT (host≠volume) — тоже алерт; иначе «слепой» статус.
+    # W-45/G-01 (закрыто W-46): маркер в FILES_ROOT/.ops; host-путь == контейнер
+# (/srv/dok/data/files). Раньше host ≠ named volume dok_files → слепой статус.
     if backup_age is None:
         key = "backup_missing"
         _send_alert(

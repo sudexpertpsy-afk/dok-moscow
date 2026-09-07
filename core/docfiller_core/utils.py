@@ -90,15 +90,36 @@ def output_stem(context):
 
 
 def resolve_template_path(templates_dir, name):
-    """Найти файл шаблона с учётом NFC/NFD на macOS."""
+    """Найти файл шаблона с учётом NFC/NFD на macOS.
+
+    W-46: если есть system/ и overrides/, override с тем же именем побеждает.
+    """
     templates_dir = Path(templates_dir)
     target = normalize_name(name)
-    for path in templates_dir.glob('*.docx'):
-        if path.name.startswith('~$'):
-            continue
-        if normalize_name(path.name) == target:
-            return path
-    return templates_dir / name
+
+    search_dirs = []
+    ovr = templates_dir / "overrides"
+    sys_dir = templates_dir / "system"
+    if sys_dir.is_dir() or ovr.is_dir():
+        if ovr.is_dir():
+            search_dirs.append(ovr)
+        if sys_dir.is_dir():
+            search_dirs.append(sys_dir)
+    else:
+        search_dirs.append(templates_dir)
+
+    for folder in search_dirs:
+        for path in folder.glob("*.docx"):
+            if path.name.startswith("~$"):
+                continue
+            if normalize_name(path.name) == target:
+                return path
+    # fallback: прямой путь (плоский или relative)
+    for folder in search_dirs:
+        candidate = folder / name
+        if candidate.is_file():
+            return candidate
+    return search_dirs[0] / name
 
 
 def get_widget_value(widget):

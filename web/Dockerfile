@@ -3,7 +3,7 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app:/app/core \
-    FILES_ROOT=/srv/dok/files
+    FILES_ROOT=/srv/dok/data/files
 
 WORKDIR /app
 
@@ -24,7 +24,7 @@ COPY alembic ./alembic
 COPY scripts ./scripts
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh \
-    && mkdir -p /srv/dok/files \
+    && mkdir -p /srv/dok/data/files \
     && python scripts/hash_static.py
 
 # Ядро монтируется томом в compose (../core → /app/core)

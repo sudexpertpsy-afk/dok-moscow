@@ -49,7 +49,19 @@ CONTRACT_TYPES = ("Физлицо", "Юрлицо", "Эксперт (ГПД)")
 
 
 def registry_path(templates_dir) -> Path:
-    return Path(templates_dir) / REGISTRY_FILENAME
+    """Путь к contracts_registry.json.
+
+    W-46 layered: предпочитаем TEMPLATES_DIR/contracts_registry.json,
+    иначе system/contracts_registry.json (seed после rsync).
+    """
+    root = Path(templates_dir)
+    at_root = root / REGISTRY_FILENAME
+    if at_root.is_file():
+        return at_root
+    in_system = root / "system" / REGISTRY_FILENAME
+    if in_system.is_file():
+        return in_system
+    return at_root
 
 
 def default_registry() -> dict:

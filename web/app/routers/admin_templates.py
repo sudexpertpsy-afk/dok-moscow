@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -15,6 +15,7 @@ from app.services.audit import record_event
 from app.services.template_admin import (
     CONTRACT_TYPE_LABELS,
     TemplateAdminError,
+    build_overrides_export_zip,
     delete_template,
     ensure_writable_templates_dir,
     list_admin_templates,
@@ -73,6 +74,22 @@ def templates_page(
         request=request,
         name="admin/templates.html",
         context=_page(request, user, flash_ok=flash_ok, flash_error=flash_error),
+    )
+
+
+@router.get("/templates/export-overrides")
+def templates_export_overrides(
+    user: CurrentUser = Depends(require_service_admin),
+):
+    """Скачать overrides/ + tombstone/registry — для переноса правок в репо."""
+    data = build_overrides_export_zip()
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="templates-overrides-{stamp}.zip"'
+        },
     )
 
 

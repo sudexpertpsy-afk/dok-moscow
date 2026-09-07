@@ -92,11 +92,17 @@ for t in $TABLES; do
   printf '%-22s %12s %12s %s\n' "$t" "$prod" "$drill" "$ok"
 done
 
-echo "→ проверка маркера backup_ok (в volume app, W-45/G-01)"
-MARKER_JSON="$(docker compose --env-file .env exec -T app \
-  python -c "from pathlib import Path; p=Path('/srv/dok/files/.ops/backup_ok.json'); print(p.read_text(encoding='utf-8') if p.is_file() else '')" 2>/dev/null || true)"
+echo "→ проверка маркера backup_ok (W-46: host==container FILES_ROOT)"
+FILES_ROOT="${FILES_ROOT:-/srv/dok/data/files}"
+MARKER_JSON=""
+if [[ -f "$FILES_ROOT/.ops/backup_ok.json" ]]; then
+  MARKER_JSON="$(cat "$FILES_ROOT/.ops/backup_ok.json")"
+elif docker compose --env-file .env ps --status running -q app >/dev/null 2>&1; then
+  MARKER_JSON="$(docker compose --env-file .env exec -T app \
+    python -c "from pathlib import Path; p=Path('/srv/dok/data/files/.ops/backup_ok.json'); print(p.read_text(encoding='utf-8') if p.is_file() else '')" 2>/dev/null || true)"
+fi
 if [[ -n "${MARKER_JSON}" ]]; then
-  echo "  маркер: volume:/srv/dok/files/.ops/backup_ok.json"
+  echo "  маркер: $FILES_ROOT/.ops/backup_ok.json"
   MARKER_JSON="$MARKER_JSON" python3 - <<'PY'
 import json, os
 from datetime import datetime, timezone
@@ -112,10 +118,9 @@ f = data.get("file") or ""
 print(f"  archive_exists={os.path.isfile(f)} path={f}")
 PY
 else
-  echo "  ⚠ маркер backup_ok не найден в volume app"
+  echo "  ⚠ маркер backup_ok не найден в $FILES_ROOT/.ops/"
   FAIL=1
 fi
-
 echo "→ очистка $DRILL_DB"
 docker compose --env-file .env exec -T postgres \
   psql -U dok -d postgres -c "DROP DATABASE IF EXISTS $DRILL_DB;"
