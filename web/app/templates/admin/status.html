@@ -18,8 +18,12 @@
 
 <section class="panel" style="margin-top:1.25rem">
   <h2>Фоновые задачи и инфраструктура</h2>
-  <p class="muted">Маркеры worker, вебхука и бэкапа (W-32).</p>
+  <p class="muted">Маркеры worker, вебхука и бэкапа (W-32). Версия образа — W-46.</p>
   <ul class="status-list" style="margin-top:1rem">
+    <li>
+      <span><strong>APP_VERSION</strong> — <span class="muted mono">{{ ops.app_version }}{% if ops.expected_version %} · ожидается {{ ops.expected_version }}{% endif %}</span></span>
+      {% if ops.version_ok %}<span class="badge ok">ok</span>{% else %}<span class="badge warn">дрейф</span>{% endif %}
+    </li>
     {% for label, detail, ok in ops.background %}
     <li>
       <span><strong>{{ label }}</strong> — <span class="muted">{{ detail }}</span></span>

@@ -18,9 +18,12 @@ services:
     networks: [dok]
 
   app:
+    image: ${DOK_IMAGE:-dok-app:local}
     build:
-      context: ../web
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: web/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
     env_file: .env
     environment:
       DB_URL: postgresql+psycopg://dok:${POSTGRES_PASSWORD}@postgres:5432/dok
@@ -28,6 +31,7 @@ services:
       GOTENBERG_URL: http://gotenberg:3000
       CORE_PATH: /app/core
       TEMPLATES_DIR: /srv/dok/data/templates
+      APP_VERSION: ${APP_VERSION:-dev}
       BILLING_WORKER: "0"
       JOBS_INLINE: "0"
       OPS_AGENT_URL: http://ops-agent:9100
@@ -47,7 +51,6 @@ services:
       # W-46: host-путь == контейнер (вместо named volume dok_files)
       - /srv/dok/data/files:/srv/dok/data/files
       - /srv/dok/data/templates:/srv/dok/data/templates
-      - ../core:/app/core:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,9 +62,12 @@ services:
       - "8000"
 
   ops-agent:
+    image: ${DOK_IMAGE:-dok-app:local}
     build:
-      context: ../web
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: web/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
     env_file: .env
     environment:
       FILES_ROOT: /srv/dok/data/files
@@ -83,9 +89,12 @@ services:
     networks: [dok]
 
   worker:
+    image: ${DOK_IMAGE:-dok-app:local}
     build:
-      context: ../web
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: web/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
     env_file: .env
     environment:
       DB_URL: postgresql+psycopg://dok:${POSTGRES_PASSWORD}@postgres:5432/dok
@@ -93,6 +102,7 @@ services:
       GOTENBERG_URL: http://gotenberg:3000
       CORE_PATH: /app/core
       TEMPLATES_DIR: /srv/dok/data/templates
+      APP_VERSION: ${APP_VERSION:-dev}
       BILLING_WORKER: "1"
       JOBS_INLINE: "0"
       SKIP_MIGRATIONS: "1"
@@ -100,7 +110,6 @@ services:
     volumes:
       - /srv/dok/data/files:/srv/dok/data/files
       - /srv/dok/data/templates:/srv/dok/data/templates
-      - ../core:/app/core:ro
     depends_on:
       postgres:
         condition: service_healthy

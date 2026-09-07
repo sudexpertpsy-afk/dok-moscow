@@ -1268,6 +1268,7 @@ def admin_status(
     )
     checks = [
         ("Администраторы сервиса", f"{admin_n} активных", admin_n > 0),
+        ("APP_VERSION", settings.app_version, True),
         ("SECRET_KEY", "задан" if settings.secret_key and "dev-only" not in settings.secret_key else "dev-заглушка", "dev-only" not in (settings.secret_key or "")),
         ("DaData", "ключ задан" if settings.dadata_key else "нет ключа", bool(settings.dadata_key)),
         ("SMTP", settings.smtp_host or "не настроен", bool(settings.smtp_host)),

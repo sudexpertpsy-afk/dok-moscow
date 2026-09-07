@@ -226,6 +226,11 @@ def create_app() -> FastAPI:
     static_dir.mkdir(exist_ok=True)
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+    @app.get("/healthz")
+    def healthz():
+        s = get_settings()
+        return {"ok": True, "version": s.app_version}
+
     app.include_router(landing.router)
     app.include_router(demo_api.router)
     app.include_router(zakon.router)

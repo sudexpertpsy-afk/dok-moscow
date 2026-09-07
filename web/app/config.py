@@ -79,6 +79,8 @@ class Settings(BaseSettings):
     landing_stats_practice_since: int = 2014
     # W-43: глобальный флаг факсимиле (FAKSIMILE_ENABLED)
     faksimile_enabled: bool = True
+    # W-46: версия образа (APP_VERSION из CI / compose)
+    app_version: str = "dev"
 
 
 @lru_cache

@@ -1,0 +1,16 @@
+# Исключения для docker build с контекстом корня репо (W-46).
+.git
+.gitignore
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/node_modules
+web/files
+files
+docs
+*.md
+!web/README.md
+deploy/.env
+**/.DS_Store
+agent-transcripts

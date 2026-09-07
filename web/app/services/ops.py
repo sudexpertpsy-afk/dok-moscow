@@ -268,11 +268,27 @@ def status_snapshot(db: Session) -> dict[str, Any]:
     fail_streak = int(webhook_fail.get("streak") or 0)
     ops_count = int(webhook_fail.get("ops_count") or 0)
 
+    settings = get_settings()
+    app_version = (settings.app_version or "dev").strip()
+    expected = ""
+    expected_path = Path(settings.files_root).parent / "ops" / "deployed_version"
+    try:
+        if expected_path.is_file():
+            expected = expected_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        expected = ""
+    version_ok = (not expected) or (app_version == expected) or app_version.startswith(expected[:7])
+    # прод не должен светить cursor/* как версию
+    on_cursor_branch = app_version.startswith("cursor/")
+
     return {
         "latency": latency_stats(),
         "disk": disk,
         "db_size_mb": round(db_bytes / (1024 * 1024), 2) if db_bytes is not None else None,
         "pending_jobs": pending_jobs_count(db),
+        "app_version": app_version,
+        "expected_version": expected or None,
+        "version_ok": version_ok and not on_cursor_branch,
         "background": [
             ("Worker heartbeat", _fmt_age(worker_age), worker_ok),
             ("Сверка Т-Кассы", _fmt_age(reconcile_age), reconcile_ok),

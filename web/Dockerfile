@@ -1,9 +1,13 @@
+# Контекст сборки — корень репозитория (см. deploy/compose.yml и CI).
 FROM python:3.12-slim
+
+ARG APP_VERSION=dev
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app:/app/core \
-    FILES_ROOT=/srv/dok/data/files
+    FILES_ROOT=/srv/dok/data/files \
+    APP_VERSION=${APP_VERSION}
 
 WORKDIR /app
 
@@ -15,19 +19,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY web/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app ./app
-COPY alembic.ini ./alembic.ini
-COPY alembic ./alembic
-COPY scripts ./scripts
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+COPY web/app ./app
+COPY web/alembic.ini ./alembic.ini
+COPY web/alembic ./alembic
+COPY web/scripts ./scripts
+COPY web/docker-entrypoint.sh /docker-entrypoint.sh
+# W-46: ядро и seed-шаблоны в образе (без bind ../core на проде)
+COPY core ./core
+
 RUN chmod +x /docker-entrypoint.sh \
     && mkdir -p /srv/dok/data/files \
     && python scripts/hash_static.py
 
-# Ядро монтируется томом в compose (../core → /app/core)
 EXPOSE 8000
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
