@@ -1461,3 +1461,54 @@ class LawWatchNotice(Base):
         DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
     )
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class WizardSession(Base):
+    """Состояние мастера комплекта (W-46 §4). TTL 24 ч, чистит worker."""
+
+    __tablename__ = "wizard_sessions"
+    __table_args__ = (Index("ix_wizard_sessions_expires", "expires_at"),)
+
+    sid: Mapped[str] = mapped_column(String(64), primary_key=True)
+    org_id: Mapped[int | None] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    state: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+
+
+class RateCounter(Base):
+    """Атомарные счётчики окон (W-46 §5): UPSERT по key."""
+
+    __tablename__ = "rate_counters"
+
+    key: Mapped[str] = mapped_column(String(191), primary_key=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
+    )
+
+
+class DadataCache(Base):
+    """Кэш ответов DaData общий для воркеров (W-46 §5.2)."""
+
+    __tablename__ = "dadata_cache"
+    __table_args__ = (Index("ix_dadata_cache_expires", "expires_at"),)
+
+    cache_key: Mapped[str] = mapped_column(String(512), primary_key=True)
+    payload: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
+    )

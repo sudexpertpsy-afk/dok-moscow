@@ -621,3 +621,15 @@ def ops_loop_tick(db: Session) -> None:
         maybe_send_vds_reminders(db)
     except Exception:
         log.exception("vds reminders failed")
+    try:
+        from app.services.dadata_cache_store import purge_expired_dadata_cache
+        from app.services.package_wizard_store import purge_expired_wizard_sessions
+
+        n_w = purge_expired_wizard_sessions(db)
+        n_c = purge_expired_dadata_cache(db)
+        if n_w or n_c:
+            db.commit()
+            log.info("purged wizard=%s dadata_cache=%s", n_w, n_c)
+    except Exception:
+        log.exception("wizard/dadata purge failed")
+        db.rollback()

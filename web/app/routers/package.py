@@ -425,6 +425,9 @@ async def package_step3_post(
             facsimile_by_template=fax_map,
         )
     except Exception as exc:
+        all_fields = list(dict.fromkeys([*core_names, *additional]))
+        values = {**core_values, **additional_values}
+        assist = _assist_ctx(db, org.id, all_fields, values)
         return templates.TemplateResponse(
             request=request,
             name="cabinet/package_step3.html",
@@ -432,7 +435,9 @@ async def package_step3_post(
                 wizard=data,
                 core_names=core_names,
                 additional=additional,
-                values={**core_values, **additional_values},
+                values=assist["values"],
+                field_meta=assist["field_meta"],
+                number_peeks=assist["number_peeks"],
                 selected=selected,
                 display_name=display_name,
                 flash_error=f"Ошибка генерации: {exc}",

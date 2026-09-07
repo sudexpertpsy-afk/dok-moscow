@@ -209,13 +209,13 @@ def templates_grouped(items: list[dict]) -> list[tuple[str, list[dict]]]:
 
 
 def template_path(name: str) -> Path:
-    """Безопасный путь к общему шаблону (без path traversal). Override wins."""
+    """Безопасный путь к общему шаблону (без path traversal). Override wins.
+
+    Tombstone (.deleted_templates.json) скрывает шаблон только в list_templates
+    кабинета; файл на диске остаётся доступен для генерации и /obraztsy.
+    """
     safe = Path(name).name
     if safe != name or not safe.endswith(".docx"):
-        raise FileNotFoundError("Шаблон не найден")
-    from app.services.template_admin import load_deleted_templates
-
-    if safe in load_deleted_templates():
         raise FileNotFoundError("Шаблон не найден")
     path = resolve_shared_docx(safe)
     if path is None:
