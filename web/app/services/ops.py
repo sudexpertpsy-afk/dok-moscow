@@ -24,6 +24,9 @@ from app.services.mail import send_email
 
 log = logging.getLogger("dok.ops")
 
+# W-46 §3: порог алерта диска (было 85%).
+DISK_ALERT_PCT = 75.0
+
 _RING_MAX = 2000
 _lock = threading.Lock()
 _samples: deque[tuple[float, str, float]] = deque(maxlen=_RING_MAX)  # (ts, group, ms)
@@ -138,7 +141,7 @@ def disk_usage() -> dict[str, Any]:
             "used_gb": round(usage.used / (1024**3), 2),
             "free_gb": round(usage.free / (1024**3), 2),
             "used_pct": pct,
-            "ok": pct < 85.0,
+            "ok": pct < DISK_ALERT_PCT,
         }
     except Exception as exc:
         return {"path": str(root), "error": str(exc), "ok": False, "used_pct": 100.0}
@@ -418,7 +421,7 @@ def check_alerts(db: Session) -> list[str]:
         key = "disk_high"
         _send_alert(
             key,
-            f"[{app_name}] Диск заполнен > 85%",
+            f"[{app_name}] Диск заполнен > {int(DISK_ALERT_PCT)}%",
             f"Использовано {disk.get('used_pct')}% на {disk.get('path')}.\n",
         )
         fired.append(key)

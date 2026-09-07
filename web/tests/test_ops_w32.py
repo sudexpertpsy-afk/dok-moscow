@@ -272,3 +272,10 @@ def test_route_exception_notes_cover_set():
     assert ROUTE_EXCEPTIONS == frozenset(ROUTE_EXCEPTION_NOTES)
     assert "/cabinet/org/{org_id}" not in ROUTE_EXCEPTIONS
     assert "/cabinet/journal/rows" in ROUTE_EXCEPTION_NOTES
+
+
+def test_disk_alert_threshold_w46():
+    """W-46 §3: алерт диска с 75%, не 85%."""
+    from app.services.ops import DISK_ALERT_PCT
+
+    assert DISK_ALERT_PCT == 75.0
