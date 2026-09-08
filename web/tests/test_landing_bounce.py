@@ -27,7 +27,8 @@ def test_landing_bounce_markup(app):
     assert "Заявка без оплаты" in text
     assert "/signup?tariff=" in text
     assert "Создать кабинет" in text
-
+    assert "Первые 20 подписчиков беты" not in text
+    assert "50% навсегда" not in text
 
 def test_sample_pdf_still_served(app):
     client, _ = app
@@ -85,13 +86,14 @@ def test_demo_examples_loaded():
     assert all(ex.get("inn") for ex in examples)
 
 
-def test_beta_promo_hides_remaining_when_few_used(app):
+def test_apply_form_title_without_beta_promo(app):
     _, dbmod = app
     db = dbmod.SessionLocal()
     try:
         copy = beta_promo_copy(db)
         assert copy["show_remaining"] is False
-        assert "Первые 20" in copy["title"]
+        assert copy["title"] == "Оставить заявку"
+        assert "50%" not in copy["title"]
     finally:
         db.close()
 

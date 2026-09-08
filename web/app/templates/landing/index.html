@@ -305,7 +305,8 @@
     <p class="lp-section-lead">{% if content_slots.tariffs_note %}{{ content_slots.tariffs_note }}{% else %}Закрытая бета по приглашениям. После пилота — оплата картой через Т‑Кассу. Подробности на <a href="/tariffs">странице тарифов</a>.{% endif %}</p>
     <div class="lp-period" role="group" aria-label="Период оплаты">
       <button type="button" class="lp-period-btn is-active" data-period="month">Месяц</button>
-      <button type="button" class="lp-period-btn" data-period="year">Год <span class="lp-period-hint">−2 месяца</span></button>
+      <button type="button" class="lp-period-btn" data-period="year">Год <span class="lp-period-hint">−10%</span></button>
+      <button type="button" class="lp-period-btn" data-period="years_2">2 года <span class="lp-period-hint">−20%</span></button>
     </div>
     <div class="lp-tariffs">
       {% for t in public_tariffs %}
@@ -314,7 +315,8 @@
           <h3>{{ t.name }}</h3>
           <p class="lp-price"
              data-month="{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'month') }}{% endif %}"
-             data-year="{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'year') }}{% endif %}">
+             data-year="{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'year') }}{% endif %}"
+             data-years_2="{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'years_2') }}{% endif %}">
             {% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'month') }}{% endif %}
           </p>
           <ul class="lp-check">
@@ -362,7 +364,7 @@
         </details>
         <details>
           <summary>Как попасть в бету?</summary>
-          <p>Оставьте заявку в форме ниже — откроем доступ по мере запуска. Первые подписчики беты получают особые условия.</p>
+          <p>Оставьте заявку в форме ниже — откроем доступ и подскажем по тарифу.</p>
         </details>
       </div>
     {% endif %}
@@ -393,7 +395,6 @@
       Чтобы сразу оплатить тариф —
       <a href="{{ app_base_url }}/signup?tariff=specialist&period=month">создайте кабинет</a>.
     </p>
-
     {% if flash_error %}<div class="lp-alert lp-alert-error" role="alert">{{ flash_error }}</div>{% endif %}
     {% if flash_ok %}<div class="lp-alert lp-alert-ok" role="status">{{ flash_ok }}</div>{% endif %}
 

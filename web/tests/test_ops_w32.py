@@ -244,6 +244,46 @@ def test_backup_marker_missing_alerts(app):
         db.close()
 
 
+def test_app_version_drift_alerts(app, monkeypatch, tmp_path):
+    """W-46: несовпадение APP_VERSION и deployed_version → ключ + письмо."""
+    from pathlib import Path
+
+    from app.config import get_settings
+    from app.services import ops as ops_mod
+
+    sent: list[str] = []
+
+    def _fake_send(settings, *, to_addr, subject, body):
+        sent.append(subject)
+        return True
+
+    monkeypatch.setattr(ops_mod, "send_email", _fake_send)
+
+    _, dbmod = app
+    d = ops_dir()
+    for p in d.glob("*.json"):
+        p.unlink()
+    write_marker("backup_ok")
+
+    files_root = Path(get_settings().files_root)
+    files_root.mkdir(parents=True, exist_ok=True)
+    ops = files_root.parent / "ops"
+    ops.mkdir(parents=True, exist_ok=True)
+    (ops / "deployed_version").write_text("v9.9.9-expected\n", encoding="utf-8")
+
+    get_settings().app_version = "v1.0.0"
+    db = dbmod.SessionLocal()
+    try:
+        snap = status_snapshot(db)
+        assert snap["version_ok"] is False
+        fired = check_alerts(db)
+        assert "app_version_drift" in fired
+        assert any("Дрейф APP_VERSION" in s for s in sent)
+    finally:
+        db.close()
+        (ops / "deployed_version").unlink(missing_ok=True)
+
+
 def test_static_url_fallback():
     from app.static_assets import clear_manifest_cache, static_url
 

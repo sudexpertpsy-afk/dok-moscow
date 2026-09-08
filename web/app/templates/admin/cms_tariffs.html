@@ -16,8 +16,8 @@
             <input id="price_month_{{ t.code.value }}" name="price_month_{{ t.code.value }}" type="number" min="0" step="1" value="{{ t.price_month_kop // 100 }}">
           </div>
           <div>
-            <label for="price_year_{{ t.code.value }}">Цена за год, ₽</label>
-            <input id="price_year_{{ t.code.value }}" name="price_year_{{ t.code.value }}" type="number" min="0" step="1" value="{{ t.price_year_kop // 100 }}">
+            <label for="price_year_{{ t.code.value }}">Цена за год, ₽ <span class="muted">(считается: месяц×12 −10%)</span></label>
+            <input id="price_year_{{ t.code.value }}" name="price_year_{{ t.code.value }}" type="number" min="0" step="1" value="{{ t.price_year_kop // 100 }}" readonly>
           </div>
         </div>
         <label for="blurb_{{ t.code.value }}">Короткое описание</label>

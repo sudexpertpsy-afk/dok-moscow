@@ -114,11 +114,9 @@ def billing_page(
     ctx = _billing_view_context(request, user, org, db)
     q_tariff = (request.query_params.get("tariff") or "").strip().lower()
     q_period = (request.query_params.get("period") or "").strip().lower()
-    if q_period == "years_2":
-        q_period = "year"
     if q_tariff in {"specialist", "organization"}:
         ctx["preselect_tariff"] = q_tariff
-    if q_period in {"month", "year"}:
+    if q_period in {"month", "year", "years_2"}:
         ctx["preselect_period"] = q_period
     if request.query_params.get("welcome") == "1":
         ctx["flash_ok"] = "Кабинет создан — выберите оплату"

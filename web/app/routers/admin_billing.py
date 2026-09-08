@@ -46,6 +46,7 @@ from app.models import (
 from app.routers.admin import _ctx
 from app.services.audit import record_event
 from app.services.billing import ensure_tariffs, get_tariff, transition_subscription
+from app.services.cms import tariff_amount_kop
 from app.services.billing_mail import notify_manual_extend
 from app.templating import templates
 
@@ -332,8 +333,10 @@ def _payments_summary(db: Session) -> dict:
         )
     ).all():
         t = sub.tariff
-        if sub.period == SubscriptionPeriod.year:
-            mrr += t.price_year_kop // 12
+        if sub.period == SubscriptionPeriod.years_2:
+            mrr += tariff_amount_kop(t, SubscriptionPeriod.years_2) // 24
+        elif sub.period == SubscriptionPeriod.year:
+            mrr += tariff_amount_kop(t, SubscriptionPeriod.year) // 12
         else:
             mrr += t.price_month_kop
     return {
@@ -545,7 +548,7 @@ def manual_extend(
     if existing:
         return RedirectResponse(f"/admin/payments/{existing.id}", status_code=303)
 
-    amount = tariff.price_year_kop if per == SubscriptionPeriod.year else tariff.price_month_kop
+    amount = tariff_amount_kop(tariff, per)
     sub.tariff_id = tariff.id
     sub.period = per
     now = utcnow()

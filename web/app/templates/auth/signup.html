@@ -42,7 +42,8 @@
       <label for="period">Период</label>
       <select id="period" name="period" required>
         <option value="month" {% if form_period == 'month' %}selected{% endif %}>Месяц</option>
-        <option value="year" {% if form_period == 'year' %}selected{% endif %}>Год</option>
+        <option value="year" {% if form_period == 'year' %}selected{% endif %}>Год (−10%)</option>
+        <option value="years_2" {% if form_period == 'years_2' %}selected{% endif %}>2 года (−20%)</option>
       </select>
 
       <label for="org_name">Название организации <span class="muted">(необязательно)</span></label>

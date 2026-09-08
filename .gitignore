@@ -22,3 +22,7 @@ deploy/backup.key
 
 .coverage
 *.coverage
+
+# Рабочее дерево на VDS: рантайм-данные (не код)
+/data/
+/files/

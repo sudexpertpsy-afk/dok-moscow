@@ -442,17 +442,30 @@ def check_alerts(db: Session) -> list[str]:
         )
         fired.append(key)
 
+    # W-46: дрейф APP_VERSION vs data/ops/deployed_version (бейдж + письмо)
+    if not snap.get("version_ok", True):
+        key = "app_version_drift"
+        _send_alert(
+            key,
+            f"[{app_name}] Дрейф APP_VERSION",
+            f"Работает: {snap.get('app_version')}\n"
+            f"Ожидается (deployed_version): {snap.get('expected_version')}\n"
+            "Прод должен совпадать с тегом деплоя. "
+            "Проверьте: ./deploy.sh --tag … и DOK_IMAGE в deploy/.env.\n",
+            hours=6.0,
+        )
+        fired.append(key)
+
     backup_age = marker_age_sec("backup_ok")
     # W-45/G-01 (закрыто W-46): маркер в FILES_ROOT/.ops; host-путь == контейнер
-# (/srv/dok/data/files). Раньше host ≠ named volume dok_files → слепой статус.
+    # (/srv/dok/data/files). Раньше host ≠ named volume dok_files → слепой статус.
     if backup_age is None:
         key = "backup_missing"
         _send_alert(
             key,
             f"[{app_name}] Нет маркера бэкапа",
             "Маркер backup_ok отсутствует в FILES_ROOT/.ops/.\n"
-            "Проверьте, что deploy/backup.sh пишет маркер через "
-            "`docker compose exec app` в named volume (не на host-путь).\n",
+            "Проверьте deploy/backup.sh (путь $FILES_ROOT/.ops/backup_ok.json).\n",
         )
         fired.append(key)
     elif backup_age > 26 * 3600:

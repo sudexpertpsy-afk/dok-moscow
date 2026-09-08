@@ -133,10 +133,10 @@ def process_autorenewals(db: Session, *, within_days: int = 3) -> int:
             if last.created_at > now - timedelta(hours=20):
                 continue
 
+        from app.services.cms import tariff_amount_kop
+
         tariff = sub.tariff
-        amount = (
-            tariff.price_year_kop if sub.period.value == "year" else tariff.price_month_kop
-        )
+        amount = tariff_amount_kop(tariff, sub.period)
         if amount <= 0:
             continue
 

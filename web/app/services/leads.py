@@ -119,11 +119,9 @@ def normalize_signup_tariff(raw: str | None) -> str:
 
 
 def normalize_signup_period(raw: str | None) -> str:
-    """Период для предвыбора на billing. years_2 пока маппится в year (enum без years_2)."""
+    """Период для предвыбора на billing: month | year | years_2."""
     period = (raw or "month").strip().lower()
-    if period == "years_2":
-        return "year"
-    if period not in ("month", "year"):
+    if period not in ("month", "year", "years_2"):
         return "month"
     return period
 

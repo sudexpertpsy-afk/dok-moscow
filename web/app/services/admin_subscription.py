@@ -317,7 +317,9 @@ def apply_admin_subscription(
             )
 
     sub.tariff_id = tariff.id
-    if months == 12 or (
+    if months >= 24:
+        sub.period = SubscriptionPeriod.years_2
+    elif months == 12 or (
         term_mode == "absolute" and (_aware(ends_at) - now) >= timedelta(days=360)
     ):
         sub.period = SubscriptionPeriod.year
@@ -339,11 +341,9 @@ def apply_admin_subscription(
     sub.updated_at = now
 
     if reason == "invoice":
-        amount = (
-            tariff.price_year_kop
-            if sub.period == SubscriptionPeriod.year
-            else tariff.price_month_kop
-        )
+        from app.services.cms import tariff_amount_kop
+
+        amount = tariff_amount_kop(tariff, sub.period)
         payment = Payment(
             id=uuid.uuid4(),
             org_id=org.id,

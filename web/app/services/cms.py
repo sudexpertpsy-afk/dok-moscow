@@ -199,13 +199,28 @@ def format_price_rub(amount_kop: int, suffix: str = "") -> str:
 
 
 def tariff_amount_kop(tariff: Tariff, period: SubscriptionPeriod | str) -> int:
+    from app.services.billing import (
+        year_amount_from_month_kop,
+        years2_amount_from_month_kop,
+    )
+
     per = period if isinstance(period, SubscriptionPeriod) else SubscriptionPeriod(str(period))
-    return int(tariff.price_year_kop if per == SubscriptionPeriod.year else tariff.price_month_kop)
+    month = int(tariff.price_month_kop or 0)
+    if per == SubscriptionPeriod.years_2:
+        return years2_amount_from_month_kop(month)
+    if per == SubscriptionPeriod.year:
+        return year_amount_from_month_kop(month)
+    return month
 
 
 def tariff_price_label(tariff: Tariff, period: SubscriptionPeriod | str) -> str:
     per = period if isinstance(period, SubscriptionPeriod) else SubscriptionPeriod(str(period))
-    suffix = "/год" if per == SubscriptionPeriod.year else "/мес"
+    if per == SubscriptionPeriod.years_2:
+        suffix = "/2 года"
+    elif per == SubscriptionPeriod.year:
+        suffix = "/год"
+    else:
+        suffix = "/мес"
     return format_price_rub(tariff_amount_kop(tariff, per), suffix)
 
 
@@ -372,10 +387,12 @@ def update_tariff_prices(
     user_id: int | None,
 ) -> int:
     changed = 0
+    from app.services.billing import year_amount_from_month_kop
+
     for tariff in db.scalars(select(Tariff).order_by(Tariff.id)).all():
         code = tariff.code.value
         new_month = _rub_to_kop(data.get(f"price_month_{code}"))
-        new_year = _rub_to_kop(data.get(f"price_year_{code}"))
+        new_year = year_amount_from_month_kop(new_month)
         new_blurb = str(data.get(f"blurb_{code}") or "").strip()
         new_features = _features_from_text(data.get(f"features_{code}"))
         old = (

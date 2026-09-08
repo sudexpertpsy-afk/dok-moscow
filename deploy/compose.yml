@@ -51,6 +51,8 @@ services:
       # W-46: host-путь == контейнер (вместо named volume dok_files)
       - /srv/dok/data/files:/srv/dok/data/files
       - /srv/dok/data/templates:/srv/dok/data/templates
+      # маркер deploy.sh → /admin/status дрейф APP_VERSION
+      - /srv/dok/data/ops:/srv/dok/data/ops:ro
     depends_on:
       postgres:
         condition: service_healthy
