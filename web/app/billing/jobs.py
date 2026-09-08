@@ -298,6 +298,11 @@ def _run_daily_jobs() -> None:
         n_cal = process_calendar_reminders(db)
         if n_cal:
             log.info("Calendar reminders sent %s", n_cal)
+        from app.services.self_serve_cleanup import process_unpaid_guest_cleanup
+
+        cleanup = process_unpaid_guest_cleanup(db)
+        if cleanup.get("warned") or cleanup.get("deactivated"):
+            log.info("Self-serve cleanup: %s", cleanup)
         watch_stats = None
         if os.environ.get("LEGAL_WATCH_WORKER", "1") != "0":
             from app.services.legal_monitor import run_daily_watch
@@ -310,6 +315,7 @@ def _run_daily_jobs() -> None:
             autorenew=n,
             expiry_notices=n_mail,
             calendar_reminders=n_cal,
+            self_serve_cleanup=cleanup,
         )
     finally:
         db.close()

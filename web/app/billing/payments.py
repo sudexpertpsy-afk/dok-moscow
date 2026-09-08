@@ -426,6 +426,9 @@ def _activate_subscription_for_payment(
         },
         commit=False,
     )
+    from app.services.leads import mark_lead_paid_for_org
+
+    mark_lead_paid_for_org(db, pay.org_id)
 
 
 def apply_receipt_only_notification(db: Session, payload: dict[str, Any]) -> Payment | None:

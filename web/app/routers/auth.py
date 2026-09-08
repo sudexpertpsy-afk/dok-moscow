@@ -77,14 +77,36 @@ def login_page(
     db: Session = Depends(get_db),
 ):
     if user:
+        nxt = _safe_next(request.query_params.get("next"))
+        if nxt:
+            return RedirectResponse(nxt, status_code=status.HTTP_303_SEE_OTHER)
         return RedirectResponse(home_for_user(user), status_code=status.HTTP_303_SEE_OTHER)
     from app.yandex_oauth import yandex_button_visible
 
+    flash_ok = None
+    if request.query_params.get("msg") == "exists":
+        flash_ok = "Аккаунт с этим e-mail уже есть — войдите."
     return _render(
         request,
         "auth/login.html",
-        {"yandex_login_available": yandex_button_visible(db)},
+        {
+            "yandex_login_available": yandex_button_visible(db),
+            "next": _safe_next(request.query_params.get("next")) or "",
+            "flash_ok": flash_ok,
+        },
     )
+
+
+def _safe_next(raw: str | None) -> str | None:
+    """Только относительные пути кабинета — без open redirect."""
+    if not raw:
+        return None
+    path = raw.strip()
+    if not path.startswith("/") or path.startswith("//"):
+        return None
+    if path.startswith("/login") or path.startswith("/signup"):
+        return None
+    return path
 
 
 @router.post("/login", response_class=HTMLResponse)
@@ -92,12 +114,14 @@ def login_submit(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    next: str = Form(""),
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf),
 ):
     ip = client_ip(request)
     from app.yandex_oauth import yandex_button_visible
 
+    nxt = _safe_next(next)
     if login_limiter.is_blocked(ip):
         return _render(
             request,
@@ -105,6 +129,7 @@ def login_submit(
             {
                 "flash_error": "Слишком много попыток. Попробуйте позже.",
                 "email": email,
+                "next": nxt or "",
                 "yandex_login_available": yandex_button_visible(db),
             },
             status_code=429,
@@ -135,6 +160,7 @@ def login_submit(
             {
                 "flash_error": "Неверный e-mail или пароль.",
                 "email": email,
+                "next": nxt or "",
                 "yandex_login_available": yandex_avail,
             },
             status_code=401,
@@ -147,9 +173,18 @@ def login_submit(
         if not device_ok:
             request.session["pending_2fa_user_id"] = user.id
             request.session.pop("force_2fa_setup", None)
+            if nxt:
+                request.session["login_next"] = nxt
             return RedirectResponse("/login/2fa", status_code=status.HTTP_303_SEE_OTHER)
 
-    return _finish_login(request, db, user, ip=ip, via="remembered" if user.totp_enabled else "password")
+    return _finish_login(
+        request,
+        db,
+        user,
+        ip=ip,
+        via="remembered" if user.totp_enabled else "password",
+        next_url=nxt,
+    )
 
 
 def _finish_login(
@@ -160,6 +195,7 @@ def _finish_login(
     ip: str,
     via: str,
     remember: bool = False,
+    next_url: str | None = None,
 ):
     request.session.pop("pending_2fa_user_id", None)
     user.last_login_at = utcnow()
@@ -188,6 +224,11 @@ def _finish_login(
     )
     if request.session.get("force_2fa_setup"):
         home = "/cabinet/settings/security"
+    else:
+        sess_next = _safe_next(request.session.pop("login_next", None))
+        chosen = _safe_next(next_url) or sess_next
+        if chosen:
+            home = chosen
     response = RedirectResponse(home, status_code=status.HTTP_303_SEE_OTHER)
     if remember:
         set_device_cookie(response, user)
@@ -322,6 +363,16 @@ def forgot_password_submit(
         "мы отправили ссылку для сброса пароля."
     )
     user = db.scalar(select(User).where(User.email == email_norm, User.is_active.is_(True)))
+    if user and not getattr(user, "email_verified", True):
+        # W-47: без подтверждения e-mail сброс недоступен (ответ тот же)
+        record_event(
+            db,
+            type="password_reset_blocked_unverified",
+            org_id=user.org_id,
+            user_id=user.id,
+            details={"ip": ip},
+        )
+        return _render(request, "auth/forgot_password.html", {"flash_ok": ok_msg, "email": email})
     if user:
         raw = secrets.token_urlsafe(32)
         token = PasswordResetToken(
@@ -541,6 +592,7 @@ def invite_accept(
         role=UserRole.user,
         org_role=OrgRole.org_admin if int(others) == 0 else OrgRole.org_member,
         is_active=True,
+        email_verified=True,
         last_login_at=utcnow(),
     )
     invite.used_at = utcnow()
@@ -561,3 +613,42 @@ def invite_accept(
     db.refresh(user)
     login_user_session(request, user.id, user.org_id, user.role.value)
     return RedirectResponse("/cabinet/", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/verify-email/{token}", response_class=HTMLResponse)
+def verify_email(request: Request, token: str, db: Session = Depends(get_db)):
+    from app.services.email_verify import confirm_email_token
+
+    user = confirm_email_token(db, token)
+    if user is None:
+        return _render(
+            request,
+            "auth/login.html",
+            {"flash_error": "Ссылка подтверждения недействительна или истекла."},
+            status_code=400,
+        )
+    return _render(
+        request,
+        "auth/login.html",
+        {"flash_ok": "E-mail подтверждён. Можно войти в кабинет.", "email": user.email},
+    )
+
+
+@router.post("/cabinet/verify-email/resend", response_class=HTMLResponse)
+def resend_verify_email(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_optional_user),
+    _: None = Depends(require_csrf),
+):
+    if user is None:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+    db_user = db.get(User, user.id)
+    if db_user is None:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+    from app.services.email_verify import issue_and_send_verification
+
+    if db_user.email_verified:
+        return RedirectResponse("/cabinet/?ok=email-already", status_code=status.HTTP_303_SEE_OTHER)
+    issue_and_send_verification(db, user=db_user)
+    return RedirectResponse("/cabinet/?ok=email-sent", status_code=status.HTTP_303_SEE_OTHER)

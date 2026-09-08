@@ -25,6 +25,7 @@ class CurrentUser:
     is_active: bool
     nav_order: dict | None = None
     org_role: OrgRole | None = None
+    email_verified: bool = True
 
     @property
     def is_service_admin(self) -> bool:
@@ -87,6 +88,7 @@ def get_optional_user(
         is_active=user.is_active,
         nav_order=order,
         org_role=effective_org_role(user),
+        email_verified=bool(getattr(user, "email_verified", True)),
     )
 
 

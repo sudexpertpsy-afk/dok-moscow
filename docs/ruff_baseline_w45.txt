@@ -1,6 +1,5 @@
-# W-45 ruff baseline: path\tcode\tcount
-# Новый код не увеличивает count пары path+code и не добавляет новых пар без обновления baseline.
-# total_issues=761 pairs=239
+# path	code	count
+# regenerated W-47
 core/docfiller_core/backup.py	BLE001	3
 core/docfiller_core/backup.py	DTZ005	3
 core/docfiller_core/backup.py	I001	1
@@ -34,7 +33,7 @@ core/docfiller_core/packages.py	BLE001	1
 core/docfiller_core/packages.py	DTZ011	1
 core/docfiller_core/packages.py	I001	1
 core/docfiller_core/packages.py	ISC004	4
-core/docfiller_core/packages.py	PIE810	2
+core/docfiller_core/packages.py	PIE810	4
 core/docfiller_core/paths.py	DTZ005	3
 core/docfiller_core/paths.py	I001	1
 core/docfiller_core/registry.py	DTZ005	1
@@ -42,7 +41,7 @@ core/docfiller_core/registry.py	F401	1
 core/docfiller_core/registry.py	I001	1
 core/docfiller_core/system_fields.py	BLE001	1
 core/docfiller_core/system_fields.py	S110	1
-core/docfiller_core/template_manifest.py	PIE810	1
+core/docfiller_core/template_manifest.py	PIE810	2
 core/docfiller_core/template_manifest.py	SIM102	1
 core/docfiller_core/template_manifest.py	UP037	1
 core/docfiller_core/template_security.py	PERF102	1
@@ -83,7 +82,6 @@ web/app/db.py	S110	1
 web/app/deps.py	B008	6
 web/app/http_cache.py	PIE810	1
 web/app/main.py	BLE001	1
-web/app/main.py	I001	1
 web/app/models.py	C408	1
 web/app/models.py	UP037	10
 web/app/ops_agent/actions.py	BLE001	10
@@ -92,7 +90,7 @@ web/app/ops_agent/actions.py	S110	1
 web/app/ops_agent/actions.py	SIM102	1
 web/app/ops_agent/actions.py	SIM115	1
 web/app/ops_agent/app.py	I001	1
-web/app/routers/admin.py	B008	52
+web/app/routers/admin.py	B008	56
 web/app/routers/admin.py	F401	1
 web/app/routers/admin.py	F841	1
 web/app/routers/admin.py	I001	2
@@ -106,10 +104,11 @@ web/app/routers/admin_legal.py	DTZ007	1
 web/app/routers/admin_security.py	B008	16
 web/app/routers/admin_server.py	B008	19
 web/app/routers/admin_server.py	UP028	1
-web/app/routers/admin_templates.py	B008	15
+web/app/routers/admin_templates.py	B008	16
 web/app/routers/admin_templates.py	RUF046	1
-web/app/routers/auth.py	B008	13
+web/app/routers/auth.py	B008	16
 web/app/routers/auth.py	I001	1
+web/app/routers/auth.py	PIE810	1
 web/app/routers/billing.py	B008	1
 web/app/routers/billing.py	BLE001	1
 web/app/routers/cabinet.py	B008	8
@@ -134,25 +133,28 @@ web/app/routers/documents.py	B008	16
 web/app/routers/documents.py	BLE001	1
 web/app/routers/documents.py	DTZ011	1
 web/app/routers/documents.py	I001	6
-web/app/routers/form_assist.py	B008	5
+web/app/routers/form_assist.py	B008	6
 web/app/routers/global_search.py	B008	4
 web/app/routers/jobs.py	B008	4
 web/app/routers/journal.py	B008	6
 web/app/routers/journal.py	I001	1
-web/app/routers/landing.py	B008	17
+web/app/routers/landing.py	B008	8
 web/app/routers/landing.py	I001	2
+web/app/routers/obraztsy.py	B008	2
+web/app/routers/obraztsy.py	DTZ011	1
 web/app/routers/package.py	B008	21
 web/app/routers/package.py	BLE001	1
 web/app/routers/package.py	F401	2
 web/app/routers/package.py	I001	2
 web/app/routers/party_check.py	B008	18
 web/app/routers/party_check.py	I001	1
+web/app/routers/praktika.py	B008	1
 web/app/routers/settings.py	B008	53
 web/app/routers/settings.py	I001	3
 web/app/routers/settings.py	SIM118	1
+web/app/routers/signup.py	B008	3
 web/app/routers/staff.py	B008	8
 web/app/routers/yandex_auth.py	B008	4
-web/app/routers/yandex_auth.py	RUF010	2
 web/app/routers/zakon.py	B008	2
 web/app/services/admin_subscription.py	F401	3
 web/app/services/admin_subscription.py	PLR1730	2
@@ -179,6 +181,8 @@ web/app/services/jobs.py	F401	1
 web/app/services/jobs.py	I001	1
 web/app/services/jobs.py	SIM115	1
 web/app/services/journal.py	DTZ007	1
+web/app/services/landing_demo.py	BLE001	2
+web/app/services/landing_demo.py	I001	1
 web/app/services/leads.py	F401	1
 web/app/services/leads.py	I001	1
 web/app/services/leads.py	SIM102	1

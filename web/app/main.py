@@ -36,17 +36,18 @@ from app.routers import (
     cabinet_zakon,
     calendar,
     counterparties,
+    demo_api,
     documents,
     form_assist,
     global_search,
     jobs,
     journal,
-    demo_api,
     landing,
+    obraztsy,
     package,
     party_check,
-    obraztsy,
     praktika,
+    signup,
     staff,
     yandex_auth,
     zakon,
@@ -173,7 +174,12 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def host_routing(request: Request, call_next):
         """W-26: публичные пути ↔ dok.moscow, кабинет ↔ app.dok.moscow."""
-        from app.hosting import host_role, path_surface, redirect_url_for_path, request_host
+        from app.hosting import (
+            host_role,
+            path_surface,
+            redirect_url_for_path,
+            request_host,
+        )
 
         path = request.url.path
         surface = path_surface(path)
@@ -237,6 +243,7 @@ def create_app() -> FastAPI:
     app.include_router(obraztsy.router)
     app.include_router(praktika.router)
     app.include_router(auth.router)
+    app.include_router(signup.router)
     app.include_router(yandex_auth.router)
     app.include_router(billing.router)
     app.include_router(global_search.router)

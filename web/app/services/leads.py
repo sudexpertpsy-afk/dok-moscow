@@ -15,8 +15,15 @@ from app.models import (
     Invite,
     Lead,
     LeadStatus,
+    OrgRole,
     Organization,
+    Subscription,
+    SubscriptionPeriod,
+    SubscriptionStatus,
+    Tariff,
+    TariffCode,
     User,
+    UserRole,
     utcnow,
 )
 from app.security import new_invite_token
@@ -29,6 +36,8 @@ STATUS_LABELS: dict[str, str] = {
     LeadStatus.new.value: "новая",
     LeadStatus.invited.value: "приглашение отправлено",
     LeadStatus.registered.value: "зарегистрирован",
+    LeadStatus.signed_up.value: "кабинет создан",
+    LeadStatus.paid.value: "оплачен",
     LeadStatus.rejected.value: "отклонена",
     LeadStatus.spam.value: "спам",
 }
@@ -38,6 +47,8 @@ STATUS_FILTERS: tuple[tuple[str, str], ...] = (
     ("new", "Новые"),
     ("invited", "Приглашение отправлено"),
     ("registered", "Зарегистрирован"),
+    ("signed_up", "Кабинет создан"),
+    ("paid", "Оплачен"),
     ("rejected", "Отклонена"),
     ("spam", "Спам"),
 )
@@ -66,6 +77,10 @@ class LeadError(ValueError):
     """Ошибка обработки заявки."""
 
 
+class SelfServeExistsError(LeadError):
+    """E-mail уже зарегистрирован — кабинет не создаём."""
+
+
 @dataclass
 class LeadView:
     lead: Lead
@@ -81,6 +96,41 @@ class CreateOrgInviteResult:
     invite: Invite
     invite_link: str
     email_sent: bool
+
+
+@dataclass
+class SelfServeSignupResult:
+    lead: Lead
+    org: Organization
+    user: User
+    tariff_code: str
+    period: str
+
+
+PAID_TARIFF_CODES = frozenset({TariffCode.specialist.value, TariffCode.organization.value})
+SIGNUP_PERIODS = frozenset({"month", "year", "years_2"})
+
+
+def normalize_signup_tariff(raw: str | None) -> str:
+    code = (raw or TariffCode.specialist.value).strip().lower()
+    if code not in PAID_TARIFF_CODES:
+        return TariffCode.specialist.value
+    return code
+
+
+def normalize_signup_period(raw: str | None) -> str:
+    """Период для предвыбора на billing. years_2 пока маппится в year (enum без years_2)."""
+    period = (raw or "month").strip().lower()
+    if period == "years_2":
+        return "year"
+    if period not in ("month", "year"):
+        return "month"
+    return period
+
+
+def default_org_name_from_email(email: str) -> str:
+    local = email.strip().lower().split("@", 1)[0] or "org"
+    return f"Кабинет {local}"
 
 
 def default_org_name(lead: Lead) -> str:
@@ -127,6 +177,7 @@ def create_lead(
     profile: str | None,
     comment: str | None,
     inn: str | None = None,
+    commit: bool = True,
 ) -> tuple[Lead, bool]:
     """Создать или поднять заявку. Возвращает (lead, is_new)."""
     email_n = email.strip().lower()
@@ -164,8 +215,11 @@ def create_lead(
             },
             commit=False,
         )
-        db.commit()
-        db.refresh(existing)
+        if commit:
+            db.commit()
+            db.refresh(existing)
+        else:
+            db.flush()
         return existing, False
 
     lead = Lead(
@@ -192,8 +246,9 @@ def create_lead(
         },
         commit=False,
     )
-    db.commit()
-    db.refresh(lead)
+    if commit:
+        db.commit()
+        db.refresh(lead)
     return lead, True
 
 
@@ -249,8 +304,13 @@ def lead_view(db: Session, lead: Lead) -> LeadView:
         org = db.get(Organization, user.org_id)
         org_name = org.name if org else None
     open_inv = find_open_invite(db, email_n)
-    # авто-синхронизация: пользователь уже есть → registered
-    if user is not None and lead.status not in (LeadStatus.spam, LeadStatus.rejected):
+    # авто-синхронизация: пользователь уже есть → registered (кроме self-serve воронки)
+    if user is not None and lead.status not in (
+        LeadStatus.spam,
+        LeadStatus.rejected,
+        LeadStatus.signed_up,
+        LeadStatus.paid,
+    ):
         if lead.status != LeadStatus.registered:
             lead.status = LeadStatus.registered
             if user.org_id and lead.org_id is None:
@@ -769,3 +829,212 @@ def mark_lead_registered_from_invite(db: Session, invite: Invite) -> None:
         },
         commit=False,
     )
+
+
+def notify_admin_self_serve_signup(settings: Settings, lead: Lead, org: Organization) -> bool:
+    """Письмо админу о self-serve регистрации."""
+    to_addr = (settings.admin_notify_email or settings.bootstrap_admin_email or "").strip()
+    if not to_addr:
+        return False
+    link = lead_admin_url(settings, lead.id)
+    subject = f"[Док.Москва] Регистрация: {lead.email}"
+    body = (
+        f"Self-serve регистрация.\n\n"
+        f"E-mail: {lead.email}\n"
+        f"Организация: {org.name} (id={org.id})\n"
+        f"Lead ID: {lead.id}\n"
+        f"Статус: {lead.status.value}\n\n"
+        f"Открыть заявку: {link}\n"
+    )
+    return send_email(settings, to_addr=to_addr, subject=subject, body=body)
+
+
+def self_serve_signup(
+    db: Session,
+    *,
+    email: str,
+    password_hash: str,
+    tariff_code: str | None = None,
+    period: str | None = None,
+    org_name: str | None = None,
+    settings: Settings | None = None,
+    send_mails: bool = True,
+) -> SelfServeSignupResult:
+    """
+    W-47: создать lead → Organization + User (org_admin) → guest-подписка.
+    Без complimentary/beta. Не вызывает create_org_and_invite.
+    Транзакция целиком; при ошибке — откат вызывающим кодом.
+    """
+    from datetime import timedelta
+
+    settings = settings or get_settings()
+    email_n = email.strip().lower()
+    if not _EMAIL_RE.match(email_n):
+        raise LeadError("Некорректный e-mail")
+
+    existing_user = db.scalar(select(User).where(User.email == email_n))
+    if existing_user is not None:
+        raise SelfServeExistsError("Аккаунт с этим e-mail уже есть — войдите")
+
+    code = normalize_signup_tariff(tariff_code)
+    per = normalize_signup_period(period)
+    name = (org_name or "").strip()[:255] or default_org_name_from_email(email_n)
+
+    lead, _is_new = create_lead(
+        db,
+        email=email_n,
+        profile="Self-serve",
+        comment=f"signup tariff={code} period={per}",
+        commit=False,
+    )
+
+    ensure_tariffs(db)
+    guest = db.scalar(select(Tariff).where(Tariff.code == TariffCode.guest))
+    if guest is None:
+        raise LeadError("Тариф guest не найден")
+
+    org = Organization(
+        name=name,
+        requisites=empty_requisites(),
+        source_lead_id=lead.id,
+    )
+    db.add(org)
+    db.flush()
+
+    user = User(
+        org_id=org.id,
+        email=email_n,
+        password_hash=password_hash,
+        role=UserRole.user,
+        org_role=OrgRole.org_admin,
+        is_active=True,
+        email_verified=False,
+        last_login_at=utcnow(),
+    )
+    db.add(user)
+    db.flush()
+
+    db.add(
+        Subscription(
+            org_id=org.id,
+            tariff_id=guest.id,
+            period=SubscriptionPeriod.month,
+            starts_at=utcnow(),
+            ends_at=utcnow() + timedelta(days=365 * 100),
+            status=SubscriptionStatus.active,
+            auto_renew=False,
+            is_beta=False,
+            is_complimentary=False,
+        )
+    )
+
+    lead.status = LeadStatus.signed_up
+    lead.org_id = org.id
+    lead.updated_at = utcnow()
+
+    record_event(
+        db,
+        type="self_serve_signup",
+        org_id=org.id,
+        user_id=user.id,
+        details={
+            "lead_id": lead.id,
+            "email": email_n,
+            "tariff_code": code,
+            "period": per,
+        },
+        commit=False,
+    )
+    db.flush()
+
+    if send_mails:
+        from app.services.email_verify import issue_and_send_verification
+
+        issue_and_send_verification(db, user=user, settings=settings, commit=False)
+        notify_admin_self_serve_signup(settings, lead, org)
+
+    db.commit()
+    db.refresh(user)
+    db.refresh(org)
+    db.refresh(lead)
+    return SelfServeSignupResult(
+        lead=lead, org=org, user=user, tariff_code=code, period=per
+    )
+
+
+def attach_self_serve_lead_for_oauth(
+    db: Session,
+    *,
+    user: User,
+    tariff_code: str | None = None,
+    period: str | None = None,
+    settings: Settings | None = None,
+) -> SelfServeSignupResult:
+    """После Yandex register_guest_user: lead signed_up + письмо админу."""
+    settings = settings or get_settings()
+    code = normalize_signup_tariff(tariff_code)
+    per = normalize_signup_period(period)
+    org = db.get(Organization, user.org_id) if user.org_id else None
+    if org is None:
+        raise LeadError("Организация не найдена")
+
+    lead, _ = create_lead(
+        db,
+        email=user.email,
+        profile="Self-serve (Яндекс ID)",
+        comment=f"oauth signup tariff={code} period={per}",
+        commit=False,
+    )
+    lead.status = LeadStatus.signed_up
+    lead.org_id = org.id
+    lead.updated_at = utcnow()
+    org.source_lead_id = lead.id
+    # Яндекс подтвердил e-mail
+    user.email_verified = True
+    record_event(
+        db,
+        type="self_serve_signup",
+        org_id=org.id,
+        user_id=user.id,
+        details={
+            "lead_id": lead.id,
+            "email": user.email,
+            "tariff_code": code,
+            "period": per,
+            "via": "yandex",
+        },
+        commit=False,
+    )
+    db.flush()
+    notify_admin_self_serve_signup(settings, lead, org)
+    return SelfServeSignupResult(
+        lead=lead, org=org, user=user, tariff_code=code, period=per
+    )
+
+
+def mark_lead_paid_for_org(db: Session, org_id: int) -> Lead | None:
+    """Webhook CONFIRMED → lead.status = paid по org_id."""
+    lead = db.scalar(
+        select(Lead)
+        .where(Lead.org_id == org_id)
+        .order_by(Lead.id.desc())
+        .limit(1)
+    )
+    if lead is None:
+        return None
+    if lead.status in (LeadStatus.spam, LeadStatus.rejected):
+        return lead
+    if lead.status != LeadStatus.paid:
+        prev = lead.status.value
+        lead.status = LeadStatus.paid
+        lead.updated_at = utcnow()
+        record_event(
+            db,
+            type="lead_paid",
+            org_id=org_id,
+            user_id=None,
+            details={"lead_id": lead.id, "email": lead.email, "from_status": prev},
+            commit=False,
+        )
+        db.flush()
+    return lead

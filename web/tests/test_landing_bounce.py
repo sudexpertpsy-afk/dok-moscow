@@ -24,7 +24,9 @@ def test_landing_bounce_markup(app):
     assert "landing.js" in text or "landing." in text
     # прямых target=_blank на samples в карточках быть не должно (модалка)
     assert 'href="/static/samples/dogovor-fl.pdf" target="_blank"' not in text
-    assert "Первые 20 подписчиков беты" in text
+    assert "Заявка без оплаты" in text
+    assert "/signup?tariff=" in text
+    assert "Создать кабинет" in text
 
 
 def test_sample_pdf_still_served(app):

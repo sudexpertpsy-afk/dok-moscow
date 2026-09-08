@@ -54,7 +54,8 @@
               hx-get="/cabinet/billing/promo-preview" hx-trigger="change" hx-target="#promo-preview" hx-include="#pay-form">
               {% for t in tariffs if t.code.value != 'guest' %}
               <option value="{{ t.code.value }}"
-                {% if snap.limits.tariff_code == t.code %}selected{% endif %}>
+                {% if preselect_tariff is defined and preselect_tariff == t.code.value %}selected
+                {% elif snap.limits.tariff_code == t.code %}selected{% endif %}>
                 {{ t.name }} — {{ tariff_price_label(t, 'month') }}
                 или {{ tariff_price_label(t, 'year') }}
               </option>
@@ -63,8 +64,8 @@
             <label for="period">Период</label>
             <select id="period" name="period"
               hx-get="/cabinet/billing/promo-preview" hx-trigger="change" hx-target="#promo-preview" hx-include="#pay-form">
-              <option value="month">Месяц</option>
-              <option value="year">Год (−2 месяца)</option>
+              <option value="month" {% if preselect_period is defined and preselect_period == 'month' %}selected{% endif %}>Месяц</option>
+              <option value="year" {% if preselect_period is defined and preselect_period == 'year' %}selected{% endif %}>Год (−2 месяца)</option>
             </select>
             <label for="promo_code">Промокод</label>
             <input id="promo_code" name="promo_code" value="" autocomplete="off"

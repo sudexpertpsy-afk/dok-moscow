@@ -71,12 +71,14 @@ def app(tmp_path):
     landing_router.lead_limiter.clear()
     from app.routers import counterparties as cp_router
     from app.routers import global_search as gs_router
+    from app.routers import signup as signup_router
     from app.routers import yandex_auth as ya_router
 
     gs_router.search_limiter.clear()
     ya_router.oauth_start_limiter.clear()
     ya_router.oauth_callback_limiter.clear()
     cp_router.dadata_limiter.clear()
+    signup_router.signup_limiter.clear()
     with TestClient(application) as client:
         # гарантируем bootstrap
         db = dbmod.SessionLocal()
@@ -102,12 +104,14 @@ def app(tmp_path):
     landing_router.lead_limiter.clear()
     from app.routers import counterparties as cp_router
     from app.routers import global_search as gs_router
+    from app.routers import signup as signup_router
     from app.routers import yandex_auth as ya_router
 
     gs_router.search_limiter.clear()
     ya_router.oauth_start_limiter.clear()
     ya_router.oauth_callback_limiter.clear()
     cp_router.dadata_limiter.clear()
+    signup_router.signup_limiter.clear()
 
 
 def csrf_from(client: TestClient, path: str = "/login") -> str:

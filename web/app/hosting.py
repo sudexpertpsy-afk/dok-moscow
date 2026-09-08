@@ -12,6 +12,8 @@ _APP_PREFIXES = (
     "/logout",
     "/forgot-password",
     "/reset-password",
+    "/signup",
+    "/verify-email",
     "/invite",
     "/auth/",
     "/cabinet",

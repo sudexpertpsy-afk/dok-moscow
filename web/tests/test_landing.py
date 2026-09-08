@@ -25,8 +25,9 @@ def test_landing_home(app):
     assert 'id="how"' in r.text
     assert 'id="features"' in r.text
     assert 'id="faq"' in r.text
-    assert "Оставить заявку" in r.text
+    assert "Создать кабинет" in r.text
     assert "Попробовать демо" in r.text
+    assert "/signup?tariff=" in r.text
     assert "Запросить ранний доступ" not in r.text
     assert 'name="inn"' in r.text
     assert "Популярный" in r.text
@@ -39,7 +40,8 @@ def test_landing_tariffs_comparison(app):
     assert "Сравнение функций" in r.text
     assert "ЕГРЮЛ-проверка" in r.text
     assert "lp-tariff-card" in r.text
-    assert "Оставить заявку" in r.text
+    assert "Создать кабинет" in r.text
+    assert "/signup?tariff=" in r.text
     assert "Запросить доступ" not in r.text
 
 

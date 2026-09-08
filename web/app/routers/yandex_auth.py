@@ -48,6 +48,8 @@ def _clear_oauth_session(request: Request) -> None:
         "yandex_oauth_verifier",
         "yandex_oauth_intent",
         "yandex_oauth_link_user_id",
+        "yandex_oauth_tariff",
+        "yandex_oauth_period",
     ):
         request.session.pop(key, None)
 
@@ -96,16 +98,30 @@ def yandex_start(
             )
 
     try:
+        from app.services.leads import normalize_signup_period, normalize_signup_tariff
+
+        tariff = normalize_signup_tariff(request.query_params.get("tariff"))
+        period = normalize_signup_period(request.query_params.get("period"))
+        # tariff/period только при старте с /signup; с /login — не навязываем billing
+        from_signup = bool(request.query_params.get("tariff") or request.query_params.get("period"))
         _nonce, verifier = new_pkce_pair()
         state = issue_oauth_state(
             code_verifier=verifier,
             intent=intent if intent == "link" else "login",
             link_user_id=int(link_uid) if intent == "link" and link_uid else None,
+            tariff=tariff if from_signup else None,
+            period=period if from_signup else None,
             settings=settings,
         )
         # Дублируем в сессию (удобно для одного хоста); callback опирается на signed state.
         request.session["yandex_oauth_state"] = state
         request.session["yandex_oauth_verifier"] = verifier
+        if from_signup:
+            request.session["yandex_oauth_tariff"] = tariff
+            request.session["yandex_oauth_period"] = period
+        else:
+            request.session.pop("yandex_oauth_tariff", None)
+            request.session.pop("yandex_oauth_period", None)
         if intent != "link":
             request.session["yandex_oauth_intent"] = "login"
             request.session.pop("yandex_oauth_link_user_id", None)
@@ -245,9 +261,9 @@ def yandex_callback(
             )
             sec_base = _security_return()
             return RedirectResponse(
-                f"{sec_base.rstrip('/')}?oauth_err={str(exc)}"
+                f"{sec_base.rstrip('/')}?oauth_err={exc!s}"
                 if "?" not in sec_base
-                else f"{sec_base}&oauth_err={str(exc)}",
+                else f"{sec_base}&oauth_err={exc!s}",
                 status_code=status.HTTP_303_SEE_OTHER,
             )
         record_event(
@@ -330,6 +346,16 @@ def yandex_callback(
         )
 
     if outcome == "registered":
+        from app.services.leads import attach_self_serve_lead_for_oauth
+
+        tariff = payload.tariff or request.session.get("yandex_oauth_tariff")
+        period = payload.period or request.session.get("yandex_oauth_period")
+        try:
+            attach_self_serve_lead_for_oauth(
+                db, user=db_user, tariff_code=tariff, period=period, settings=settings
+            )
+        except Exception:
+            log.exception("Не удалось привязать lead к OAuth-регистрации")
         record_event(
             db,
             type="oauth_registered",
@@ -358,4 +384,14 @@ def yandex_callback(
             request.session.pop("force_2fa_setup", None)
             return RedirectResponse("/login/2fa", status_code=status.HTTP_303_SEE_OTHER)
 
-    return _finish_login(request, db, db_user, ip=ip, via=via)
+    resp = _finish_login(request, db, db_user, ip=ip, via=via)
+    if outcome == "registered" and (payload.tariff or request.session.get("yandex_oauth_tariff")):
+        from urllib.parse import urlencode
+
+        from app.services.leads import normalize_signup_period, normalize_signup_tariff
+
+        t = normalize_signup_tariff(payload.tariff or request.session.get("yandex_oauth_tariff"))
+        p = normalize_signup_period(payload.period or request.session.get("yandex_oauth_period"))
+        q = urlencode({"tariff": t, "period": p, "welcome": "1"})
+        return RedirectResponse(f"/cabinet/billing/?{q}", status_code=status.HTTP_303_SEE_OTHER)
+    return resp
