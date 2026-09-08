@@ -198,9 +198,8 @@ def billing_pay(
         log.warning("billing_pay: no subscription org=%s", org.id)
         raise HTTPException(status_code=400, detail="Нет подписки организации")
 
-    # смена тарифа: обновляем tariff_id / period сразу при создании платежа
-    sub.tariff_id = tariff.id
-    sub.period = per
+    # Тариф/период на подписке меняем только после webhook CONFIRMED
+    # (иначе guest получает specialist-лимиты уже при Init со статусом created).
 
     email = (receipt_email or _org_email(org) or user.email).strip()
     want_renew = bool(auto_renew)

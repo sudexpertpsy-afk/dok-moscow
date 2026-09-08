@@ -220,6 +220,8 @@ def create_card_payment(
     pay.append_event(
         {
             "event": "init",
+            "tariff_code": tariff.code.value,
+            "period": period.value,
             "email": email,
             "receipt": {
                 "Email": email,
@@ -384,11 +386,28 @@ def _notify_success_email(db: Session, pay: Payment) -> None:
     )
 
 
+def _pending_plan_from_payment(pay: Payment) -> tuple[str | None, str | None]:
+    """tariff_code / period из события Init (до CONFIRMED подписка ещё на старом тарифе)."""
+    for ev in reversed(list(pay.raw_events or [])):
+        if not isinstance(ev, dict):
+            continue
+        if ev.get("event") not in ("init", "pending_plan"):
+            continue
+        code = ev.get("tariff_code")
+        period = ev.get("period")
+        if code and period:
+            return str(code), str(period)
+    return None, None
+
+
 def _activate_subscription_for_payment(
     db: Session,
     pay: Payment,
     payload: dict[str, Any],
 ) -> None:
+    from app.models import TariffCode
+    from app.services.billing import get_tariff
+
     sub = None
     if pay.subscription_id:
         sub = db.scalar(
@@ -400,12 +419,36 @@ def _activate_subscription_for_payment(
         return
 
     now = utcnow()
+    was_guest = bool(sub.tariff and sub.tariff.code == TariffCode.guest)
+
+    pending_code, pending_period = _pending_plan_from_payment(pay)
+    if pending_code and pending_period:
+        try:
+            code = TariffCode(pending_code)
+            per = SubscriptionPeriod(pending_period)
+        except ValueError:
+            code, per = None, None
+        if code is not None and per is not None and code != TariffCode.guest:
+            tariff = get_tariff(db, code)
+            if tariff is not None:
+                sub.tariff_id = tariff.id
+                sub.period = per
+                # перезагрузить связь для дальнейшей логики
+                db.flush()
+                sub = db.scalar(
+                    select(Subscription)
+                    .options(joinedload(Subscription.tariff))
+                    .where(Subscription.id == sub.id)
+                )
+                assert sub is not None
+
     base = sub.ends_at
     if base.tzinfo is None:
         from datetime import timezone
 
         base = base.replace(tzinfo=timezone.utc)
-    if not sub.is_current(now) or base < now:
+    # Guest держит «вечный» ends_at (~100 лет) — оплаченный срок считаем от now
+    if was_guest or not sub.is_current(now) or base < now or (base - now).days > 400:
         base = now
     sub.ends_at = base + period_delta(sub.period)
     if sub.status != SubscriptionStatus.active:
@@ -435,6 +478,8 @@ def _activate_subscription_for_payment(
             "amount_kop": pay.amount_kop,
             "subscription_id": sub.id,
             "ends_at": sub.ends_at.isoformat(),
+            "tariff_code": sub.tariff.code.value if sub.tariff else None,
+            "period": sub.period.value,
         },
         commit=False,
     )
