@@ -140,11 +140,13 @@ def build_content_security_policy(
         f"connect-src {' '.join(connect)}",
     ]
     parts.append(f"frame-src {' '.join(frame)}")
+    # form-action: после POST /cabinet/billing/pay браузер следует 303 на PaymentURL Т-Кассы;
+    # без доменов банка CSP блокирует переход — платёж в БД уже created, а UI «ничего не делает».
     parts.extend(
         [
             "frame-ancestors 'none'",
             "base-uri 'self'",
-            "form-action 'self'",
+            "form-action 'self' https://pay.tbank.ru https://securepay.tinkoff.ru",
         ]
     )
     return "; ".join(parts)
