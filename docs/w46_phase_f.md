@@ -34,6 +34,28 @@ web/.venv/bin/python scripts/generate_draft_manifests.py
 
 ## Переименование репо
 
-Запланировано: `desktop-tutorial` → `dok-moscow` на GitHub.  
-**Не выполнено автоматически** — нужно явное подтверждение владельца
-(`gh repo rename` + обновить remote в клонах и на VDS).
+Цель: `desktop-tutorial` → `dok-moscow` на GitHub (редирект старых URL).
+
+**Статус 2026-09-08:** из агента не выполнено — активный `gh` = `sudexpertpsy-afk`,
+репо у `dra-v-losev-afk`. Нужен вход владельца.
+
+Под владельцем `dra-v-losev-afk`:
+
+```bash
+# вариант A — CLI
+gh auth login   # аккаунт dra-v-losev-afk
+cd /path/to/repo
+gh repo rename dok-moscow --yes
+
+# вариант B — UI
+# https://github.com/dra-v-losev-afk/desktop-tutorial/settings
+# → Repository name → dok-moscow → Rename
+```
+
+После rename — обновить remote в клонах и на VDS:
+
+```bash
+git remote set-url origin git@github.com:dra-v-losev-afk/dok-moscow.git
+# на VDS:
+# git -C /srv/dok remote set-url origin git@github.com:dra-v-losev-afk/dok-moscow.git
+```
