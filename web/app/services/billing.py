@@ -22,6 +22,19 @@ from app.models import (
 )
 
 # Цены в копейках — единственный источник для сида; рантайм читает из БД.
+# Канонические цены (коп.): месяц → год −10%, 2 года −20% от месячной базы.
+YEAR_PREPAY_DISCOUNT_PCT = 10
+YEARS2_PREPAY_DISCOUNT_PCT = 20
+
+
+def year_amount_from_month_kop(month_kop: int) -> int:
+    return int(month_kop) * 12 * (100 - YEAR_PREPAY_DISCOUNT_PCT) // 100
+
+
+def years2_amount_from_month_kop(month_kop: int) -> int:
+    return int(month_kop) * 24 * (100 - YEARS2_PREPAY_DISCOUNT_PCT) // 100
+
+
 DEFAULT_TARIFFS: tuple[dict, ...] = (
     {
         "code": TariffCode.guest,
@@ -37,8 +50,8 @@ DEFAULT_TARIFFS: tuple[dict, ...] = (
     {
         "code": TariffCode.specialist,
         "name": "Специалист",
-        "price_month_kop": 99_000,
-        "price_year_kop": 990_000,
+        "price_month_kop": 25_000,
+        "price_year_kop": year_amount_from_month_kop(25_000),
         "limit_documents_month": None,
         "limit_users": 1,
         "watermark": False,
@@ -48,8 +61,8 @@ DEFAULT_TARIFFS: tuple[dict, ...] = (
     {
         "code": TariffCode.organization,
         "name": "Организация",
-        "price_month_kop": 249_000,
-        "price_year_kop": 2_490_000,
+        "price_month_kop": 110_000,
+        "price_year_kop": year_amount_from_month_kop(110_000),
         "limit_documents_month": None,
         "limit_users": 5,
         "watermark": False,

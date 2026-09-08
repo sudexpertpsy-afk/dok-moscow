@@ -1,6 +1,6 @@
 {% extends "landing/base.html" %}
 {% block title %}Тарифы — {{ app_name }}{% endblock %}
-{% block meta_description %}Тарифы Док.Москва: Гость, Специалист и Организация. Оплата месяц или год. Сравнение функций кабинета.{% endblock %}
+{% block meta_description %}Тарифы Док.Москва: Гость, Специалист и Организация. Месяц, год (−10%) или 2 года (−20%).{% endblock %}
 {% block canonical %}{{ public_base_url }}/tariffs{% endblock %}
 {% block og_title %}Тарифы — {{ app_name }}{% endblock %}
 {% block og_url %}{{ public_base_url }}/tariffs{% endblock %}
@@ -10,11 +10,12 @@
 <article class="lp-legal lp-tariffs-page">
   <div class="lp-wrap">
     <h1>Тарифы</h1>
-    <p class="lp-section-lead">{% if content_slots.tariffs_note %}{{ content_slots.tariffs_note }}{% else %}Цены для кабинета после закрытой беты. Оплата картой в кабинете; чек 54‑ФЗ на e-mail плательщика. Условия — в <a href="/offer">оферте</a>.{% endif %}</p>
+    <p class="lp-section-lead">{% if content_slots.tariffs_note %}{{ content_slots.tariffs_note }}{% else %}Цены кабинета. Оплата картой; при годе −10%, при 2 годах −20%. Чек 54‑ФЗ на e-mail. Условия — в <a href="/offer">оферте</a>.{% endif %}</p>
 
     <div class="lp-period" role="group" aria-label="Период оплаты">
       <button type="button" class="lp-period-btn is-active" data-period="month">Месяц</button>
-      <button type="button" class="lp-period-btn" data-period="year">Год <span class="lp-period-hint">−2 месяца</span></button>
+      <button type="button" class="lp-period-btn" data-period="year">Год <span class="lp-period-hint">−10%</span></button>
+      <button type="button" class="lp-period-btn" data-period="years_2">2 года <span class="lp-period-hint">−20%</span></button>
     </div>
 
     <div class="lp-tariffs">
@@ -24,11 +25,12 @@
           <h3>{{ t.name }}</h3>
           <p class="lp-price"
              data-month="{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'month') }}{% endif %}"
-             data-year="{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'year') }}{% endif %}">
+             data-year="{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'year') }}{% endif %}"
+             data-years_2="{% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'years_2') }}{% endif %}">
             {% if t.code.value == 'guest' %}{{ format_price_rub(t.price_month_kop) }}{% else %}{{ tariff_price_label(t, 'month') }}{% endif %}
           </p>
           {% if t.code.value != 'guest' %}
-            <p class="lp-price-alt">или {{ tariff_price_label(t, 'year') }}</p>
+            <p class="lp-price-alt">год {{ tariff_price_label(t, 'year') }} · 2 года {{ tariff_price_label(t, 'years_2') }}</p>
           {% endif %}
           <ul class="lp-check">
             {% for feature in tariff_features(t) %}

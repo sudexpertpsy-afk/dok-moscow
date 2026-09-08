@@ -62,9 +62,18 @@ _TBANK_TO_STATUS = {
 
 
 def period_delta(period: SubscriptionPeriod) -> timedelta:
+    if period == SubscriptionPeriod.years_2:
+        return timedelta(days=730)
     if period == SubscriptionPeriod.year:
         return timedelta(days=365)
     return timedelta(days=30)
+
+
+_PERIOD_LABELS = {
+    SubscriptionPeriod.month: "месяц",
+    SubscriptionPeriod.year: "год",
+    SubscriptionPeriod.years_2: "2 года",
+}
 
 
 def load_tbank_client(db: Session) -> TBankClient:
@@ -111,7 +120,10 @@ def create_card_payment(
     auto_renew: bool = False,
     promo_code: str | None = None,
 ) -> tuple[Payment, str]:
-    purpose = f"Подписка Док.Москва, тариф {tariff.name}, период {'год' if period == SubscriptionPeriod.year else 'месяц'}"
+    purpose = (
+        f"Подписка Док.Москва, тариф {tariff.name}, "
+        f"период {_PERIOD_LABELS.get(period, period.value)}"
+    )
     promo = validate_promo_code(
         db,
         code=promo_code,

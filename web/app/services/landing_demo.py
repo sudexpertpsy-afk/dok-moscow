@@ -12,14 +12,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import Document, Lead, LeadStatus
+from app.models import Document
 from app.services.dadata import PartyCard, _cache, _headers, _request, parse_party_suggestion
 
 log = logging.getLogger("dok.landing_demo")
 
 _DATA = Path(__file__).resolve().parents[1] / "data"
-BETA_SLOTS_TOTAL = 20
-BETA_SHOW_REMAINING_AFTER = 5
 
 
 @lru_cache
@@ -82,33 +80,14 @@ def party_to_demo_json(card: PartyCard) -> dict[str, Any]:
 
 
 def beta_promo_copy(db: Session | None) -> dict[str, Any]:
-    """Текст скидки: остаток только если израсходовано ≥ 5 слотов."""
-    used = 0
-    if db is not None:
-        try:
-            used = int(
-                db.scalar(
-                    select(func.count())
-                    .select_from(Lead)
-                    .where(Lead.status.in_((LeadStatus.invited, LeadStatus.registered)))
-                )
-                or 0
-            )
-        except Exception:
-            used = 0
-    total = BETA_SLOTS_TOTAL
-    remaining = max(0, total - used)
-    show_remaining = used >= BETA_SHOW_REMAINING_AFTER and remaining > 0
-    if show_remaining:
-        title = f"Осталось {remaining} из {total} мест беты — 50% навсегда"
-    else:
-        title = "Первые 20 подписчиков беты — 50% навсегда"
+    """Заголовок финальной формы заявки (без бета-акции 50%)."""
+    _ = db  # совместимость вызова
     return {
-        "title": title,
-        "used": used,
-        "remaining": remaining,
-        "total": total,
-        "show_remaining": show_remaining,
+        "title": "Оставить заявку",
+        "used": 0,
+        "remaining": 0,
+        "total": 0,
+        "show_remaining": False,
     }
 
 

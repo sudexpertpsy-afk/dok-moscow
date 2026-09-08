@@ -51,13 +51,14 @@ def test_tariffs_seeded_from_db_not_hardcoded_runtime(app):
         assert guest.watermark is True
         assert guest.price_month_kop == 0
         spec = tariffs[TariffCode.specialist]
-        assert spec.price_month_kop == 99_000
-        assert spec.price_year_kop == 990_000
+        assert spec.price_month_kop == 25_000
+        assert spec.price_year_kop == 270_000
         assert spec.limit_users == 1
         assert spec.watermark is False
         org_t = tariffs[TariffCode.organization]
         assert org_t.limit_users == 5
-        assert org_t.price_month_kop == 249_000
+        assert org_t.price_month_kop == 110_000
+        assert org_t.price_year_kop == 1_188_000
         # лимиты читаются из строк БД
         guest.limit_documents_month = 7
         db.commit()
@@ -209,5 +210,7 @@ def test_expired_subscription_falls_back_limits(app):
 
 def test_default_tariffs_prices_in_kopecks():
     by_code = {r["code"]: r for r in DEFAULT_TARIFFS}
-    assert by_code[TariffCode.specialist]["price_month_kop"] == 990 * 100
-    assert by_code[TariffCode.organization]["price_year_kop"] == 24_900 * 100
+    assert by_code[TariffCode.specialist]["price_month_kop"] == 250 * 100
+    assert by_code[TariffCode.specialist]["price_year_kop"] == 2700 * 100
+    assert by_code[TariffCode.organization]["price_month_kop"] == 1100 * 100
+    assert by_code[TariffCode.organization]["price_year_kop"] == 11_880 * 100

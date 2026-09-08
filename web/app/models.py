@@ -82,6 +82,7 @@ class TariffCode(str, enum.Enum):
 class SubscriptionPeriod(str, enum.Enum):
     month = "month"
     year = "year"
+    years_2 = "years_2"
 
 
 class SubscriptionStatus(str, enum.Enum):
