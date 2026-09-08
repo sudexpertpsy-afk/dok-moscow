@@ -113,6 +113,12 @@ def staff_invite(
         )
     actor = db.get(User, user.id)
     assert actor is not None
+    if not getattr(actor, "email_verified", True):
+        return RedirectResponse(
+            "/cabinet/staff/?error="
+            + quote("Подтвердите e-mail, чтобы приглашать сотрудников."),
+            status_code=303,
+        )
     try:
         create_org_invite(
             db,

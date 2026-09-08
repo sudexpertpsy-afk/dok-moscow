@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Регистрация — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="shell" id="main" tabindex="-1">
+  <div class="card">
+    <h1 class="brand">{{ app_name }}</h1>
+    <p class="lead">Создайте кабинет и перейдите к оплате</p>
+    {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+    {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+    {% if flash_error and 'уже есть' in flash_error %}
+    <p><a class="btn" href="/login?next={{ ('/cabinet/billing/?tariff=' ~ form_tariff ~ '&period=' ~ form_period)|urlencode }}">Войти</a></p>
+    {% endif %}
+
+    {% if yandex_login_available %}
+    <a class="btn-yandex" href="{{ yandex_start_url }}" hx-boost="false">
+      <span class="btn-yandex-mark" aria-hidden="true">Я</span>
+      <span>Войти через Яндекс ID</span>
+    </a>
+    <p class="muted" style="text-align:center;margin:1rem 0 0.2rem">или e-mail и пароль</p>
+    {% endif %}
+
+    <form method="post" action="/signup" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <p class="lp-hp" aria-hidden="true" style="position:absolute;left:-9999px;height:0;overflow:hidden">
+        <label>Сайт <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+      </p>
+
+      <label for="email">E-mail</label>
+      <input id="email" name="email" type="email" required maxlength="320"
+        autocomplete="username" value="{{ form_email }}">
+
+      <label for="password">Пароль</label>
+      <input id="password" name="password" type="password" required autocomplete="new-password">
+      <p class="muted">{{ password_hint }}</p>
+
+      <label for="tariff">Тариф</label>
+      <select id="tariff" name="tariff" required>
+        <option value="specialist" {% if form_tariff == 'specialist' %}selected{% endif %}>Специалист</option>
+        <option value="organization" {% if form_tariff == 'organization' %}selected{% endif %}>Организация</option>
+      </select>
+
+      <label for="period">Период</label>
+      <select id="period" name="period" required>
+        <option value="month" {% if form_period == 'month' %}selected{% endif %}>Месяц</option>
+        <option value="year" {% if form_period == 'year' %}selected{% endif %}>Год (−10%)</option>
+        <option value="years_2" {% if form_period == 'years_2' %}selected{% endif %}>2 года (−20%)</option>
+      </select>
+
+      <label for="org_name">Название организации <span class="muted">(необязательно)</span></label>
+      <input id="org_name" name="org_name" type="text" maxlength="255"
+        value="{{ form_org_name }}" placeholder="По умолчанию — из e-mail"
+        autocomplete="organization">
+
+      <label style="display:flex;align-items:flex-start;gap:0.5rem;margin-top:0.9rem">
+        <input type="checkbox" name="accept_terms" value="1" required style="width:auto;margin-top:0.25rem">
+        <span>Принимаю <a href="{{ public_base_url }}/offer" target="_blank" rel="noopener">оферту</a>
+          и <a href="{{ public_base_url }}/privacy" target="_blank" rel="noopener">политику ПДн</a></span>
+      </label>
+
+      <div class="actions" style="margin-top:1rem">
+        <button type="submit">Создать кабинет</button>
+        <a class="btn secondary" href="/login">Уже есть аккаунт</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

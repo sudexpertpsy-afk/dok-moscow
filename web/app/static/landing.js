@@ -115,9 +115,25 @@
         prices.forEach(function (p) {
           p.textContent = p.getAttribute("data-" + period) || p.textContent;
         });
+        root.querySelectorAll("[data-signup-cta]").forEach(function (a) {
+          var tariff = a.getAttribute("data-tariff");
+          if (!tariff) return;
+          var base = a.getAttribute("href").split("?")[0];
+          a.setAttribute("href", base + "?tariff=" + encodeURIComponent(tariff) + "&period=" + encodeURIComponent(period));
+        });
       });
     });
   })();
+
+  /* track signup CTA clicks */
+  document.querySelectorAll("[data-signup-cta]").forEach(function (a) {
+    a.addEventListener("click", function () {
+      track("signup_cta_click", {
+        tariff: a.getAttribute("data-tariff") || "",
+        href: a.getAttribute("href") || "",
+      });
+    });
+  });
 
   /* ---------- sample modal ---------- */
   var modal = document.getElementById("lp-sample-modal");

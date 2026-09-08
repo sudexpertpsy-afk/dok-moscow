@@ -119,6 +119,34 @@ def admin_home(
     open_invites = (
         db.scalar(select(func.count()).select_from(Invite).where(Invite.used_at.is_(None))) or 0
     )
+    # W-47: воронка за 30 дней
+    from datetime import timedelta
+
+    from app.models import LeadStatus, utcnow
+
+    since = utcnow() - timedelta(days=30)
+    funnel_leads = (
+        db.scalar(select(func.count()).select_from(Lead).where(Lead.ts >= since)) or 0
+    )
+    funnel_signed = (
+        db.scalar(
+            select(func.count())
+            .select_from(Lead)
+            .where(
+                Lead.ts >= since,
+                Lead.status.in_([LeadStatus.signed_up, LeadStatus.paid, LeadStatus.registered]),
+            )
+        )
+        or 0
+    )
+    funnel_paid = (
+        db.scalar(
+            select(func.count())
+            .select_from(Lead)
+            .where(Lead.ts >= since, Lead.status == LeadStatus.paid)
+        )
+        or 0
+    )
     recent_leads = db.scalars(select(Lead).order_by(Lead.id.desc()).limit(8)).all()
     recent_orgs = db.scalars(select(Organization).order_by(Organization.id.desc()).limit(8)).all()
     stats = _org_stats(db)
@@ -139,6 +167,9 @@ def admin_home(
                 "leads": leads_n,
                 "open_invites": open_invites,
                 "branding_orgs": branding_orgs,
+                "funnel_leads": funnel_leads,
+                "funnel_signed": funnel_signed,
+                "funnel_paid": funnel_paid,
             },
             recent_leads=recent_leads,
             recent_orgs=recent_orgs,

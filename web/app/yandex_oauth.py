@@ -61,6 +61,8 @@ class OAuthStatePayload:
     verifier: str
     intent: str = "login"
     link_user_id: int | None = None
+    tariff: str | None = None
+    period: str | None = None
 
 
 def yandex_credentials_configured(settings: Settings | None = None) -> bool:
@@ -102,6 +104,8 @@ def issue_oauth_state(
     code_verifier: str,
     intent: str = "login",
     link_user_id: int | None = None,
+    tariff: str | None = None,
+    period: str | None = None,
     settings: Settings | None = None,
 ) -> str:
     """Подписанный state: PKCE verifier + intent (не зависит от cookie хоста)."""
@@ -109,6 +113,8 @@ def issue_oauth_state(
         "v": code_verifier,
         "i": intent,
         "u": link_user_id,
+        "t": tariff,
+        "p": period,
         "n": generate_token(8),
     }
     return _state_serializer(settings).dumps(payload)
@@ -125,10 +131,14 @@ def load_oauth_state(state: str, settings: Settings | None = None) -> OAuthState
     if not verifier:
         return None
     uid = data.get("u")
+    tariff = data.get("t")
+    period = data.get("p")
     return OAuthStatePayload(
         verifier=verifier,
         intent=str(data.get("i") or "login"),
         link_user_id=int(uid) if uid is not None else None,
+        tariff=str(tariff) if tariff else None,
+        period=str(period) if period else None,
     )
 
 
@@ -289,6 +299,7 @@ def register_guest_user(db: Session, profile: YandexProfile) -> User:
         role=UserRole.user,
         org_role=OrgRole.org_admin,
         is_active=True,
+        email_verified=True,
         last_login_at=utcnow(),
     )
     db.add(user)

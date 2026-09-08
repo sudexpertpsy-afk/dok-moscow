@@ -10,8 +10,9 @@
     <h1 class="lp-headline">{% if content_slots.hero_headline %}{{ content_slots.hero_headline }}{% else %}Комплект документов экспертизы — за 5 минут вместо часа{% endif %}</h1>
     <p class="lp-sub">{% if content_slots.hero_sub %}{{ content_slots.hero_sub }}{% else %}Договор, счёт, акт и кассовый ордер по шаблонам, выверенным практикующей судебно-экспертной организацией. Реквизиты заказчика — из ЕГРЮЛ по одному ИНН. Сроки договоров — под контролем.{% endif %}</p>
     <div class="lp-cta">
-      <a class="lp-btn" href="#lp-demo">Попробовать демо</a>
-      <a class="lp-btn lp-btn-ghost" href="#apply">Оставить заявку</a>
+      <a class="lp-btn" href="{{ app_base_url }}/signup?tariff=specialist&period=month"
+         data-signup-cta data-tariff="specialist">Создать кабинет</a>
+      <a class="lp-btn lp-btn-ghost" href="#lp-demo">Попробовать демо</a>
     </div>
     <p class="lp-trust">Сделано экспертами ООО «УСЭ» (лицензия ЛО-77-01-017900) · Данные хранятся в России · 152-ФЗ</p>
   </div>
@@ -323,7 +324,11 @@
               <li>{{ feature }}</li>
             {% endfor %}
           </ul>
-          <a class="lp-btn{% if t.code.value != 'specialist' %} lp-btn-outline{% endif %}" href="#apply">Оставить заявку</a>
+          <a class="lp-btn{% if t.code.value != 'specialist' %} lp-btn-outline{% endif %}"
+             href="{% if t.code.value == 'guest' %}#apply{% else %}{{ app_base_url }}/signup?tariff={{ t.code.value }}&period=month{% endif %}"
+             {% if t.code.value != 'guest' %}data-signup-cta data-tariff="{{ t.code.value }}"{% endif %}>
+            {% if t.code.value == 'guest' %}Оставить заявку{% else %}Создать кабинет{% endif %}
+          </a>
         </article>
       {% endfor %}
     </div>
@@ -384,9 +389,12 @@
 
 <section class="lp-section lp-final" id="apply" aria-labelledby="apply-title">
   <div class="lp-wrap lp-apply">
-    <h2 id="apply-title">{{ beta_promo.title }}</h2>
-    <p class="lp-section-lead">Оставьте e-mail и профиль — ответим и откроем доступ.</p>
-
+    <h2 id="apply-title">Заявка без оплаты / вопрос</h2>
+    <p class="lp-section-lead">
+      Нужен доступ без оплаты или есть вопрос — напишите. Откроем кабинет вручную.
+      Чтобы сразу оплатить тариф —
+      <a href="{{ app_base_url }}/signup?tariff=specialist&period=month">создайте кабинет</a>.
+    </p>
     {% if flash_error %}<div class="lp-alert lp-alert-error" role="alert">{{ flash_error }}</div>{% endif %}
     {% if flash_ok %}<div class="lp-alert lp-alert-ok" role="status">{{ flash_ok }}</div>{% endif %}
 

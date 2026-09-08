@@ -227,6 +227,10 @@ class User(Base):
         default=None,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # W-47: подтверждение e-mail (self-serve); существующие пользователи — true
+    email_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -513,11 +517,13 @@ class Event(Base):
 
 
 class LeadStatus(str, enum.Enum):
-    """Статусы заявки с лендинга (W-39)."""
+    """Статусы заявки с лендинга (W-39 / W-47)."""
 
     new = "new"
     invited = "invited"
     registered = "registered"
+    signed_up = "signed_up"  # self-serve: кабинет создан, оплаты ещё нет
+    paid = "paid"  # self-serve: оплата подтверждена
     rejected = "rejected"
     spam = "spam"
 
@@ -572,6 +578,35 @@ class PasswordResetToken(Base):
     """Одноразовые токены восстановления пароля (W-09)."""
 
     __tablename__ = "password_reset_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    user: Mapped[User] = relationship()
+
+    def is_expired(self) -> bool:
+        exp = self.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        return utcnow() >= exp
+
+    @property
+    def is_used(self) -> bool:
+        return self.used_at is not None
+
+
+class EmailVerificationToken(Base):
+    """Одноразовые токены подтверждения e-mail (W-47)."""
+
+    __tablename__ = "email_verification_tokens"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(

@@ -37,7 +37,11 @@
               <li>{{ feature }}</li>
             {% endfor %}
           </ul>
-          <a class="lp-btn{% if t.code.value != 'specialist' %} lp-btn-outline{% endif %}" href="/#apply">Оставить заявку</a>
+          <a class="lp-btn{% if t.code.value != 'specialist' %} lp-btn-outline{% endif %}"
+             href="{% if t.code.value == 'guest' %}/#apply{% else %}{{ app_base_url }}/signup?tariff={{ t.code.value }}&period=month{% endif %}"
+             {% if t.code.value != 'guest' %}data-signup-cta data-tariff="{{ t.code.value }}"{% endif %}>
+            {% if t.code.value == 'guest' %}Оставить заявку{% else %}Создать кабинет{% endif %}
+          </a>
         </article>
       {% endfor %}
     </div>
@@ -134,8 +138,8 @@
     {% endif %}
 
     <p class="lp-cta">
-      <a class="lp-btn" href="/#apply" data-ym-goal="cta_apply">Оставить заявку</a>
-      <a class="lp-btn lp-btn-ghost-ink" href="{{ app_base_url }}/cabinet/billing/">Тариф в кабинете</a>
+      <a class="lp-btn" href="{{ app_base_url }}/signup?tariff=specialist&period=month" data-signup-cta data-tariff="specialist">Создать кабинет</a>
+      <a class="lp-btn lp-btn-ghost-ink" href="/#apply">Заявка без оплаты</a>
     </p>
   </div>
 </article>
@@ -151,6 +155,12 @@
       buttons.forEach(function (b) { b.classList.toggle("is-active", b === btn); });
       prices.forEach(function (el) {
         el.textContent = el.getAttribute("data-" + period) || el.textContent;
+      });
+      root.querySelectorAll("[data-signup-cta]").forEach(function (a) {
+        var tariff = a.getAttribute("data-tariff");
+        if (!tariff) return;
+        var base = a.getAttribute("href").split("?")[0];
+        a.setAttribute("href", base + "?tariff=" + encodeURIComponent(tariff) + "&period=" + encodeURIComponent(period));
       });
     });
   });
