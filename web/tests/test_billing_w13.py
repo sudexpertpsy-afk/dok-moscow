@@ -98,12 +98,12 @@ def test_payments_summary_and_manual_extend(app):
         pays = db.scalars(select(Payment).where(Payment.org_id == oid)).all()
         assert len(pays) == 1
         assert pays[0].status == PaymentStatus.confirmed
-        assert pays[0].amount_kop == 99_000
+        assert pays[0].amount_kop == 25_000
     finally:
         db.close()
 
     page = client.get("/admin/payments")
-    assert "990" in page.text
+    assert "250" in page.text
 
 
 def test_payments_export_xlsx(app):

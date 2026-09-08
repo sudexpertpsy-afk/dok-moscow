@@ -320,7 +320,7 @@ def _payments_summary(db: Session) -> dict:
             Subscription.is_beta.is_(False),
         )
     ) or 0
-    # MRR: платные активные (не бета и не подарочные)
+    # MRR: платные активные (не бета и не подарочные); выручка — только confirmed
     mrr = 0
     for sub in db.scalars(
         select(Subscription)
@@ -339,6 +339,37 @@ def _payments_summary(db: Session) -> dict:
             mrr += tariff_amount_kop(t, SubscriptionPeriod.year) // 12
         else:
             mrr += t.price_month_kop
+
+    # W-48 KPI воронки: доля брошенных Init (expired) среди expired+confirmed за месяц
+    month_confirmed = int(
+        db.scalar(
+            select(func.count())
+            .select_from(Payment)
+            .where(
+                Payment.status == PaymentStatus.confirmed,
+                Payment.source == PaymentSource.card,
+                Payment.created_at >= start,
+                Payment.created_at < end,
+            )
+        )
+        or 0
+    )
+    month_abandoned = int(
+        db.scalar(
+            select(func.count())
+            .select_from(Payment)
+            .where(
+                Payment.status == PaymentStatus.expired,
+                Payment.source == PaymentSource.card,
+                Payment.created_at >= start,
+                Payment.created_at < end,
+            )
+        )
+        or 0
+    )
+    funnel_denom = month_confirmed + month_abandoned
+    abandon_rate = (month_abandoned / funnel_denom) if funnel_denom else 0.0
+
     return {
         "month_sum_kop": cur["sum_kop"],
         "month_count": cur["count"],
@@ -348,6 +379,9 @@ def _payments_summary(db: Session) -> dict:
         "gift_subs": int(gift_subs),
         "new_subs": int(new_subs),
         "mrr_kop": mrr,
+        "month_confirmed_card": month_confirmed,
+        "month_abandoned_init": month_abandoned,
+        "abandon_init_rate": abandon_rate,
     }
 
 

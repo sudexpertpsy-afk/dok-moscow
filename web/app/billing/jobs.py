@@ -14,6 +14,7 @@ from app import db as dbmod
 from app.billing.payments import (
     apply_payment_notification,
     create_card_payment,
+    expire_abandoned_payments,
     flag_incomplete_receipts,
     load_tbank_client,
     org_billing_email,
@@ -41,6 +42,15 @@ EXPIRY_NOTICE_DAYS = (7, 1)
 
 def reconcile_stale_payments(db: Session, *, older_than_min: int = 15) -> int:
     """Сверить платежи в промежуточных статусах и confirmed без чека (W-45/G-03)."""
+    try:
+        n_exp = expire_abandoned_payments(db)
+        if n_exp:
+            log.info("Expired abandoned payments: %s", n_exp)
+            db.commit()
+    except Exception:
+        log.exception("expire_abandoned_payments failed")
+        db.rollback()
+
     cutoff = utcnow() - timedelta(minutes=older_than_min)
     rows = list(
         db.scalars(

@@ -168,7 +168,7 @@ def test_promo_discount_math_and_limits(app):
         assert pay.discount_kop == result.discount_kop
         assert fake.init.call_args.kwargs["amount_kop"] == result.final_amount_kop
         db.refresh(promo)
-        assert promo.used_count == 1
+        assert promo.used_count == 0  # W-48: reserve, не commit
 
         again = validate_promo_code(
             db,
@@ -179,6 +179,25 @@ def test_promo_discount_math_and_limits(app):
         )
         assert again.ok is False
         assert "Лимит" in again.message
+
+        from app.billing.payments import apply_payment_notification
+
+        apply_payment_notification(
+            db,
+            {
+                "TerminalKey": "TestTerminalKey",
+                "OrderId": str(pay.id),
+                "Success": True,
+                "Status": "CONFIRMED",
+                "PaymentId": "w36-2",
+                "Amount": pay.amount_kop,
+                "ErrorCode": "0",
+            },
+            skip_token=True,
+        )
+        db.commit()
+        db.refresh(promo)
+        assert promo.used_count == 1
     finally:
         db.close()
 

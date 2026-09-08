@@ -40,9 +40,17 @@ from app.models import (
 from app.services.audit import record_event
 from app.services.billing import transition_subscription
 from app.services.billing_mail import notify_payment_success
-from app.services.cms import apply_promo_to_payment, validate_promo_code
+from app.services.cms import (
+    apply_promo_to_payment,
+    commit_promo_for_payment,
+    validate_promo_code,
+)
 
 log = logging.getLogger("dok.billing")
+
+# W-48: окно повторного использования того же Init / TTL брони промо
+OPEN_ORDER_REUSE = timedelta(minutes=15)
+ABANDON_EXPIRE_AFTER = timedelta(hours=24)
 
 _TBANK_TO_STATUS = {
     "NEW": PaymentStatus.created,
@@ -108,6 +116,57 @@ def get_terminal_password(db: Session) -> str:
         ) from exc
 
 
+def _payment_url_from_events(pay: Payment) -> str:
+    for ev in reversed(list(pay.raw_events or [])):
+        if not isinstance(ev, dict) or ev.get("event") != "init":
+            continue
+        resp = ev.get("response") or {}
+        url = resp.get("PaymentURL")
+        if url:
+            return str(url)
+    return ""
+
+
+def mark_payment_expired(pay: Payment, *, reason: str) -> None:
+    """Release брони промо: статус expired, used_count не меняется."""
+    if pay.status in (PaymentStatus.confirmed, PaymentStatus.refunded, PaymentStatus.partial_refund):
+        return
+    pay.status = PaymentStatus.expired
+    pay.append_event({"event": "expired", "reason": reason, "at": utcnow().isoformat()})
+
+
+def _aware(dt):
+    from datetime import timezone
+
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def find_open_payment_for_plan(
+    db: Session,
+    *,
+    org_id: int,
+    tariff_code: str,
+    period: str,
+) -> Payment | None:
+    """Последний pending Init по (org, tariff, period)."""
+    rows = db.scalars(
+        select(Payment)
+        .where(
+            Payment.org_id == org_id,
+            Payment.source == PaymentSource.card,
+            Payment.status.in_([PaymentStatus.created, PaymentStatus.authorized]),
+        )
+        .order_by(Payment.created_at.desc())
+    ).all()
+    for pay in rows:
+        code, per = _pending_plan_from_payment(pay)
+        if code == tariff_code and per == period:
+            return pay
+    return None
+
+
 def create_card_payment(
     db: Session,
     *,
@@ -124,6 +183,29 @@ def create_card_payment(
         f"Подписка Док.Москва, тариф {tariff.name}, "
         f"период {_PERIOD_LABELS.get(period, period.value)}"
     )
+    tariff_code = tariff.code.value
+    period_value = period.value
+    now = utcnow()
+
+    # W-48: один открытый заказ на (org, tariff, period)
+    existing = find_open_payment_for_plan(
+        db, org_id=org_id, tariff_code=tariff_code, period=period_value
+    )
+    if existing is not None:
+        age = now - _aware(existing.created_at)
+        url = _payment_url_from_events(existing)
+        if age <= OPEN_ORDER_REUSE and url:
+            existing.append_event(
+                {
+                    "event": "reuse_open_order",
+                    "age_sec": int(age.total_seconds()),
+                }
+            )
+            db.flush()
+            return existing, url
+        mark_payment_expired(existing, reason="replaced_by_new_init")
+        db.flush()
+
     promo = validate_promo_code(
         db,
         code=promo_code,
@@ -152,14 +234,20 @@ def create_card_payment(
     app_settings = get_settings()
     status = terminal_status(db)
     if not status.ready:
+        mark_payment_expired(pay, reason="terminal_not_ready")
+        db.flush()
         raise TBankError(
             f"Платёжная система не настроена ({status.reason or 'TerminalKey / пароль'})"
         )
     if not (email or "").strip() or "@" not in email:
         log.warning("create_card_payment: invalid receipt email %r", email)
+        mark_payment_expired(pay, reason="invalid_email")
+        db.flush()
         raise TBankError("Укажите корректный e-mail для чека")
     if int(pay.amount_kop) <= 0:
         log.warning("create_card_payment: non-positive amount %s", pay.amount_kop)
+        mark_payment_expired(pay, reason="non_positive_amount")
+        db.flush()
         raise TBankError("Сумма платежа должна быть больше нуля")
 
     taxation = status.taxation
@@ -212,6 +300,8 @@ def create_card_payment(
             exc,
             (exc.payload or {}).get("Details"),
         )
+        mark_payment_expired(pay, reason=f"init_failed:{exc.code or 'error'}")
+        db.flush()
         raise
     finally:
         client.close()
@@ -220,8 +310,8 @@ def create_card_payment(
     pay.append_event(
         {
             "event": "init",
-            "tariff_code": tariff.code.value,
-            "period": period.value,
+            "tariff_code": tariff_code,
+            "period": period_value,
             "email": email,
             "receipt": {
                 "Email": email,
@@ -237,7 +327,9 @@ def create_card_payment(
             "promo": {
                 "code": promo.code,
                 "discount_kop": promo.discount_kop,
-            } if promo.code else None,
+            }
+            if promo.code
+            else None,
             "response": {
                 k: resp.get(k)
                 for k in ("PaymentId", "Status", "PaymentURL", "OrderId", "Success", "ErrorCode")
@@ -246,6 +338,28 @@ def create_card_payment(
     )
     db.flush()
     return pay, str(resp.get("PaymentURL") or "")
+
+
+def expire_abandoned_payments(
+    db: Session,
+    *,
+    older_than: timedelta = ABANDON_EXPIRE_AFTER,
+) -> int:
+    """created/authorized старше TTL → expired (не удалять). Release брони промо."""
+    cutoff = utcnow() - older_than
+    rows = list(
+        db.scalars(
+            select(Payment).where(
+                Payment.status.in_([PaymentStatus.created, PaymentStatus.authorized]),
+                Payment.created_at < cutoff,
+            )
+        ).all()
+    )
+    for pay in rows:
+        mark_payment_expired(pay, reason="abandon_timeout_24h")
+    if rows:
+        db.flush()
+    return len(rows)
 
 
 def map_tbank_status(status: str | None) -> PaymentStatus | None:
@@ -467,6 +581,7 @@ def _activate_subscription_for_payment(
         sub.customer_key = str(customer)
 
     pay.status = PaymentStatus.confirmed
+    commit_promo_for_payment(db, pay)
     record_event(
         db,
         type="billing_payment_confirmed",
