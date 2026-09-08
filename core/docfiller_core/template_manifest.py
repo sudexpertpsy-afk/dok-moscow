@@ -219,13 +219,22 @@ def infer_group(template_name: str, manifest: TemplateManifest | None = None) ->
         return "Договоры"
     if "счет_на_оплату" in n or "счёт_на_оплату" in template_name.casefold() or stem.startswith("акт_"):
         return "Счета и акты"
-    if stem.startswith("пко"):
+    if stem.startswith("пко") or stem.startswith("рко"):
         return "Кассовые"
+    if (
+        "платёж" in n
+        or "платеж" in n
+        or stem.startswith("упд")
+        or "счёт_фактура" in n
+        or "счет_фактура" in n
+    ):
+        return "Банковские"
     if (
         "суду" in n
         or stem.startswith("ходатайство")
         or "уведомление" in n
         or stem.startswith("сопроводительное")
+        or "сппэ" in n
     ):
         return "Письма суду"
     if stem.startswith("заключение"):
