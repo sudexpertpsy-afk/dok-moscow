@@ -18,6 +18,9 @@
         · новых за месяц: {{ summary.new_subs }}</p>
       <p>MRR: <strong>{{ '%.0f'|format(summary.mrr_kop / 100) }} ₽</strong>
         <span class="muted">(без бета и подарочных)</span></p>
+      <p class="muted">Брошенные Init: {{ summary.month_abandoned_init }}
+        · доля {{ '%.0f'|format(summary.abandon_init_rate * 100) }}%
+        (KPI воронки; выручка/счётчик месяца — только confirmed)</p>
     </div>
   </div>
 
@@ -26,7 +29,7 @@
       <label for="status">Статус</label>
       <select id="status" name="status">
         <option value="">Все</option>
-        {% for s in ['created','authorized','confirmed','rejected','refunded','partial_refund'] %}
+        {% for s in ['created','authorized','confirmed','rejected','expired','refunded','partial_refund'] %}
         <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>{{ s }}</option>
         {% endfor %}
       </select>

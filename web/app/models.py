@@ -99,6 +99,7 @@ class PaymentStatus(str, enum.Enum):
     rejected = "rejected"
     refunded = "refunded"
     partial_refund = "partial_refund"
+    expired = "expired"  # W-48: брошенный Init (таймаут / замена заказа)
 
 
 class PaymentSource(str, enum.Enum):

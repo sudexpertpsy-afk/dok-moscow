@@ -5,11 +5,11 @@ from __future__ import annotations
 import html
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Mapping
 
 from markupsafe import Markup
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.http_cache import purge_public_cache as _purge_public_cache
@@ -193,9 +193,16 @@ def safe_markdown(body_md: str | None, *, inline: bool = False) -> Markup:
 
 
 def format_price_rub(amount_kop: int, suffix: str = "") -> str:
-    rub = int(amount_kop or 0) // 100
-    text = f"{rub:,}".replace(",", " ")
-    return f"{text} ₽{suffix}"
+    """Сумма из целых копеек; копейки показываем, если сумма не круглая."""
+    amount = int(amount_kop or 0)
+    sign = "-" if amount < 0 else ""
+    amount = abs(amount)
+    rub = amount // 100
+    kop = amount % 100
+    int_part = f"{rub:,}".replace(",", " ")
+    if kop:
+        return f"{sign}{int_part}.{kop:02d} ₽{suffix}"
+    return f"{sign}{int_part} ₽{suffix}"
 
 
 def tariff_amount_kop(tariff: Tariff, period: SubscriptionPeriod | str) -> int:
@@ -487,7 +494,8 @@ def validate_promo_code(
         return PromoResult(False, normalized, "Промокод ещё не действует", base_amount_kop, 0, base_amount_kop, promo)
     if end and now > end:
         return PromoResult(False, normalized, "Срок действия промокода истёк", base_amount_kop, 0, base_amount_kop, promo)
-    if promo.max_uses is not None and promo.used_count >= promo.max_uses:
+    reserved = count_promo_reserves(db, promo.id, now=now)
+    if promo.max_uses is not None and int(promo.used_count or 0) + reserved >= promo.max_uses:
         return PromoResult(False, normalized, "Лимит использований промокода исчерпан", base_amount_kop, 0, base_amount_kop, promo)
     tariff_codes = [str(x) for x in (promo.tariff_codes or []) if str(x).strip()]
     if tariff_codes and tariff.code.value not in tariff_codes:
@@ -510,17 +518,83 @@ def validate_promo_code(
     return PromoResult(True, normalized, "Промокод применён", base_amount_kop, discount, final, promo)
 
 
+# W-48: бронь промокода на Init; used_count растёт только на CONFIRMED.
+PROMO_RESERVE_TTL = timedelta(hours=24)
+
+
+def count_promo_reserves(
+    db: Session,
+    promo_id: int,
+    *,
+    now: datetime | None = None,
+    exclude_payment_id: object | None = None,
+) -> int:
+    """Активные Init с этим промо (created/authorized), ещё не expired."""
+    from app.models import Payment, PaymentStatus
+
+    now = now or utcnow()
+    cutoff = now - PROMO_RESERVE_TTL
+    stmt = select(func.count()).select_from(Payment).where(
+        Payment.promo_code_id == promo_id,
+        Payment.status.in_([PaymentStatus.created, PaymentStatus.authorized]),
+        Payment.created_at >= cutoff,
+    )
+    if exclude_payment_id is not None:
+        stmt = stmt.where(Payment.id != exclude_payment_id)
+    return int(db.scalar(stmt) or 0)
+
+
 def apply_promo_to_payment(
     db: Session,
     payment: Payment,
     result: PromoResult,
 ) -> None:
+    """Reserve: суммы + promo_code_id. used_count не трогаем (commit на CONFIRMED)."""
     payment.amount_base_kop = result.base_amount_kop
     payment.discount_kop = result.discount_kop
     payment.amount_kop = result.final_amount_kop
     if result.promo is not None and result.discount_kop > 0:
         payment.promo_code_id = result.promo.id
-        result.promo.used_count = int(result.promo.used_count or 0) + 1
+
+
+def commit_promo_for_payment(db: Session, payment: Payment) -> None:
+    """Commit брони: +1 к used_count при первом CONFIRMED."""
+    if not payment.promo_code_id:
+        return
+    promo = db.get(PromoCode, payment.promo_code_id)
+    if promo is None:
+        return
+    promo.used_count = int(promo.used_count or 0) + 1
+
+
+def recalculate_promo_used_counts(
+    db: Session,
+    *,
+    codes: list[str] | None = None,
+) -> dict[str, int]:
+    """used_count = число confirmed-платежей с этим promo_code_id."""
+    from app.models import Payment, PaymentStatus
+
+    stmt = select(PromoCode)
+    if codes:
+        normalized = [normalize_promo_code(c) for c in codes if c]
+        stmt = stmt.where(PromoCode.code.in_(normalized))
+    updated: dict[str, int] = {}
+    for promo in db.scalars(stmt).all():
+        n = int(
+            db.scalar(
+                select(func.count())
+                .select_from(Payment)
+                .where(
+                    Payment.promo_code_id == promo.id,
+                    Payment.status == PaymentStatus.confirmed,
+                )
+            )
+            or 0
+        )
+        promo.used_count = n
+        updated[promo.code] = n
+    return updated
 
 
 def _csv_list(raw: object) -> list[str]:
