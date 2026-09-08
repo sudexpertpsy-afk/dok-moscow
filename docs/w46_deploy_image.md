@@ -1,6 +1,6 @@
 # W-46 фаза D — образ по тегу (GHCR)
 
-Дата: 2026-09-07. Репо: `dra-v-losev-afk/desktop-tutorial`.
+Дата: 2026-09-07. Репо: [`sudexpertpsy-afk/dok-moscow`](https://github.com/sudexpertpsy-afk/dok-moscow).
 
 ## Что в коде
 

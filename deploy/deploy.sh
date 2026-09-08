@@ -9,7 +9,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEPLOY="$ROOT/deploy"
 OPS_DIR="${OPS_DIR:-/srv/dok/data/ops}"
 LOG="$OPS_DIR/deploy.log"
-GHCR_IMAGE_DEFAULT="ghcr.io/dra-v-losev-afk/dok-app"
+GHCR_IMAGE_DEFAULT="ghcr.io/sudexpertpsy-afk/dok-app"
 
 cd "$DEPLOY"
 

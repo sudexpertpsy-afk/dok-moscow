@@ -34,28 +34,14 @@ web/.venv/bin/python scripts/generate_draft_manifests.py
 
 ## Переименование репо
 
-Цель: `desktop-tutorial` → `dok-moscow` на GitHub (редирект старых URL).
-
-**Статус 2026-09-08:** из агента не выполнено — активный `gh` = `sudexpertpsy-afk`,
-репо у `dra-v-losev-afk`. Нужен вход владельца.
-
-Под владельцем `dra-v-losev-afk`:
+Готово: канонический remote —
+[`sudexpertpsy-afk/dok-moscow`](https://github.com/sudexpertpsy-afk/dok-moscow)
+(старое имя `desktop-tutorial` / `dra-v-losev-afk` больше не используется).
 
 ```bash
-# вариант A — CLI
-gh auth login   # аккаунт dra-v-losev-afk
-cd /path/to/repo
-gh repo rename dok-moscow --yes
-
-# вариант B — UI
-# https://github.com/dra-v-losev-afk/desktop-tutorial/settings
-# → Repository name → dok-moscow → Rename
-```
-
-После rename — обновить remote в клонах и на VDS:
-
-```bash
-git remote set-url origin git@github.com:dra-v-losev-afk/dok-moscow.git
+git remote set-url origin https://github.com/sudexpertpsy-afk/dok-moscow.git
 # на VDS:
-# git -C /srv/dok remote set-url origin git@github.com:dra-v-losev-afk/dok-moscow.git
+# git -C /srv/dok remote set-url origin https://github.com/sudexpertpsy-afk/dok-moscow.git
 ```
+
+GHCR-образы: `ghcr.io/sudexpertpsy-afk/dok-app`.
