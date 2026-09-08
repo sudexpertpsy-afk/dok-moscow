@@ -19,16 +19,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute(
-        """
-        DO $$ BEGIN
-          ALTER TYPE subscription_period ADD VALUE 'years_2';
-        EXCEPTION
-          WHEN duplicate_object THEN NULL;
-        END $$;
-        """
-    )
-    # месяц → год = ×12 −10%
+    # На проде period — VARCHAR(16), не native enum; значение years_2 допускается приложением.
     op.execute(
         """
         UPDATE tariffs SET
