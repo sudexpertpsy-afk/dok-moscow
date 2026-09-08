@@ -119,3 +119,13 @@ def test_csp_allows_self_frame():
     csp = build_content_security_policy(metrika=True, webvisor=True)
     assert "frame-src" in csp
     assert "'self'" in csp
+
+
+def test_csp_allows_tbank_form_action():
+    """303 на PaymentURL после POST оплаты не должен резаться CSP form-action."""
+    from app.security import build_content_security_policy
+
+    csp = build_content_security_policy()
+    assert "form-action" in csp
+    assert "https://pay.tbank.ru" in csp
+    assert "https://securepay.tinkoff.ru" in csp
