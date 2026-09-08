@@ -19,7 +19,8 @@
 3. сверка counts (41 = 41)  
 4. `compose up` с новым bind  
 
-Volume **`dok_files` не удалён** — держать ≥ 7 дней, затем `docker volume rm dok_files`.
+Volume **`dok_files` не удалён** — держать ≥ 7 дней от даты миграции B (**2026-09-07**),
+удалять не раньше **2026-09-14**: `docker volume rm dok_files`.
 
 ## Откат
 

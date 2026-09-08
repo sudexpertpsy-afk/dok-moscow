@@ -1,32 +1,50 @@
 # W-46 — дрейф контейнера vs git на VDS
 
+## Прогон §8 перед merge (2026-09-08)
+
+Команды на VDS (`/srv/dok`, не `/srv/dok/app`):
+
+```bash
+docker compose -f deploy/compose.yml cp app:/app/app /tmp/prod_app
+diff -rq --exclude=static --exclude=__pycache__ --exclude='*.pyc' \
+  /tmp/prod_app/app /srv/dok/web/app
+```
+
+| Сравнение | Результат |
+|-----------|-----------|
+| container ↔ host `/srv/dok/web/app` (без `static`) | **пусто** — код в образе = дерево на диске |
+| только `static/*.hash.*` | есть в контейнере (артефакты сборки) — **не** scp-хотфиксы |
+| host ↔ ветка `cursor/w46-infra-hygiene-0030` | **1 файл:** `web/app/services/facsimile.py` |
+
+### Найденный хотфикс (зафиксирован в ветке до merge)
+
+Прод: `getattr(get_settings(), "faksimile_enabled", True)` вместо прямого атрибута.
+
+**Почему не было атрибута:** scp-рассинхрон W-43 — в контейнер попал `facsimile.py`
+с обращением к полю раньше, чем `config.py` с `faksimile_enabled` (или без
+`get_settings.cache_clear` после подмены модуля). Не «старая запись БД» и не
+миграция: поле только в pydantic Settings.
+
+**Почему True:** это kill-switch инцидента (`FAKSIMILE_ENABLED`), дефолт модели
+и `.env.example` тоже `True` («фича в норме включена»). Разрешительная семантика
+W-43 — в `FacsimilePolicy` по шаблону; getattr не обходит запреты шаблонов.
+
+### Состояние git на VDS (важно)
+
+- Ветка: `cursor/landing-bounce-reduction-0030` @ `643eca8`
+- Working tree **грязный**: незакоммиченные правки W-46 (B–E и др.) уже на диске
+  и в работающем образе (`/healthz` = `w46e-20260907`)
+- После cutover на образ working tree не источник правды; переключить checkout
+  на `main` / оставить только `deploy/`
+
+## Снимок 2026-09-07
+
 Снято: `2026-09-07T18:58:38Z` скриптом [`scripts/w46_container_vs_git_diff.sh`](../scripts/w46_container_vs_git_diff.sh).
+Тогда `app`/`core` совпадали с host; фаза B ещё не была.
 
-## Результат
-
-| Слой | Вердикт |
-|------|---------|
-| `app` (без `static` / `__pycache__`) | **совпадает** с `/srv/dok/web/app` |
-| `core` (без `Шаблоны`) | **совпадает** с `/srv/dok/core` |
-| Имена файлов в `Шаблоны/` | **совпадают** |
-
-Контейнер `dok-app-1` собран из текущего host-дерева: scp-правки, лежащие на диске VDS, уже в образе и в working tree сервера.
-
-## Важно для фазы D
-
-1. Совпадение **container ↔ host `/srv/dok`** ≠ совпадение с **origin/main** или локальным клоном разработчика.
-2. На VDS ветка может быть `cursor/*` и отставать от локальных коммитов; перед первым тегом релиза нужно:
-   - `git status` / `git log` на сервере и локально;
-   - внести в git всё, что есть только на диске VDS и/или только локально;
-   - выровнять main, затем тег.
-3. Повтор прогона перед фазой D:
+## Повтор
 
 ```bash
 ./scripts/w46_container_vs_git_diff.sh
-# при необходимости сравнить ещё и с локальным репо:
-# diff -rq /tmp/w46-drift-*/container/app web/app
+# и обязательно: host (или container) ↔ ветка PR, не только container ↔ host
 ```
-
-## Следующий шаг
-
-Фаза B (FILES_ROOT bind) — после коммита фазы A и отдельного окна техработ.

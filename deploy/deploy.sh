@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Деплой Док.Москва (W-46 фаза D).
-#   ./deploy/deploy.sh              — git pull + build (legacy, пока нет DOK_IMAGE)
+# Деплой Док.Москва (W-46 фаза D) — только образ из GHCR.
 #   ./deploy/deploy.sh --tag v1.2.3 — pull ghcr.io/<owner>/dok-app:v1.2.3
+#   ./deploy/deploy.sh              — если в .env задан DOK_IMAGE
 #   ./deploy/deploy.sh --rollback   — предыдущий тег из deploy.log
+# Сборка на сервере (compose build) отключена: без DOK_IMAGE/--tag — отказ.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -157,34 +158,34 @@ smoke() {
   docker compose --env-file .env exec -T app curl -sf http://127.0.0.1:8000/healthz || true
 }
 
-# Режим: pull по тегу / DOK_IMAGE из .env, иначе legacy build
-USE_PULL=0
+# Только pull по тегу / DOK_IMAGE из .env (без compose build на сервере)
 if [[ -n "$TAG" ]]; then
   export DOK_IMAGE="${GHCR_IMAGE}:$TAG"
   export APP_VERSION="$TAG"
-  USE_PULL=1
 elif [[ -n "${DOK_IMAGE_ENV}" ]]; then
   export DOK_IMAGE="$DOK_IMAGE_ENV"
   export APP_VERSION="${APP_VERSION_ENV:-${DOK_IMAGE##*:}}"
-  USE_PULL=1
-fi
-
-log "deploy start mode=$([ "$USE_PULL" -eq 1 ] && echo pull || echo build) image=${DOK_IMAGE:-local} tag=${TAG:-none}"
-
-if [[ "$USE_PULL" -eq 1 ]]; then
-  # Прод по образу: git-дерево не источник правды для app-кода
-  echo "→ docker login ghcr (если нужно) — используйте docker login ghcr.io заранее"
-  echo "→ docker compose pull $DOK_IMAGE"
-  docker compose --env-file .env pull app worker ops-agent
 else
-  if [[ -d "$ROOT/.git" ]]; then
-    echo "→ git pull"
-    git -C "$ROOT" pull --ff-only || echo "⚠ git pull не удался — продолжаем локальным деревом"
-  fi
-  echo "→ docker compose build (app + worker + ops-agent + gotenberg)"
-  export APP_VERSION="${APP_VERSION:-$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo dev)}"
-  docker compose --env-file .env build app worker ops-agent gotenberg
+  echo "✗ Нужен образ: ./deploy.sh --tag vX.Y.Z или DOK_IMAGE=ghcr.io/... в deploy/.env"
+  echo "  Сборка на сервере отключена (W-46). См. docs/w46_deploy_image.md"
+  exit 1
 fi
+
+GHCR_TOKEN="$(_env_get GHCR_TOKEN)"
+GHCR_USER="$(_env_get GHCR_USER)"
+GHCR_USER="${GHCR_USER:-sudexpertpsy-afk}"
+
+log "deploy start mode=pull image=${DOK_IMAGE} tag=${TAG:-${APP_VERSION:-none}}"
+
+# Прод по образу: git-дерево не источник правды для app-кода
+if [[ -n "$GHCR_TOKEN" ]]; then
+  echo "→ docker login ghcr.io (GHCR_TOKEN из .env)"
+  echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+else
+  echo "→ docker login: GHCR_TOKEN не задан — ожидается уже выполненный docker login ghcr.io"
+fi
+echo "→ docker compose pull $DOK_IMAGE"
+docker compose --env-file .env pull app worker ops-agent
 
 seed_templates
 

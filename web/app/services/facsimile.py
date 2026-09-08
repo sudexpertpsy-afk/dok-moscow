@@ -84,8 +84,14 @@ _FORBIDDEN: frozenset[str] = frozenset(
 
 
 def facsimile_feature_enabled() -> bool:
-    """Глобальный feature-flag FAKSIMILE_ENABLED (выключение при инциденте)."""
-    return bool(get_settings().faksimile_enabled)
+    """Глобальный kill-switch FAKSIMILE_ENABLED (выключение при инциденте).
+
+    Дефолт True совпадает с Settings.faksimile_enabled и .env.example: в норме
+    фича включена; запреты W-43 — в FacsimilePolicy по шаблону, не здесь.
+    getattr(..., True): на проде AttributeError бывал при scp-рассинхроне
+    (facsimile.py новее config.py без поля); умолчание = дефолт модели, не «разрешить неизвестное».
+    """
+    return bool(getattr(get_settings(), "faksimile_enabled", True))
 
 
 def normalize_template_name(name: str) -> str:
