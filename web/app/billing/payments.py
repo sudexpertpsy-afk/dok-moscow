@@ -276,7 +276,21 @@ def apply_payment_notification(
     fingerprint = f"{status_raw}:{payment_id}:{payload.get('Success')}"
     prev = pay.raw_events or []
     if any(isinstance(e, dict) and e.get("_fp") == fingerprint for e in prev):
-        pay.append_event({"event": "notification_duplicate", "_fp": fingerprint, "Status": status_raw})
+        # W-45/G-03: повтор CONFIRMED часто несёт уже готовый Receipt — не игнорировать
+        r_status, r_url = extract_receipt_fields(payload)
+        if r_status:
+            pay.receipt_status = r_status
+        if r_url:
+            pay.receipt_url = r_url
+        pay.append_event(
+            {
+                "event": "notification_duplicate",
+                "_fp": fingerprint,
+                "Status": status_raw,
+                "receipt_status": r_status,
+                "receipt_url": r_url,
+            }
+        )
         db.flush()
         return pay
 
@@ -437,7 +451,7 @@ def apply_receipt_only_notification(db: Session, payload: dict[str, Any]) -> Pay
 
 
 def reconcile_payment(db: Session, payment: Payment) -> Payment:
-    """Сверка GetState для одного платежа."""
+    """Сверка GetState для одного платежа (W-45: прокидываем Receipt из ответа банка)."""
     if not payment.tbank_payment_id:
         return payment
     client = load_tbank_client(db)
@@ -446,7 +460,7 @@ def reconcile_payment(db: Session, payment: Payment) -> Payment:
     finally:
         client.close()
     # GetState не всегда содержит Token — применяем без проверки подписи ответа банка по HTTPS
-    payload = {
+    payload: dict = {
         "OrderId": str(payment.id),
         "PaymentId": state.get("PaymentId") or payment.tbank_payment_id,
         "Status": state.get("Status"),
@@ -455,4 +469,117 @@ def reconcile_payment(db: Session, payment: Payment) -> Payment:
         "ErrorCode": state.get("ErrorCode"),
         "RebillId": state.get("RebillId"),
     }
+    # Чек 54-ФЗ: GetState часто отдаёт Receipt позже CONFIRMED
+    for key in ("Receipt", "ReceiptUrl", "OfdReceiptUrl", "FiscalReceiptUrl", "ReceiptStatus"):
+        if key in state and state.get(key) is not None:
+            payload[key] = state.get(key)
     return apply_payment_notification(db, payload, skip_token=True)
+
+
+def payment_receipt_complete(pay: Payment) -> bool:
+    """Confirmed/refunded без статуса чека — незавершённая цепочка 54-ФЗ (W-45/G-03)."""
+    if pay.status not in (
+        PaymentStatus.confirmed,
+        PaymentStatus.refunded,
+        PaymentStatus.partial_refund,
+    ):
+        return True
+    status = (pay.receipt_status or "").strip().lower()
+    # legacy/unavailable — осознанно закрытые исторические/тестовые без ОФД
+    if status in {"legacy", "unavailable", "n/a", "na", "skipped"}:
+        return True
+    return bool(status)
+
+
+def flag_incomplete_receipts(
+    db: Session,
+    *,
+    newer_than_hours: int = 72,
+) -> list[str]:
+    """Алерт только по НОВЫМ confirmed без чека (не спамить старыми тестовыми).
+
+    - Смотрим платежи новее newer_than_hours (по updated_at/created_at).
+    - Повторно не шлём про те же id (маркер billing_receipt_notified).
+    """
+    from app.services.ops import read_marker, send_ops_alert, write_marker
+    from app.timeutil import as_utc
+
+    cutoff = as_utc(utcnow() - timedelta(hours=max(1, newer_than_hours)))
+    rows = db.scalars(
+        select(Payment).where(
+            Payment.status.in_(
+                [
+                    PaymentStatus.confirmed,
+                    PaymentStatus.refunded,
+                    PaymentStatus.partial_refund,
+                ]
+            )
+        )
+    ).all()
+
+    def _ts(p: Payment):
+        raw = p.updated_at or p.created_at
+        return as_utc(raw) if raw is not None else None
+
+    bad = [
+        p
+        for p in rows
+        if not payment_receipt_complete(p) and _ts(p) is not None and _ts(p) >= cutoff
+    ]
+    if not bad:
+        return []
+
+    ids = sorted({str(p.id) for p in bad})
+    prev = read_marker("billing_receipt_notified") or {}
+    already = {str(x) for x in (prev.get("payment_ids") or [])}
+    new_ids = [i for i in ids if i not in already]
+    if not new_ids:
+        return []
+
+    app_name = get_settings().app_name
+    send_ops_alert(
+        "billing_receipt_missing",
+        f"[{app_name}] Оплата без фискального чека (54-ФЗ)",
+        "Новые confirmed/refunded без receipt_status "
+        f"(за {newer_than_hours} ч):\n"
+        + "\n".join(new_ids)
+        + "\nПроверьте Init Receipt, webhook чека и reconcile GetState.\n"
+        "Повторно по тем же id письмо не уйдёт, пока не появится чек "
+        "или статус legacy/unavailable.\n",
+    )
+    write_marker(
+        "billing_receipt_notified",
+        payment_ids=sorted(already | set(new_ids)),
+    )
+    return new_ids
+
+
+def mark_legacy_incomplete_receipts(db: Session, *, before) -> int:
+    """Пометить старые confirmed без чека как legacy (разово, без алерта)."""
+    rows = db.scalars(
+        select(Payment).where(
+            Payment.status.in_(
+                [
+                    PaymentStatus.confirmed,
+                    PaymentStatus.refunded,
+                    PaymentStatus.partial_refund,
+                ]
+            ),
+            Payment.created_at < before,
+        )
+    ).all()
+    n = 0
+    for p in rows:
+        if payment_receipt_complete(p):
+            continue
+        p.receipt_status = "legacy"
+        p.append_event(
+            {
+                "event": "receipt_legacy_mark",
+                "reason": "historical_before_receipt_tracking",
+            }
+        )
+        n += 1
+    if n:
+        db.flush()
+    return n

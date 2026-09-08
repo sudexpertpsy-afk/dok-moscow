@@ -34,28 +34,12 @@ from conftest import csrf_from, login
 
 
 def _minimal_docx(text: str = "test") -> bytes:
+    from docx import Document
+
+    doc = Document()
+    doc.add_paragraph(text)
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr(
-            "[Content_Types].xml",
-            (
-                '<?xml version="1.0" encoding="UTF-8"?>'
-                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-                '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-                '<Default Extension="xml" ContentType="application/xml"/>'
-                '<Override PartName="/word/document.xml" '
-                'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
-                "</Types>"
-            ),
-        )
-        zf.writestr(
-            "word/document.xml",
-            (
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-                f"<w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body></w:document>"
-            ),
-        )
+    doc.save(buf)
     return buf.getvalue()
 
 
@@ -175,6 +159,27 @@ def test_cabinet_templates_page_and_upload(app, tmp_path, monkeypatch):
                 _minimal_docx(),
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    loc = r.headers["location"]
+    assert "/cabinet/templates/upload/confirm" in loc
+    conf = client.get(loc)
+    assert conf.status_code == 200
+    assert "Подтверждение" in conf.text
+    import re as _re
+
+    m = _re.search(r'name="csrf_token" value="([^"]+)"', conf.text)
+    assert m
+    m2 = _re.search(r'name="token" value="([^"]+)"', conf.text)
+    assert m2
+    r = client.post(
+        "/cabinet/templates/upload/confirm",
+        data={
+            "csrf_token": m.group(1),
+            "token": m2.group(1),
+            "contract_type": "Юрлицо",
         },
         follow_redirects=False,
     )

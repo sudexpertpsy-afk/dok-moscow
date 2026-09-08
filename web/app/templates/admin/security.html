@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Безопасность — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+<section class="panel">
+  <h1>Безопасность владельца</h1>
+  <p class="muted">
+    Пароль, двухфакторная аутентификация и Яндекс&nbsp;ID для учётки администратора сервиса.
+    Эти же настройки нужны для действий в разделах «Сервер» и «Единое окно» (код 2FA).
+  </p>
+  {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+  {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+
+  {% include "partials/security_account.html" %}
+</section>
+
+<p style="margin-top:1rem">
+  <a class="btn secondary" href="/admin/cms/">← Единое окно</a>
+  <a class="btn secondary" href="/admin/" style="margin-left:0.4rem">Обзор</a>
+</p>
+{% include "admin/_layout_end.html" %}
+{% endblock %}

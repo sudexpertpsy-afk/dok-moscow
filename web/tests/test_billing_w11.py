@@ -15,6 +15,7 @@ from app.defaults import empty_requisites
 from app.models import (
     Organization,
     Payment,
+    PaymentMode,
     PaymentSettings,
     PaymentSource,
     PaymentStatus,
@@ -194,6 +195,43 @@ def test_webhook_bad_token_rejected(app):
         db.close()
 
 
+def test_webhook_unknown_order_id_ok_warning(app, caplog):
+    """HOTFIX: валидная подпись + несуществующий OrderId → 200 OK, WARNING, без exception."""
+    import logging
+
+    from app.services.ops import ops_dir, read_marker
+
+    client, dbmod = app
+    billing_router.webhook_limiter.clear()
+    for p in ops_dir().glob("*.json"):
+        p.unlink()
+
+    password = "WebhookProbeSecret"
+    db = dbmod.SessionLocal()
+    try:
+        row = db.get(PaymentSettings, 1) or PaymentSettings(id=1)
+        row.terminal_key = "TestTerminalKey"
+        row.password_encrypted = encrypt_secret(password)
+        row.mode = PaymentMode.test
+        db.add(row)
+        db.commit()
+    finally:
+        db.close()
+
+    # как probe Init: не UUID → «Неизвестный OrderId»
+    missing = f"probe-{uuid.uuid4()}"
+    payload = _signed_payload(missing, password, Status="CANCELED", Success=True)
+    with caplog.at_level(logging.WARNING, logger="dok.billing.webhook"):
+        r = client.post("/billing/webhook", json=payload)
+    assert r.status_code == 200
+    assert r.text == "OK"
+    assert any("order_id=" in m and missing in m and "payment_id=" in m for m in caplog.messages)
+    marker = read_marker("webhook_fail") or {}
+    assert int(marker.get("ops_count") or 0) >= 1
+    assert int(marker.get("streak") or 0) == 0
+    assert "Неизвестный OrderId" in str(marker.get("ops_reason") or "")
+
+
 def test_webhook_rejected_status(app):
     client, dbmod = app
     billing_router.webhook_limiter.clear()
@@ -226,6 +264,7 @@ def test_reconcile_getstate_mocked(app):
             "Amount": 99000,
             "ErrorCode": "0",
             "RebillId": "R1",
+            "Receipt": {"Status": "DONE", "Url": "https://ofd.example/from-getstate"},
         }
         with patch("app.billing.payments.load_tbank_client", return_value=fake):
             reconcile_payment(db, pay)
@@ -233,7 +272,76 @@ def test_reconcile_getstate_mocked(app):
         fake.close.assert_called()
         db.refresh(pay)
         assert pay.status == PaymentStatus.confirmed
+        assert pay.receipt_status == "DONE"
+        assert pay.receipt_url == "https://ofd.example/from-getstate"
         assert db.get(Subscription, sub_id).status == SubscriptionStatus.active
+    finally:
+        db.close()
+
+
+def test_confirmed_without_receipt_is_incomplete(app):
+    """W-45/G-03: confirmed без receipt_status — незавершённая цепочка 54-ФЗ."""
+    from app.billing.payments import flag_incomplete_receipts, payment_receipt_complete
+    from app.services.ops import ops_dir
+
+    _, dbmod = app
+    # сброс маркеров алертов между прогонами
+    d = ops_dir()
+    for p in d.glob("billing_receipt*.json"):
+        p.unlink()
+    for p in d.glob("alert_billing_receipt*.json"):
+        p.unlink()
+
+    _org_id, _sub_id, pay_id, _password = _seed_org_payment(dbmod)
+    db = dbmod.SessionLocal()
+    try:
+        pay = db.get(Payment, pay_id)
+        pay.status = PaymentStatus.confirmed
+        pay.receipt_status = None
+        pay.receipt_url = None
+        db.commit()
+        assert payment_receipt_complete(pay) is False
+        flagged = flag_incomplete_receipts(db)
+        assert str(pay_id) in flagged
+        # повторно те же id — без нового алерта
+        assert flag_incomplete_receipts(db) == []
+        pay.receipt_status = "DONE"
+        db.commit()
+        assert payment_receipt_complete(pay) is True
+        assert flag_incomplete_receipts(db) == []
+        pay.receipt_status = "legacy"
+        db.commit()
+        assert payment_receipt_complete(pay) is True
+    finally:
+        db.close()
+
+
+def test_old_incomplete_receipt_not_flagged(app):
+    """Исторические платежи без чека не должны спамить алертами."""
+    from datetime import timedelta
+
+    from app.billing.payments import flag_incomplete_receipts
+    from app.models import utcnow
+    from app.services.ops import ops_dir
+
+    _, dbmod = app
+    d = ops_dir()
+    for p in d.glob("billing_receipt*.json"):
+        p.unlink()
+    for p in d.glob("alert_billing_receipt*.json"):
+        p.unlink()
+
+    _org_id, _sub_id, pay_id, _password = _seed_org_payment(dbmod)
+    db = dbmod.SessionLocal()
+    try:
+        pay = db.get(Payment, pay_id)
+        pay.status = PaymentStatus.confirmed
+        pay.receipt_status = None
+        old = utcnow() - timedelta(days=10)
+        pay.created_at = old
+        pay.updated_at = old
+        db.commit()
+        assert flag_incomplete_receipts(db, newer_than_hours=72) == []
     finally:
         db.close()
 

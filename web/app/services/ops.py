@@ -24,6 +24,9 @@ from app.services.mail import send_email
 
 log = logging.getLogger("dok.ops")
 
+# W-46 §3: порог алерта диска (было 85%).
+DISK_ALERT_PCT = 75.0
+
 _RING_MAX = 2000
 _lock = threading.Lock()
 _samples: deque[tuple[float, str, float]] = deque(maxlen=_RING_MAX)  # (ts, group, ms)
@@ -138,7 +141,7 @@ def disk_usage() -> dict[str, Any]:
             "used_gb": round(usage.used / (1024**3), 2),
             "free_gb": round(usage.free / (1024**3), 2),
             "used_pct": pct,
-            "ok": pct < 85.0,
+            "ok": pct < DISK_ALERT_PCT,
         }
     except Exception as exc:
         return {"path": str(root), "error": str(exc), "ok": False, "used_pct": 100.0}
@@ -185,6 +188,64 @@ def _fmt_age(sec: float | None) -> str:
     return f"{sec / 86400:.1f} сут назад"
 
 
+# HOTFIX: operational-причины вебхука не шлём письмом (только счётчик на /admin/status).
+WEBHOOK_OPERATIONAL_REASONS = frozenset(
+    {
+        "Неизвестный OrderId",
+        "Платёж не найден",
+    }
+)
+
+_DEFAULT_WEBHOOK_ALERT = {
+    "enabled": True,
+    "threshold": 3,
+    "quiet_hours": 6.0,
+}
+
+
+def webhook_fail_category(reason: str) -> str:
+    """security — угроза (подпись/флуд); operational — шум банка по осиротевшим OrderId."""
+    r = (reason or "").strip()
+    if r in WEBHOOK_OPERATIONAL_REASONS:
+        return "operational"
+    return "security"
+
+
+def get_webhook_alert_settings() -> dict[str, Any]:
+    data = read_marker("webhook_alert_settings") or {}
+    try:
+        threshold = int(data.get("threshold", _DEFAULT_WEBHOOK_ALERT["threshold"]))
+    except (TypeError, ValueError):
+        threshold = int(_DEFAULT_WEBHOOK_ALERT["threshold"])
+    try:
+        quiet = float(data.get("quiet_hours", _DEFAULT_WEBHOOK_ALERT["quiet_hours"]))
+    except (TypeError, ValueError):
+        quiet = float(_DEFAULT_WEBHOOK_ALERT["quiet_hours"])
+    enabled = data.get("enabled")
+    if enabled is None:
+        enabled = _DEFAULT_WEBHOOK_ALERT["enabled"]
+    return {
+        "enabled": bool(enabled),
+        "threshold": max(1, min(threshold, 1000)),
+        "quiet_hours": max(0.25, min(quiet, 168.0)),
+    }
+
+
+def save_webhook_alert_settings(
+    *,
+    enabled: bool,
+    threshold: int = 3,
+    quiet_hours: float = 6.0,
+) -> dict[str, Any]:
+    cfg = {
+        "enabled": bool(enabled),
+        "threshold": max(1, min(int(threshold), 1000)),
+        "quiet_hours": max(0.25, min(float(quiet_hours), 168.0)),
+    }
+    write_marker("webhook_alert_settings", **cfg)
+    return cfg
+
+
 def status_snapshot(db: Session) -> dict[str, Any]:
     disk = disk_usage()
     db_bytes = db_size_bytes(db)
@@ -196,6 +257,7 @@ def status_snapshot(db: Session) -> dict[str, Any]:
     webhook_fail = read_marker("webhook_fail") or {}
     backup = read_marker("backup_ok")
     backup_age = marker_age_sec("backup_ok")
+    alert_cfg = get_webhook_alert_settings()
 
     # Интервалы: worker heartbeat ~2 с; reconcile 30 мин; daily/legal 24 ч; backup ~24 ч
     worker_ok = worker_age is not None and worker_age < 120
@@ -204,12 +266,29 @@ def status_snapshot(db: Session) -> dict[str, Any]:
     legal_ok = legal_age is None or legal_age < 2 * 24 * 3600
     backup_ok = backup_age is not None and backup_age < 2 * 24 * 3600
     fail_streak = int(webhook_fail.get("streak") or 0)
+    ops_count = int(webhook_fail.get("ops_count") or 0)
+
+    settings = get_settings()
+    app_version = (settings.app_version or "dev").strip()
+    expected = ""
+    expected_path = Path(settings.files_root).parent / "ops" / "deployed_version"
+    try:
+        if expected_path.is_file():
+            expected = expected_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        expected = ""
+    version_ok = (not expected) or (app_version == expected) or app_version.startswith(expected[:7])
+    # прод не должен светить cursor/* как версию
+    on_cursor_branch = app_version.startswith("cursor/")
 
     return {
         "latency": latency_stats(),
         "disk": disk,
         "db_size_mb": round(db_bytes / (1024 * 1024), 2) if db_bytes is not None else None,
         "pending_jobs": pending_jobs_count(db),
+        "app_version": app_version,
+        "expected_version": expected or None,
+        "version_ok": version_ok and not on_cursor_branch,
         "background": [
             ("Worker heartbeat", _fmt_age(worker_age), worker_ok),
             ("Сверка Т-Кассы", _fmt_age(reconcile_age), reconcile_ok),
@@ -220,7 +299,13 @@ def status_snapshot(db: Session) -> dict[str, Any]:
         "webhook": {
             "last_ok": _fmt_age(webhook_ok_age),
             "fail_streak": fail_streak,
-            "ok": fail_streak < 3,
+            "ops_count": ops_count,
+            "ops_reason": str(webhook_fail.get("ops_reason") or "")[:200],
+            "last_security_reason": str(webhook_fail.get("reason") or "")[:200],
+            "ok": fail_streak < int(alert_cfg["threshold"]),
+            "alerts_enabled": bool(alert_cfg["enabled"]),
+            "alert_threshold": int(alert_cfg["threshold"]),
+            "quiet_hours": float(alert_cfg["quiet_hours"]),
         },
         "backup_detail": backup,
     }
@@ -239,16 +324,24 @@ def _alert_cooldown_ok(key: str, *, hours: float = 1.0) -> bool:
     return age is None or age >= hours * 3600
 
 
-def _send_alert(key: str, subject: str, body: str) -> None:
-    if not _alert_cooldown_ok(key):
-        return
+def _send_alert(key: str, subject: str, body: str, *, hours: float = 1.0) -> bool:
+    """Отправить алерт с тихим периодом. True если письмо ушло."""
+    if not _alert_cooldown_ok(key, hours=hours):
+        return False
     settings = get_settings()
     to_addr = _admin_addr()
     if not to_addr:
         log.warning("Алерт без получателя: %s", subject)
-        return
+        return False
     if send_email(settings, to_addr=to_addr, subject=subject, body=body):
         write_marker(f"alert_{key}", subject=subject)
+        return True
+    return False
+
+
+def send_ops_alert(key: str, subject: str, body: str) -> None:
+    """Публичная обёртка для алертов из биллинга/воркера (W-45)."""
+    _send_alert(key, subject, body)
 
 
 def check_alerts(db: Session) -> list[str]:
@@ -288,29 +381,55 @@ def check_alerts(db: Session) -> list[str]:
         )
         fired.append(key)
 
+    # HOTFIX: письмом только security-отказы; operational — только счётчик на статусе.
+    wh_cfg = get_webhook_alert_settings()
     fail = read_marker("webhook_fail") or {}
     streak = int(fail.get("streak") or 0)
-    if streak >= 3:
+    quiet = float(wh_cfg["quiet_hours"])
+    if wh_cfg["enabled"] and streak >= int(wh_cfg["threshold"]):
         key = "webhook_fail"
-        _send_alert(
+        period = int(fail.get("security_since_alert") or streak)
+        if _send_alert(
             key,
             f"[{app_name}] Ошибки вебхука Т-Кассы",
-            f"Подряд отказов: {streak}. Последняя причина: {fail.get('reason', '—')}\n"
-            f"IP: {fail.get('last_ip') or '—'}\n",
-        )
+            f"Подряд security-отказов: {streak} (порог {wh_cfg['threshold']}).\n"
+            f"За тихий период: {period}.\n"
+            f"Последняя причина: {fail.get('reason', '—')}\n"
+            f"IP: {fail.get('last_ip') or '—'}\n"
+            f"Operational (без письма): {int(fail.get('ops_count') or 0)}"
+            f" — {fail.get('ops_reason') or '—'}\n",
+            hours=quiet,
+        ):
+            write_marker(
+                "webhook_fail",
+                streak=streak,
+                reason=fail.get("reason") or "",
+                hour_window_start=fail.get("hour_window_start"),
+                hour_count=int(fail.get("hour_count") or 0),
+                last_ip=fail.get("last_ip") or "",
+                ops_count=int(fail.get("ops_count") or 0),
+                ops_reason=fail.get("ops_reason") or "",
+                security_since_alert=0,
+            )
         fired.append(key)
 
     hour_count = int(fail.get("hour_count") or 0)
     window_start = float(fail.get("hour_window_start") or 0)
-    if hour_count > 10 and (time.time() - window_start) < 3600:
+    if (
+        wh_cfg["enabled"]
+        and hour_count > 10
+        and (time.time() - window_start) < 3600
+    ):
         key = "webhook_fail_rate"
-        _send_alert(
+        if _send_alert(
             key,
             f"[{app_name}] Вебхук Т-Кассы: много отказов за час",
-            f"Отказов за текущий час: {hour_count} (порог >10).\n"
+            f"Security-отказов за текущий час: {hour_count} (порог >10).\n"
             f"Последняя причина: {fail.get('reason', '—')}\n"
             f"IP: {fail.get('last_ip') or '—'}\n",
-        )
+            hours=quiet,
+        ):
+            pass
         fired.append(key)
 
     disk = snap["disk"]
@@ -318,14 +437,25 @@ def check_alerts(db: Session) -> list[str]:
         key = "disk_high"
         _send_alert(
             key,
-            f"[{app_name}] Диск заполнен > 85%",
+            f"[{app_name}] Диск заполнен > {int(DISK_ALERT_PCT)}%",
             f"Использовано {disk.get('used_pct')}% на {disk.get('path')}.\n",
         )
         fired.append(key)
 
     backup_age = marker_age_sec("backup_ok")
-    # Алерт если маркер протух > 26 ч (ночной cron + запас)
-    if backup_age is not None and backup_age > 26 * 3600:
+    # W-45/G-01 (закрыто W-46): маркер в FILES_ROOT/.ops; host-путь == контейнер
+# (/srv/dok/data/files). Раньше host ≠ named volume dok_files → слепой статус.
+    if backup_age is None:
+        key = "backup_missing"
+        _send_alert(
+            key,
+            f"[{app_name}] Нет маркера бэкапа",
+            "Маркер backup_ok отсутствует в FILES_ROOT/.ops/.\n"
+            "Проверьте, что deploy/backup.sh пишет маркер через "
+            "`docker compose exec app` в named volume (не на host-путь).\n",
+        )
+        fired.append(key)
+    elif backup_age > 26 * 3600:
         key = "backup_stale"
         _send_alert(
             key,
@@ -340,7 +470,7 @@ def check_alerts(db: Session) -> list[str]:
 
 def record_webhook_ok() -> None:
     write_marker("webhook_ok")
-    # Сбрасываем только streak подряд; часовой счётчик отказов (F-05) сохраняем.
+    # Сбрасываем security-streak; operational-счётчик и часовое окно сохраняем.
     prev = read_marker("webhook_fail") or {}
     write_marker(
         "webhook_fail",
@@ -349,28 +479,49 @@ def record_webhook_ok() -> None:
         hour_window_start=float(prev.get("hour_window_start") or 0) or None,
         hour_count=int(prev.get("hour_count") or 0),
         last_ip=prev.get("last_ip") or "",
+        ops_count=int(prev.get("ops_count") or 0),
+        ops_reason=prev.get("ops_reason") or "",
+        security_since_alert=0,
     )
 
 
 def record_webhook_fail(reason: str, *, ip: str | None = None) -> None:
-    """Учёт отказа вебхука: streak подряд + счётчик за скользящий час (F-05)."""
+    """Учёт отказа вебхука: security → streak/hour; operational → ops_count (без писем)."""
     prev = read_marker("webhook_fail") or {}
-    streak = int(prev.get("streak") or 0) + 1
+    cat = webhook_fail_category(reason)
     now = time.time()
-    window_start = float(prev.get("hour_window_start") or 0)
+    streak = int(prev.get("streak") or 0)
     hour_count = int(prev.get("hour_count") or 0)
-    if not window_start or (now - window_start) >= 3600:
-        window_start = now
-        hour_count = 1
+    window_start = float(prev.get("hour_window_start") or 0)
+    ops_count = int(prev.get("ops_count") or 0)
+    ops_reason = str(prev.get("ops_reason") or "")
+    security_since = int(prev.get("security_since_alert") or 0)
+    last_ip = (ip or prev.get("last_ip") or "")[:64]
+    sec_reason = str(prev.get("reason") or "")
+
+    if cat == "operational":
+        ops_count += 1
+        ops_reason = reason[:500]
     else:
-        hour_count += 1
+        streak += 1
+        security_since += 1
+        sec_reason = reason[:500]
+        if not window_start or (now - window_start) >= 3600:
+            window_start = now
+            hour_count = 1
+        else:
+            hour_count += 1
+
     write_marker(
         "webhook_fail",
         streak=streak,
-        reason=reason[:500],
-        hour_window_start=window_start,
+        reason=sec_reason,
+        hour_window_start=window_start or None,
         hour_count=hour_count,
-        last_ip=(ip or prev.get("last_ip") or "")[:64],
+        last_ip=last_ip,
+        ops_count=ops_count,
+        ops_reason=ops_reason,
+        security_since_alert=security_since,
     )
 
 
@@ -470,3 +621,15 @@ def ops_loop_tick(db: Session) -> None:
         maybe_send_vds_reminders(db)
     except Exception:
         log.exception("vds reminders failed")
+    try:
+        from app.services.dadata_cache_store import purge_expired_dadata_cache
+        from app.services.package_wizard_store import purge_expired_wizard_sessions
+
+        n_w = purge_expired_wizard_sessions(db)
+        n_c = purge_expired_dadata_cache(db)
+        if n_w or n_c:
+            db.commit()
+            log.info("purged wizard=%s dadata_cache=%s", n_w, n_c)
+    except Exception:
+        log.exception("wizard/dadata purge failed")
+        db.rollback()

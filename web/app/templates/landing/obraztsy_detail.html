@@ -1,0 +1,80 @@
+{% extends "landing/base.html" %}
+{% block title %}{{ item.title }} — образец {{ seo_year }} — {{ app_name }}{% endblock %}
+{% block meta_description %}{{ item.purpose }}. Стороны: {{ item.parties }}. Образец шаблона {{ app_name }}{% if item.fields %} · {{ item.fields|length }} полей{% endif %}.{% endblock %}
+{% block canonical %}{{ public_base_url }}/obraztsy/{{ item.slug }}{% endblock %}
+{% block og_title %}{{ item.title }} — образец {{ seo_year }}{% endblock %}
+{% block og_description %}{{ item.purpose }}. Заполните в кабинете Док.Москва за несколько минут.{% endblock %}
+{% block og_url %}{{ public_base_url }}/obraztsy/{{ item.slug }}{% endblock %}
+{% block twitter_title %}{{ item.title }} — образец {{ seo_year }}{% endblock %}
+
+{% block content %}
+<article class="lp-legal lp-obraztsy-detail">
+  <div class="lp-wrap">
+    <p class="zk-eyebrow"><a href="/obraztsy">Образцы</a> · {{ item.group }}</p>
+    <h1>{{ item.title }} — образец {{ seo_year }}</h1>
+    <p class="lp-section-lead">{{ item.purpose }}</p>
+
+    <dl class="lp-obraztsy-meta">
+      <div>
+        <dt>Для чего</dt>
+        <dd>{{ item.description }}</dd>
+      </div>
+      <div>
+        <dt>Стороны</dt>
+        <dd>{{ item.parties }}</dd>
+      </div>
+      <div>
+        <dt>Тип</dt>
+        <dd>{{ item.kind }}</dd>
+      </div>
+    </dl>
+
+    <div class="lp-obraztsy-actions">
+      {% if item.sample_pdf %}
+      <a class="lp-btn" href="{{ item.sample_pdf }}" target="_blank" rel="noopener" data-ym-goal="sample_pdf">Открыть образец (PDF)</a>
+      {% endif %}
+      <a class="lp-btn{% if item.sample_pdf %} lp-btn-outline{% endif %}" href="/#apply" data-ym-goal="cta_apply">Заполнить в кабинете за 5 минут</a>
+    </div>
+
+    {% if item.sample_thumb %}
+    <figure class="lp-obraztsy-thumb">
+      <a href="{{ item.sample_pdf }}" target="_blank" rel="noopener" data-ym-goal="sample_pdf">
+        <img src="{{ item.sample_thumb }}" alt="Миниатюра: {{ item.title }}" width="480" height="679" loading="lazy" decoding="async">
+      </a>
+      <figcaption>Фрагмент PDF с водяным знаком «ОБРАЗЕЦ»</figcaption>
+    </figure>
+    {% endif %}
+
+    {% if item.fields %}
+    <section aria-labelledby="fields-title">
+      <h2 id="fields-title">Заполняемые поля</h2>
+      <p class="lp-section-lead">Сервис подставит значения из карточки контрагента, настроек организации и формы документа.</p>
+      <ul class="lp-obraztsy-fields">
+        {% for f in item.fields %}
+        <li><code>{{ f }}</code></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <section aria-labelledby="norm-title">
+      <h2 id="norm-title">Нормативная база</h2>
+      {% if normative_acts %}
+      <ul class="lp-obraztsy-norm">
+        {% for act in normative_acts %}
+        <li><a href="/zakon/{{ act.slug }}">{{ act.title }}</a></li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p><a href="/zakon/">Раздел «Законодательство»</a> — профильные нормы судебной экспертизы.</p>
+      {% endif %}
+    </section>
+
+    <p class="lp-section-foot">
+      <a href="/obraztsy">← Все образцы</a>
+      ·
+      <a href="/zakon/">Законодательство</a>
+    </p>
+  </div>
+</article>
+{% endblock %}

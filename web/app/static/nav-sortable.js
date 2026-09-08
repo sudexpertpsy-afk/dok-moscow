@@ -2,8 +2,8 @@
  * Перетаскивание пунктов бокового меню.
  * Сохраняет порядок через POST /api/nav-order.
  *
- * Важно: тянем только за .nav-handle; <button> в браузерах ломает HTML5 DnD,
- * поэтому ручка — span; drag разрешаем флагом с mousedown на ручке.
+ * Важно: draggable только на .nav-item и только во время drag с ручки —
+ * иначе клики по <a> внутри draggable-контейнера не работают.
  */
 (function () {
   "use strict";
@@ -28,6 +28,12 @@
     });
   }
 
+  function setItemsDraggable(nav, on) {
+    nav.querySelectorAll("[data-nav-key]").forEach(function (el) {
+      el.setAttribute("draggable", on ? "true" : "false");
+    });
+  }
+
   function saveOrder(nav) {
     var area = nav.getAttribute("data-nav-area");
     if (!area) return;
@@ -49,13 +55,13 @@
   function initNav(nav) {
     if (nav.getAttribute("data-nav-sortable-ready") === "1") return;
     nav.setAttribute("data-nav-sortable-ready", "1");
+    setItemsDraggable(nav, false);
 
     var dragEl = null;
     var allowDrag = false;
     var startOrder = "";
     var moved = false;
 
-    // Без этого Chrome/Safari часто не начинают drag с <button>/текста внутри
     nav.addEventListener("pointerdown", function (e) {
       var t = elFromEventTarget(e.target);
       var handle = closest(t, ".nav-handle");
@@ -68,9 +74,7 @@
 
     function clearAllow() {
       allowDrag = false;
-      nav.querySelectorAll("[data-nav-key][draggable='true']").forEach(function (el) {
-        // оставляем draggable=true в разметке — снимать не обязательно
-      });
+      setItemsDraggable(nav, false);
     }
     nav.addEventListener("pointerup", clearAllow);
     nav.addEventListener("pointercancel", clearAllow);
@@ -94,7 +98,6 @@
       try {
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/plain", item.getAttribute("data-nav-key") || "");
-        // прозрачный drag-image иногда ломает drop — не трогаем
       } catch (_) {}
     });
 
@@ -109,7 +112,7 @@
       allowDrag = false;
       startOrder = "";
       moved = false;
-      // сохраняем на dragend: drop часто не приходит после insertBefore в dragover
+      setItemsDraggable(nav, false);
       if (shouldSave) saveOrder(nav);
     });
 
@@ -137,7 +140,6 @@
 
     nav.addEventListener("drop", function (e) {
       e.preventDefault();
-      // сохранение делает dragend
     });
   }
 
@@ -150,7 +152,6 @@
   } else {
     boot();
   }
-  // document — чтобы слушатель переживал hx-boost замену body
   document.addEventListener("htmx:afterSettle", boot);
   document.addEventListener("htmx:afterSwap", boot);
 })();

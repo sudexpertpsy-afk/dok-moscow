@@ -12,6 +12,8 @@ def test_path_surface_matrix():
     assert path_surface("/login") == "app"
     assert path_surface("/cabinet/documents/") == "app"
     assert path_surface("/api/global-search") == "app"
+    assert path_surface("/api/demo/egrul") == "public"
+    assert path_surface("/praktika/") == "public"
     assert path_surface("/billing/webhook") == "app"
     assert path_surface("/static/app.css") == "shared"
 

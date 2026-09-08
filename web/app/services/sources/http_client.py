@@ -28,7 +28,7 @@ class ThrottledClient:
         *,
         min_interval: float = 1.0,
         cache_ttl: float = 300.0,
-        timeout: float = 120.0,  # полные кодексы ИПС (fulltext) бывают >1–4 МБ
+        timeout: float = 180.0,  # полные кодексы ИПС (КоАП и др.) бывают >1–4 МБ; W-45/G-06
         user_agent: str = DEFAULT_UA,
         transport: httpx.BaseTransport | None = None,
         clock=None,
@@ -41,11 +41,14 @@ class ThrottledClient:
         self._last_request_at = -self.min_interval
         self._cache: dict[str, _CacheEntry] = {}
         self._request_count = 0
+        from app.ssl_util import ssl_verify_context
+
         self._client = httpx.Client(
             timeout=timeout,
             headers={"User-Agent": user_agent, "Accept": "*/*"},
             follow_redirects=True,
             transport=transport,
+            verify=ssl_verify_context(),
         )
 
     @property

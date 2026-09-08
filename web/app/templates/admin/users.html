@@ -17,12 +17,18 @@
         <td class="mono">{{ u.role.value }}</td>
         <td>{% if u.is_active %}<span class="badge ok">активен</span>{% else %}<span class="badge danger">выкл</span>{% endif %}</td>
         <td>{% if u.totp_enabled %}<span class="badge ok">да</span>{% else %}<span class="muted">нет</span>{% endif %}</td>
-        <td>
+        <td style="white-space:nowrap">
           <a href="/admin/users/{{ u.id }}">Карточка</a>
           {% if u.id != user.id %}
           <form class="inline-form" method="post" action="/admin/users/{{ u.id }}/toggle">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="{% if u.is_active %}danger{% else %}{% endif %}">{% if u.is_active %}Отключить{% else %}Включить{% endif %}</button>
+            <button type="submit" class="{% if u.is_active %}danger{% endif %}">{% if u.is_active %}Отключить{% else %}Включить{% endif %}</button>
+          </form>
+          <form class="inline-form" method="post" action="/admin/users/{{ u.id }}/delete"
+                hx-boost="false"
+                onsubmit="return confirm('Удалить пользователя {{ u.email|e }} (ID {{ u.id }})? Это необратимо.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="danger">Удалить</button>
           </form>
           {% else %}
           <span class="muted">это вы</span>

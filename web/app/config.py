@@ -73,6 +73,14 @@ class Settings(BaseSettings):
     hostland_panel_url: str = "https://hostland.ru/"
     hostland_pay_url: str = "https://hostland.ru/"
     hostland_console_url: str = "https://hostland.ru/"
+    # Лендинг: полоса цифр (ENV, без правки кода). docs=-1 → считать из БД.
+    landing_stats_templates: int = 26
+    landing_stats_docs: int = -1
+    landing_stats_practice_since: int = 2014
+    # W-43: глобальный флаг факсимиле (FAKSIMILE_ENABLED)
+    faksimile_enabled: bool = True
+    # W-46: версия образа (APP_VERSION из CI / compose)
+    app_version: str = "dev"
 
 
 @lru_cache

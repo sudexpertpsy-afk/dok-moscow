@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru"{% if analytics_public and analytics_public.yandex_metrika_id %} data-metrika-id="{{ analytics_public.yandex_metrika_id }}"{% endif %}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -79,6 +79,7 @@
     <nav class="lp-nav-links" aria-label="Разделы">
       <a href="/#how">Как это работает</a>
       <a href="/#features">Возможности</a>
+      <a href="/#lp-demo">Демо</a>
       <a href="/#samples">Примеры</a>
       <a href="/tariffs">Тарифы</a>
       <a href="/#faq">FAQ</a>
@@ -89,12 +90,14 @@
   <main id="main" tabindex="-1">
     {% block content %}{% endblock %}
   </main>
+  <a id="lp-sticky-apply" class="lp-sticky-apply" href="/#apply" hidden aria-hidden="true">Заявка</a>
   <footer class="lp-footer">
     <div class="lp-footer-inner">
       <p class="lp-footer-brand">{{ app_name }}</p>
       <p class="lp-footer-meta">
         <a href="/tariffs">Тарифы</a>
         <a href="/zakon/">Законодательство</a>
+        <a href="/praktika/">Практика</a>
         <a href="/offer">Оферта</a>
         <a href="/privacy">Политика ПДн</a>
         <a href="/requisites">Реквизиты</a>
@@ -110,5 +113,6 @@
       </p>
     </div>
   </footer>
+  <script src="{{ static_url('landing.js') }}" defer></script>
 </body>
 </html>

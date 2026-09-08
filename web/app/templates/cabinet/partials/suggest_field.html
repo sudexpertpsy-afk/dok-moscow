@@ -1,4 +1,3 @@
-{% for val in items %}
+{%- for val in items -%}
 <button type="button" class="suggest-pick" data-field="{{ field }}" data-value="{{ val }}">{{ val }}</button>
-{% else %}
-{% endfor %}
+{%- endfor -%}

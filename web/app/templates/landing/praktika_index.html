@@ -1,0 +1,32 @@
+{% extends "landing/base.html" %}
+{% block title %}Практика — статьи для экспертов — {{ app_name }}{% endblock %}
+{% block meta_description %}Практика судебной экспертизы: реквизиты заключения, факсимиле, сроки договоров. Короткие статьи со ссылками на образцы и нормы.{% endblock %}
+{% block canonical %}{{ public_base_url }}/praktika{% endblock %}
+{% block og_title %}Практика — {{ app_name }}{% endblock %}
+{% block og_url %}{{ public_base_url }}/praktika{% endblock %}
+
+{% block content %}
+<article class="lp-legal lp-praktika">
+  <div class="lp-wrap">
+    <p class="zk-eyebrow"><a href="/">Главная</a> · Практика</p>
+    <h1>Практика</h1>
+    <p class="lp-section-lead">Короткие материалы для эксперта и организации: нормы, документы, типичные сбои. Без пустой ленты — только готовые статьи.</p>
+
+    <ul class="lp-obraztsy-list">
+      {% for art in articles %}
+      <li>
+        <a href="/praktika/{{ art.slug }}">
+          <strong>{{ art.title }}</strong>
+          <span>{{ art.description }}{% if art.date %} · {{ art.date }}{% endif %}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <p class="lp-section-foot">
+      <a class="lp-btn lp-btn-ghost" href="/obraztsy">Образцы документов</a>
+      <a class="lp-btn lp-btn-ghost" href="/zakon/">Законодательство</a>
+    </p>
+  </div>
+</article>
+{% endblock %}

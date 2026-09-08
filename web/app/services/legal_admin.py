@@ -28,6 +28,7 @@ from app.services.legal_registry import (
     publish_version,
     reject_version,
 )
+from app.timeutil import as_utc
 from app.services.sources.diff_text import html_diff_preview, ndiff_to_html, paragraph_diff
 
 
@@ -80,7 +81,9 @@ def act_health(db: Session, act: LegalAct) -> ActHealth:
     )
     if last is not None and last.result == ActWatchResult.source_error:
         return ActHealth.red
-    if act.last_verified_at and act.last_verified_at >= utcnow() - timedelta(days=30):
+    if act.last_verified_at and as_utc(act.last_verified_at) >= utcnow() - timedelta(
+        days=30
+    ):
         return ActHealth.green
     return ActHealth.gray
 
@@ -257,6 +260,44 @@ def do_reject(db: Session, version_id: int, user_id: int) -> ActVersion:
     if version is None:
         raise ValueError("Редакция не найдена")
     return reject_version(db, version, reviewed_by_user_id=user_id)
+
+
+def delete_act(db: Session, act_id: int) -> str:
+    """Удалить акт и связанные записи (редакции, фрагменты, индекс поиска, закладки)."""
+    from sqlalchemy import delete
+
+    from app.models import (
+        ActFragment,
+        LawBookmark,
+        LawNote,
+        LawView,
+        LawWatch,
+        LawWatchNotice,
+        LegalSearchDoc,
+    )
+
+    act = db.get(LegalAct, act_id)
+    if act is None:
+        raise ValueError("Акт не найден")
+    slug = act.slug
+    # заметки привязаны к фрагментам, не к акту
+    frag_ids = list(
+        db.scalars(select(ActFragment.id).where(ActFragment.act_id == act_id)).all()
+    )
+    if frag_ids:
+        db.execute(delete(LawNote).where(LawNote.fragment_id.in_(frag_ids)))
+    # таблицы без cascade в relationship — чистим явно (в БД FK CASCADE тоже есть)
+    for model in (
+        LegalSearchDoc,
+        LawWatchNotice,
+        LawWatch,
+        LawBookmark,
+        LawView,
+    ):
+        db.execute(delete(model).where(model.act_id == act_id))
+    db.delete(act)
+    db.flush()
+    return slug
 
 
 def manual_upload(

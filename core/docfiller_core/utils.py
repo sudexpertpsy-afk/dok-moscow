@@ -52,13 +52,30 @@ def is_multiline_field(name):
         'предмет_', 'новая_редакция_', 'дополнительные_условия',
         'цели_обработки', 'условия_расчётов', 'вопрос_',
     )
-    return any(str(name).startswith(p) for p in prefixes)
+    exact = {
+        'вопросы_эксперту',
+        'объекты_исследования',
+        'материалы_дела',
+        'применённые_методы',
+        'примененные_методы',
+        'содержание_исследования',
+        'оценка_результатов',
+        'выводы',
+        'дополнительные_обстоятельства',
+        'приложения',
+        'адресат',
+        'что_направляется_вин',
+        'основание_направления',
+        'дополнительный_текст',
+    }
+    n = str(name)
+    return n in exact or any(n.startswith(p) for p in prefixes)
 
 
 def output_stem(context):
     """Имя выходного файла по приоритету полей контекста."""
     priority = (
-        'номер_договора', 'номер_акта', 'исх_номер',
+        'номер_договора', 'номер_акта', 'номер_заключения', 'исх_номер',
         'фио_клиента', 'название_заказчика', 'фио_эксперта',
     )
     ctx = context or {}
@@ -73,20 +90,41 @@ def output_stem(context):
 
 
 def resolve_template_path(templates_dir, name):
-    """Найти файл шаблона с учётом NFC/NFD на macOS."""
+    """Найти файл шаблона с учётом NFC/NFD на macOS.
+
+    W-46: если есть system/ и overrides/, override с тем же именем побеждает.
+    """
     templates_dir = Path(templates_dir)
     target = normalize_name(name)
-    for path in templates_dir.glob('*.docx'):
-        if path.name.startswith('~$'):
-            continue
-        if normalize_name(path.name) == target:
-            return path
-    return templates_dir / name
+
+    search_dirs = []
+    ovr = templates_dir / "overrides"
+    sys_dir = templates_dir / "system"
+    if sys_dir.is_dir() or ovr.is_dir():
+        if ovr.is_dir():
+            search_dirs.append(ovr)
+        if sys_dir.is_dir():
+            search_dirs.append(sys_dir)
+    else:
+        search_dirs.append(templates_dir)
+
+    for folder in search_dirs:
+        for path in folder.glob("*.docx"):
+            if path.name.startswith("~$"):
+                continue
+            if normalize_name(path.name) == target:
+                return path
+    # fallback: прямой путь (плоский или relative)
+    for folder in search_dirs:
+        candidate = folder / name
+        if candidate.is_file():
+            return candidate
+    return search_dirs[0] / name
 
 
 def get_widget_value(widget):
     """Прочитать значение Entry или Text."""
-    # TODO(этап 4+): vulture — возможно мёртвый хелпер после FieldSet.
+    # Desktop UI helper (tk); оставляем для локального docfiller.
     import tkinter as tk
     if isinstance(widget, tk.Text):
         return widget.get('1.0', 'end-1c')

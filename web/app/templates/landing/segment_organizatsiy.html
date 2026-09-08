@@ -1,0 +1,46 @@
+{% extends "landing/base.html" %}
+{% block title %}Для экспертных организаций — {{ app_name }}{% endblock %}
+{% block meta_description %}Кабинет экспертной организации: до 5 пользователей, свои шаблоны и поля, общая картотека, факсимиле в PDF.{% endblock %}
+{% block canonical %}{{ public_base_url }}/dlya-organizatsiy{% endblock %}
+{% block og_title %}Для экспертных организаций — {{ app_name }}{% endblock %}
+{% block og_url %}{{ public_base_url }}/dlya-organizatsiy{% endblock %}
+
+{% block content %}
+<article class="lp-legal lp-segment">
+  <div class="lp-wrap">
+    <p class="zk-eyebrow"><a href="/">Главная</a> · Для организаций</p>
+    <h1>Для экспертных организаций</h1>
+
+    {% if content_slots.segment_organizatsiy %}
+      {{ content_slots.segment_organizatsiy }}
+    {% else %}
+    <p class="lp-section-lead">Общая картотека, единые шаблоны и контроль комплектов — без пересылки Word по почте.</p>
+
+    <h2>Боль</h2>
+    <p>У каждого эксперта свой «боевой» файл договора. Бланки организации живут в разных папках. Печать на счёт — снова к принтеру. Новые сотрудники копируют чужие ошибки.</p>
+
+    <h2>Сценарий за 3 шага</h2>
+    <ol class="lp-seg-steps">
+      <li>Пригласите коллег в организацию (до 5 пользователей).</li>
+      <li>Загрузите свои бланки и поля <code>{% raw %}{{ своё_поле }}{% endraw %}</code> — сервис предложит настроить их на форме.</li>
+      <li>Ведите контрагентов и комплекты из одного кабинета; факсимиле — в PDF по политике шаблона.</li>
+    </ol>
+
+    <h2>Что особенно полезно</h2>
+    <ul>
+      <li>Свои шаблоны и свои поля (тариф «Организация»)</li>
+      <li>Печать и подпись в PDF на уровне организации</li>
+      <li>Заключения эксперта и письма суду в одном реестре</li>
+    </ul>
+
+    <h2>Тариф</h2>
+    <p>Тариф <a href="/tariffs">«Организация»</a> — команда, свои шаблоны, факсимиле.</p>
+    {% endif %}
+
+    <p class="lp-section-foot">
+      <a class="lp-btn" href="/#apply" data-ym-goal="cta_apply">Оставить заявку</a>
+      <a class="lp-btn lp-btn-ghost" href="/tariffs">Сравнить тарифы</a>
+    </p>
+  </div>
+</article>
+{% endblock %}

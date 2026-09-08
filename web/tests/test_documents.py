@@ -96,6 +96,24 @@ def test_http_generate_and_download(app, tmp_path, monkeypatch):
     object.__setattr__(s, "files_root", str(tmp_path / "files"))
 
     org_id, _ = _seed_org_user(dbmod, email="httpgen@example.com")
+    # Счёт требует банковские реквизиты организации
+    db = dbmod.SessionLocal()
+    try:
+        org = db.get(Organization, org_id)
+        org.requisites["банк"] = {
+            "расчётный_счёт": "40702810338000013478",
+            "банк": 'ПАО "СБЕРБАНК РОССИИ"',
+            "бик": "044525225",
+            "корр_счёт": "30101810400000000225",
+        }
+        from sqlalchemy.orm.attributes import flag_modified
+
+        flag_modified(org, "requisites")
+        db.add(org)
+        db.commit()
+    finally:
+        db.close()
+
     assert login(client, "httpgen@example.com", "Passw0rd!").status_code == 303
 
     template = "Счёт_на_оплату.docx"

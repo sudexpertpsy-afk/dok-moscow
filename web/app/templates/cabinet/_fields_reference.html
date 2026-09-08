@@ -1,0 +1,88 @@
+{# Справка: стандартные и org-поля с копированием {{ имя }} (W-41). #}
+<section class="panel fields-reference" style="margin-top:1rem">
+  <h2>Справка по плейсхолдерам</h2>
+  <p class="muted">Нужно своё поле? Впишите <span class="mono">{{ '{{ имя_поля }}' }}</span> в DOCX — при загрузке сервис предложит его настроить. Имя: строчные буквы, цифры и «_», без точек (пространства <span class="mono">настройки.*</span> зарезервированы).</p>
+
+  <h3 style="margin-top:1rem">Поля организации</h3>
+  {% if org_fields %}
+  <table class="table">
+    <thead><tr><th>Имя</th><th>Подпись</th><th>Тип</th><th></th></tr></thead>
+    <tbody>
+      {% for f in org_fields %}
+      <tr>
+        <td class="mono">{{ f.name }}</td>
+        <td>{{ f.label }}</td>
+        <td class="muted">{{ f.type_label or f.type }}</td>
+        <td>
+          <button type="button" class="secondary btn-copy-ph" data-ph="{{ '{{ ' ~ f.name ~ ' }}' }}">Копировать {{ '{{ ' ~ f.name ~ ' }}' }}</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Пока нет полей организации. Добавьте в разделе <a href="/cabinet/templates/fields">Поля</a> или при загрузке шаблона.</p>
+  {% endif %}
+
+  <details style="margin-top:1rem">
+    <summary>Факсимиле (печать и подписи)</summary>
+    <p class="muted" style="margin:0.5rem 0">Зарезервированные имена — загрузите изображения в «Настройки → Печать и подписи». Не создавайте одноимённые поля организации.</p>
+    <table class="table" style="margin-top:0.5rem">
+      <thead><tr><th>Имя</th><th>Назначение</th><th></th></tr></thead>
+      <tbody>
+        {% for f in facsimile_fields|default([
+          {'name':'факсимиле_печать','label':'Оттиск печати'},
+          {'name':'факсимиле_директор','label':'Подпись руководителя'},
+          {'name':'факсимиле_бухгалтер','label':'Подпись главного бухгалтера'},
+          {'name':'факсимиле_кассир','label':'Подпись кассира'}
+        ]) %}
+        <tr>
+          <td class="mono">{{ f.name }}</td>
+          <td>{{ f.label }}</td>
+          <td>
+            <button type="button" class="secondary btn-copy-ph" data-ph="{{ '{{ ' ~ f.name ~ ' }}' }}">Копировать</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+
+  <details style="margin-top:1rem">
+    <summary>Стандартные имена полей сервиса</summary>
+    <table class="table" style="margin-top:0.5rem">
+      <thead><tr><th>Имя</th><th>Подпись</th><th></th></tr></thead>
+      <tbody>
+        {% for f in standard_fields %}
+        <tr>
+          <td class="mono">{{ f.name }}</td>
+          <td>{{ f.label }}</td>
+          <td>
+            <button type="button" class="secondary btn-copy-ph" data-ph="{{ '{{ ' ~ f.name ~ ' }}' }}">Копировать</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+</section>
+<script>
+(function () {
+  document.querySelectorAll(".btn-copy-ph").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var t = btn.getAttribute("data-ph") || "";
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(t).then(function () {
+          btn.textContent = "Скопировано";
+          setTimeout(function () { btn.textContent = "Копировать " + t; }, 1200);
+        });
+      } else {
+        var ta = document.createElement("textarea");
+        ta.value = t; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+    });
+  });
+})();
+</script>

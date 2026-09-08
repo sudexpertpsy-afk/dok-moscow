@@ -92,16 +92,21 @@ for t in $TABLES; do
   printf '%-22s %12s %12s %s\n' "$t" "$prod" "$drill" "$ok"
 done
 
-echo "→ проверка маркера backup_ok"
-MARKER="${FILES_ROOT_HOST:-/srv/dok/files}/.ops/backup_ok.json"
-if [[ -f "$MARKER" ]]; then
-  echo "  маркер: $MARKER"
-  python3 - <<PY
-import json, time
-from pathlib import Path
+echo "→ проверка маркера backup_ok (W-46: host==container FILES_ROOT)"
+FILES_ROOT="${FILES_ROOT:-/srv/dok/data/files}"
+MARKER_JSON=""
+if [[ -f "$FILES_ROOT/.ops/backup_ok.json" ]]; then
+  MARKER_JSON="$(cat "$FILES_ROOT/.ops/backup_ok.json")"
+elif docker compose --env-file .env ps --status running -q app >/dev/null 2>&1; then
+  MARKER_JSON="$(docker compose --env-file .env exec -T app \
+    python -c "from pathlib import Path; p=Path('/srv/dok/data/files/.ops/backup_ok.json'); print(p.read_text(encoding='utf-8') if p.is_file() else '')" 2>/dev/null || true)"
+fi
+if [[ -n "${MARKER_JSON}" ]]; then
+  echo "  маркер: $FILES_ROOT/.ops/backup_ok.json"
+  MARKER_JSON="$MARKER_JSON" python3 - <<'PY'
+import json, os
 from datetime import datetime, timezone
-p = Path("$MARKER")
-data = json.loads(p.read_text(encoding="utf-8"))
+data = json.loads(os.environ["MARKER_JSON"])
 at = datetime.fromisoformat(data["at"])
 if at.tzinfo is None:
     at = at.replace(tzinfo=timezone.utc)
@@ -109,16 +114,13 @@ age_h = (datetime.now(timezone.utc) - at).total_seconds() / 3600
 print(f"  at={data.get('at')} age_h={age_h:.1f} file={data.get('file')}")
 if age_h > 26:
     print("  ⚠ маркер старше 26 ч — алерт backup_stale должен сработать")
-# файл из маркера существует?
-import os
 f = data.get("file") or ""
 print(f"  archive_exists={os.path.isfile(f)} path={f}")
 PY
 else
-  echo "  ⚠ маркер не найден: $MARKER"
+  echo "  ⚠ маркер backup_ok не найден в $FILES_ROOT/.ops/"
   FAIL=1
 fi
-
 echo "→ очистка $DRILL_DB"
 docker compose --env-file .env exec -T postgres \
   psql -U dok -d postgres -c "DROP DATABASE IF EXISTS $DRILL_DB;"

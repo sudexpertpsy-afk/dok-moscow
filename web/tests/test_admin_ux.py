@@ -103,6 +103,56 @@ def test_admin_revoke_invite_and_toggle_user(app):
     finally:
         db.close()
 
+    # повторить отозванное → новый открытый инвайт + ссылка
+    token = csrf_from(client, "/admin/invites")
+    with patch("app.services.mail.send_email", return_value=True) as mail:
+        r = client.post(
+            f"/admin/invites/{inv_id}/resend",
+            data={"csrf_token": token},
+            follow_redirects=True,
+        )
+    assert r.status_code == 200
+    assert "Приглашение повторено" in r.text
+    assert "/invite/" in r.text
+    assert mail.called
+    db = dbmod.SessionLocal()
+    try:
+        old = db.get(Invite, inv_id)
+        assert old is not None and old.is_expired()
+        new = db.scalar(
+            select(Invite)
+            .where(Invite.email == "new@example.com", Invite.id != inv_id)
+            .order_by(Invite.id.desc())
+        )
+        assert new is not None
+        assert not new.is_expired()
+        assert new.used_at is None
+        new_id = new.id
+    finally:
+        db.close()
+
+    # удалить строку
+    token = csrf_from(client, "/admin/invites")
+    r = client.post(
+        f"/admin/invites/{new_id}/delete",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "ok=" in r.headers["location"]
+    db = dbmod.SessionLocal()
+    try:
+        assert db.get(Invite, new_id) is None
+        assert db.get(Invite, inv_id) is not None
+    finally:
+        db.close()
+
+    # UI: кнопки в таблице
+    r = client.get("/admin/invites")
+    assert r.status_code == 200
+    assert "Повторить" in r.text
+    assert "Удалить" in r.text
+
     token = csrf_from(client, "/admin/users")
     r = client.post(
         f"/admin/users/{uid}/toggle",

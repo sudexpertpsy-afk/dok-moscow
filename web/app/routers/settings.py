@@ -17,11 +17,16 @@ from app.security import check_csrf, get_csrf_token, hash_password, verify_passw
 from app.services.audit import record_event
 from app.services.retention import get_retention_days, set_retention_days
 from app.services.settings_svc import (
+    BANK_FIELD_LABELS,
     BANK_FIELDS,
+    BANK_FORM_MAP,
+    ORG_FIELD_LABELS,
     ORG_FIELDS,
     PRICE_FIELDS,
     SIGNATORY_BLOCKS,
     adjust_counter,
+    bank_from_form,
+    bank_is_complete,
     ensure_requisites,
     list_counters,
     update_section,
@@ -77,6 +82,7 @@ def _sections_for(user: CurrentUser) -> list[tuple[str, str, str]]:
             ("реквизиты", "Реквизиты", "/cabinet/settings/"),
             ("банк", "Банк", "/cabinet/settings/bank"),
             ("подписанты", "Подписанты", "/cabinet/settings/signatories"),
+            ("печать", "Печать и подписи", "/cabinet/settings/branding"),
             ("прайс", "Прайс", "/cabinet/settings/price"),
             ("счётчики", "Счётчики", "/cabinet/settings/counters"),
             ("безопасность", "Безопасность", "/cabinet/settings/security"),
@@ -105,7 +111,12 @@ def _page(request: Request, user: CurrentUser, org, db, section: str, **extra):
         "flash_error": None,
         "flash_ok": None,
         "ORG_FIELDS": ORG_FIELDS,
+        "ORG_FIELD_LABELS": ORG_FIELD_LABELS,
         "BANK_FIELDS": BANK_FIELDS,
+        "BANK_FORM_MAP": BANK_FORM_MAP,
+        "BANK_FIELD_LABELS": BANK_FIELD_LABELS,
+        "bank_complete": bank_is_complete(req),
+        "dadata_enabled": bool(get_settings().dadata_key),
         "PRICE_FIELDS": PRICE_FIELDS,
         "SIGNATORY_BLOCKS": SIGNATORY_BLOCKS,
     }
@@ -195,7 +206,21 @@ async def settings_bank_save(
     form = await request.form()
     if not check_csrf(request, form.get("csrf_token")):
         raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
-    values = {f: form.get(f) for f in BANK_FIELDS}
+    values = bank_from_form(form)
+    if not values:
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/settings.html",
+            context=_page(
+                request,
+                user,
+                org,
+                db,
+                "банк",
+                flash_error="Не получены поля банка. Обновите страницу и сохраните снова.",
+            ),
+            status_code=400,
+        )
     errors = update_section(org, "банк", values)
     if errors:
         return templates.TemplateResponse(
@@ -261,6 +286,305 @@ async def settings_signatories_save(
         name="cabinet/settings.html",
         context=_page(request, user, org, db, "подписанты", flash_ok="Подписанты сохранены."),
     )
+
+
+@router.get("/branding", response_class=HTMLResponse)
+def settings_branding(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
+    from app.services.branding import list_slots_status
+    from app.services.branding_access import can_manage_branding
+    from app.services.facsimile import get_facsimile_prefs
+    from app.services.settings_svc import ensure_requisites
+
+    org = get_org_for_user(db, user)
+    ok, reason = can_manage_branding(db, org.id)
+    req = ensure_requisites(org)
+    prefs = get_facsimile_prefs(req)
+    return templates.TemplateResponse(
+        request=request,
+        name="cabinet/settings_branding.html",
+        context=_page(
+            request,
+            user,
+            org,
+            db,
+            "печать",
+            slots=list_slots_status(org.id),
+            branding_allowed=ok,
+            branding_reason=reason,
+            prefs=prefs,
+            flash_ok=request.query_params.get("ok"),
+            flash_error=request.query_params.get("err"),
+        ),
+    )
+
+
+@router.post("/branding/prefs", response_class=HTMLResponse)
+async def settings_branding_prefs(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
+    from app.services.branding_access import assert_can_manage_branding
+    from app.services.facsimile import set_facsimile_prefs
+    from app.services.settings_svc import ensure_requisites
+
+    org = get_org_for_user(db, user)
+    gate = assert_can_manage_branding(db, org.id)
+    if gate is not None:
+        return gate
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+    req = ensure_requisites(org)
+    set_facsimile_prefs(
+        req,
+        pdf_default=bool(form.get("pdf_default")),
+        embed_docx=bool(form.get("embed_docx")),
+    )
+    org.requisites = dict(req)
+    db.add(org)
+    record_event(
+        db,
+        type="branding_prefs",
+        org_id=org.id,
+        user_id=user.id,
+        details={"pdf_default": bool(form.get("pdf_default")), "embed_docx": bool(form.get("embed_docx"))},
+    )
+    db.commit()
+    return RedirectResponse("/cabinet/settings/branding?ok=Настройки+сохранены", status_code=303)
+
+
+@router.post("/branding/onboarding-dismiss", response_class=HTMLResponse)
+async def settings_branding_onboarding_dismiss(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    """Д-4: закрыть онбординг-плашку навсегда."""
+    from app.services.facsimile import set_facsimile_prefs
+    from app.services.settings_svc import ensure_requisites
+
+    org = get_org_for_user(db, user)
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+    req = ensure_requisites(org)
+    set_facsimile_prefs(req, onboarding_dismissed=True)
+    org.requisites = dict(req)
+    db.add(org)
+    db.commit()
+    referer = request.headers.get("referer") or "/cabinet/"
+    if "/cabinet/" not in referer:
+        referer = "/cabinet/"
+    return RedirectResponse(referer, status_code=303)
+
+
+@router.post("/branding/{slot}/upload", response_class=HTMLResponse)
+async def settings_branding_upload(
+    slot: str,
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
+    from urllib.parse import quote
+
+    from app.services.branding import BrandingError, SLOTS, process_and_save
+    from app.services.branding_access import assert_can_manage_branding
+
+    org = get_org_for_user(db, user)
+    gate = assert_can_manage_branding(db, org.id)
+    if gate is not None:
+        return gate
+    if slot not in SLOTS:
+        return RedirectResponse("/cabinet/settings/branding?err=Неизвестный+слот", status_code=303)
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+    upload = form.get("file")
+    if upload is None or not getattr(upload, "filename", None):
+        return RedirectResponse(
+            f"/cabinet/settings/branding?err={quote('Выберите файл')}", status_code=303
+        )
+    data = await upload.read()
+    remove_bg = bool(form.get("remove_bg", "1"))
+    try:
+        threshold = int(form.get("bg_threshold") or 240)
+    except (TypeError, ValueError):
+        threshold = 240
+    try:
+        _, verdict = process_and_save(
+            org.id, slot, data, remove_bg=remove_bg, bg_threshold=threshold
+        )
+    except BrandingError as exc:
+        return RedirectResponse(
+            f"/cabinet/settings/branding?err={quote(str(exc))}", status_code=303
+        )
+    record_event(
+        db,
+        type="branding_upload",
+        org_id=org.id,
+        user_id=user.id,
+        details={"slot": slot, "verdict": verdict.level.value, "message": verdict.message},
+    )
+    db.commit()
+    msg = quote(f"Загружено: {verdict.message}")
+    return RedirectResponse(f"/cabinet/settings/branding?ok={msg}", status_code=303)
+
+
+@router.post("/branding/{slot}/delete", response_class=HTMLResponse)
+async def settings_branding_delete(
+    slot: str,
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
+    from app.services.branding import BrandingError, delete_slot
+    from app.services.branding_access import assert_can_manage_branding
+
+    org = get_org_for_user(db, user)
+    gate = assert_can_manage_branding(db, org.id)
+    if gate is not None:
+        return gate
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+    try:
+        delete_slot(org.id, slot)
+    except BrandingError as exc:
+        from urllib.parse import quote
+
+        return RedirectResponse(
+            f"/cabinet/settings/branding?err={quote(str(exc))}", status_code=303
+        )
+    record_event(
+        db,
+        type="branding_delete",
+        org_id=org.id,
+        user_id=user.id,
+        details={"slot": slot},
+    )
+    db.commit()
+    return RedirectResponse("/cabinet/settings/branding?ok=Удалено", status_code=303)
+
+
+@router.get("/branding/{slot}/preview.png")
+def settings_branding_preview(
+    slot: str,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    from fastapi.responses import Response
+
+    from app.services.branding import preview_png_bytes
+
+    org = get_org_for_user(db, user)
+    if not user.is_org_admin:
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    data = preview_png_bytes(org.id, slot)
+    if not data:
+        raise HTTPException(status_code=404, detail="Нет изображения")
+    return Response(content=data, media_type="image/png")
+
+
+@router.post("/branding/check", response_class=HTMLResponse)
+async def settings_branding_check(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    """Мгновенная проверка файла (HTMX) — вердикт + предпросмотр ДО/ПОСЛЕ."""
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
+    from app.services.branding import (
+        BrandingError,
+        SLOTS,
+        VerdictLevel,
+        evaluate_image,
+        preview_pair_uris,
+    )
+
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+    slot = str(form.get("slot") or "")
+    if slot not in SLOTS:
+        return PlainTextResponse("Неизвестный слот", status_code=400)
+    upload = form.get("file")
+    if upload is None:
+        return PlainTextResponse("Нет файла", status_code=400)
+    data = await upload.read()
+    kind = SLOTS[slot]["kind"]
+    remove_bg = bool(form.get("remove_bg"))
+    try:
+        bg_threshold = int(form.get("bg_threshold") or 240)
+    except (TypeError, ValueError):
+        bg_threshold = 240
+    try:
+        verdict = evaluate_image(
+            data,
+            kind=kind,
+            simulate_remove_bg=remove_bg,
+            bg_threshold=bg_threshold,
+        )
+    except BrandingError as exc:
+        return HTMLResponse(
+            f'<p class="badge danger">✗ Не принято — {exc}</p>', status_code=200
+        )
+    if verdict.level == VerdictLevel.excellent:
+        cls, mark = "ok", "✓ Отлично"
+    elif verdict.level == VerdictLevel.usable:
+        cls, mark = "warn", "⚠ Пригодно, но…"
+    else:
+        cls, mark = "danger", "✗ Не принято"
+    html = (
+        f'<p class="badge {cls}">{mark} — {verdict.message}</p>'
+        f'<p class="muted">{verdict.width}×{verdict.height} px ≈ '
+        f"{verdict.print_w_mm}×{verdict.print_h_mm} мм при 300 dpi</p>"
+    )
+    if verdict.level != VerdictLevel.rejected:
+        try:
+            previews = preview_pair_uris(
+                data, remove_bg=remove_bg, bg_threshold=bg_threshold
+            )
+            html += (
+                '<div style="display:flex;flex-wrap:wrap;gap:0.75rem;margin-top:0.5rem">'
+                f'<div><span class="muted" style="font-size:0.8rem">ДО (серый)</span>'
+                f'<img src="{previews["before_gray"]}" alt="до серый" '
+                f'style="display:block;max-width:120px;background:#e8e8e8;padding:4px"></div>'
+                f'<div><span class="muted" style="font-size:0.8rem">ДО (белый)</span>'
+                f'<img src="{previews["before_white"]}" alt="до белый" '
+                f'style="display:block;max-width:120px;border:1px solid #ddd;padding:4px"></div>'
+                f'<div><span class="muted" style="font-size:0.8rem">ПОСЛЕ (серый)</span>'
+                f'<img src="{previews["after_gray"]}" alt="после серый" '
+                f'style="display:block;max-width:120px;background:#e8e8e8;padding:4px"></div>'
+                f'<div><span class="muted" style="font-size:0.8rem">ПОСЛЕ (белый)</span>'
+                f'<img src="{previews["after_white"]}" alt="после белый" '
+                f'style="display:block;max-width:120px;border:1px solid #ddd;padding:4px"></div>'
+                f'<div><span class="muted" style="font-size:0.8rem">Как в документе</span>'
+                f'<img src="{previews["in_document"]}" alt="в документе" '
+                f'style="display:block;max-width:220px;border:1px solid #ddd"></div>'
+                "</div>"
+            )
+        except BrandingError:
+            pass
+    return HTMLResponse(html)
 
 
 @router.get("/price", response_class=HTMLResponse)
@@ -412,6 +736,9 @@ def _security_ctx(request: Request, user: CurrentUser, org, db: Session, **extra
         db,
         "безопасность",
         retention_days=get_retention_days(org),
+        security_base="/cabinet/settings/security",
+        show_retention=True,
+        show_admin_2fa_hint=False,
         security_events=events,
         totp_enabled=bool(db_user and db_user.totp_enabled),
         force_2fa_setup=bool(request.session.get("force_2fa_setup")),

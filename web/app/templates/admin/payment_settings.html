@@ -65,6 +65,21 @@
     </label>
     <p class="muted">При выключении кнопка на странице входа скрыта; уже созданные привязки сохраняются.</p>
 
+    <h2 style="font-family:var(--font-display);font-size:1.15rem;margin-top:1.5rem">Уведомления о вебхуке</h2>
+    <p class="muted">Письма только по security-отказам (неверная подпись). Неизвестный OrderId — счётчик на «Статус», без писем.</p>
+    {% set wa = webhook_alerts or {"enabled": true, "threshold": 3, "quiet_hours": 6} %}
+    <label style="display:flex;gap:0.5rem;align-items:center;margin-top:0.9rem">
+      <input type="checkbox" name="webhook_alerts_enabled" value="1" style="width:auto"
+        {% if wa.enabled %}checked{% endif %}>
+      Отправлять e-mail при security-отказах вебхука
+    </label>
+    <label for="webhook_alert_threshold">Порог подряд (security)</label>
+    <input id="webhook_alert_threshold" name="webhook_alert_threshold" type="number" min="1" max="1000"
+      value="{{ wa.threshold }}">
+    <label for="webhook_alert_quiet_hours">Тихий период, часов</label>
+    <input id="webhook_alert_quiet_hours" name="webhook_alert_quiet_hours" type="number" min="0.25" max="168" step="0.25"
+      value="{{ wa.quiet_hours }}">
+
     <h2 style="font-family:var(--font-display);font-size:1.15rem;margin-top:1.5rem">Бета-доступ по умолчанию</h2>
     <p class="muted">Стартовая подписка при «Создать организацию и пригласить» из заявки (W-39).</p>
     <label for="beta_default_tariff">Тариф</label>

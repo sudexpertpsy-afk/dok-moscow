@@ -168,7 +168,7 @@ def write_status(registry_path, row_idx, output_filename, status):
 
 def make_sample_registry(registry_path, sample_data, template_name='СППЭ_информация_суду.docx'):
     """Создать пример Реестр.xlsx с заголовками и одной строкой данных."""
-    # TODO(этап 4+): vulture — не вызывается из UI; образец уже в Реестр_*.example.xlsx.
+    # Образец реестра для desktop; web использует Реестр_*.example.xlsx.
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = 'Реестр'

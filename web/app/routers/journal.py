@@ -13,9 +13,26 @@ from app.org_scope import get_org_for_user, list_counterparty_options, require_o
 from app.nav_context import cabinet_nav
 from app.security import get_csrf_token
 from app.services.journal import distinct_templates, list_journal, parse_date
+from app.services.templates import ensure_core_on_path, templates_dir
 from app.templating import templates
 
 router = APIRouter(prefix="/cabinet", tags=["journal"])
+
+
+def _kinds_map(rows) -> dict[int, str]:
+    ensure_core_on_path()
+    from docfiller_core.contracts_registry import document_kind_from_registry
+    from docfiller_core.template_manifest import document_kind
+
+    root = templates_dir()
+    out: dict[int, str] = {}
+    for d in rows:
+        kind = document_kind_from_registry(root, d.template) or document_kind(
+            d.template, templates_dir=root
+        )
+        if kind and kind != "документ":
+            out[d.id] = kind
+    return out
 
 
 def _page(request: Request, user: CurrentUser, org, db, active: str, **extra):
@@ -41,11 +58,14 @@ def _journal_filters(request: Request):
     template = (q.get("template") or "").strip() or None
     cp_raw = (q.get("counterparty_id") or "").strip()
     counterparty_id = int(cp_raw) if cp_raw.isdigit() else None
+    facsimile = (q.get("facsimile") or "").strip() or None
+    if facsimile not in ("yes", "no"):
+        facsimile = None
     try:
         page = int(q.get("page") or "1")
     except ValueError:
         page = 1
-    return date_from, date_to, template, counterparty_id, cp_raw, max(1, page)
+    return date_from, date_to, template, counterparty_id, cp_raw, facsimile, max(1, page)
 
 
 @router.get("/journal", response_class=HTMLResponse)
@@ -56,7 +76,7 @@ def journal_page(
 ):
     org = get_org_for_user(db, user)
     org_id = require_org_id(user)
-    date_from, date_to, template, counterparty_id, cp_raw, page = _journal_filters(request)
+    date_from, date_to, template, counterparty_id, cp_raw, facsimile, page = _journal_filters(request)
     per_page = 20
 
     rows, total = list_journal(
@@ -66,6 +86,7 @@ def journal_page(
         date_to=date_to,
         template=template,
         counterparty_id=counterparty_id,
+        facsimile=facsimile,
         page=page,
         per_page=per_page,
     )
@@ -84,11 +105,13 @@ def journal_page(
             templates_list=distinct_templates(db, org_id),
             counterparties=cps,
             cp_map=cp_map,
+            kinds_map=_kinds_map(rows),
             filters={
                 "from": request.query_params.get("from") or "",
                 "to": request.query_params.get("to") or "",
                 "template": template or "",
                 "counterparty_id": cp_raw,
+                "facsimile": facsimile or "",
             },
         ),
     )
@@ -102,7 +125,7 @@ def journal_rows(
 ):
     """HTMX-фрагмент следующей страницы журнала (W-31)."""
     org_id = require_org_id(user)
-    date_from, date_to, template, counterparty_id, cp_raw, page = _journal_filters(request)
+    date_from, date_to, template, counterparty_id, cp_raw, facsimile, page = _journal_filters(request)
     per_page = 20
     rows, total = list_journal(
         db,
@@ -111,6 +134,7 @@ def journal_rows(
         date_to=date_to,
         template=template,
         counterparty_id=counterparty_id,
+        facsimile=facsimile,
         page=page,
         per_page=per_page,
     )
@@ -127,11 +151,13 @@ def journal_rows(
             "page": page,
             "pages": pages,
             "cp_map": cp_map,
+            "kinds_map": _kinds_map(rows),
             "filters": {
                 "from": request.query_params.get("from") or "",
                 "to": request.query_params.get("to") or "",
                 "template": template or "",
                 "counterparty_id": cp_raw,
+                "facsimile": facsimile or "",
             },
         },
     )

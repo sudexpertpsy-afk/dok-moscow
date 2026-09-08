@@ -1,0 +1,46 @@
+{% extends "landing/base.html" %}
+{% block title %}Практика — {{ app_name }}{% endblock %}
+{% block canonical %}{{ public_base_url }}/praktika/{% endblock %}
+{% block og_title %}Практика экспертной организации — {{ app_name }}{% endblock %}
+{% block og_description %}Сервис вырос из внутренней рутины действующей судебно-экспертной организации.{% endblock %}
+{% block og_url %}{{ public_base_url }}/praktika/{% endblock %}
+
+{% block content %}
+<section class="lp-section" style="padding-top:7rem" aria-labelledby="praktika-title">
+  <div class="lp-wrap" style="max-width:42rem">
+    <h1 id="praktika-title" class="lp-headline" style="font-size:clamp(1.75rem,4vw,2.5rem)">Сделано практикой</h1>
+    <p class="lp-section-lead">
+      Док.Москва вырос из внутренней рутины действующей судебно-экспертной организации
+      ООО «УСЭ» (лицензия ЛО‑77‑01‑017900): договоры, счета, акты и журналы — без копирования
+      реквизитов между Word‑файлами.
+    </p>
+    <p>
+      Шаблоны и сценарии комплекта отражают реальные комплекты документов экспертизы.
+      Нормативная база — в разделе <a href="/zakon/">Законодательство</a>.
+    </p>
+  </div>
+</section>
+
+<section class="lp-section lp-section-alt" id="quotes" aria-labelledby="quotes-title">
+  <div class="lp-wrap">
+    <h2 id="quotes-title">Отзывы бета‑пользователей</h2>
+    <p class="lp-section-lead">Слот под цитаты — наполним по мере пилота.</p>
+    <div class="lp-cards lp-cards-3 lp-quotes">
+      <article class="lp-card lp-quote-card lp-quote-placeholder">
+        <p class="lp-quote-text">Здесь появится отзыв эксперта о комплекте документов.</p>
+        <p class="lp-quote-meta">— Бета‑участник</p>
+      </article>
+      <article class="lp-card lp-quote-card lp-quote-placeholder">
+        <p class="lp-quote-text">Здесь появится отзыв организации о сроках и журнале.</p>
+        <p class="lp-quote-meta">— Бета‑участник</p>
+      </article>
+      <article class="lp-card lp-quote-card lp-quote-placeholder">
+        <p class="lp-quote-text">Здесь появится отзыв о проверке контрагента и ЕГРЮЛ.</p>
+        <p class="lp-quote-meta">— Бета‑участник</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+{% include "partials/lp_cross_cta.html" %}
+{% endblock %}

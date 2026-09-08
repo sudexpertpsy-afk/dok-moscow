@@ -32,21 +32,26 @@ TEMPLATES = CORE / "Шаблоны"
 OUT_DIR = REPO / "web" / "app" / "static" / "samples"
 IMG_DIR = REPO / "web" / "app" / "static" / "img"
 
-# PDF лендинга → WebP-миниатюра первой страницы (W-37)
+# PDF лендинга → WebP-миниатюра первой страницы (W-37 / W-44)
 THUMBS: tuple[tuple[str, str], ...] = (
     ("dogovor-fl.pdf", "sample-dogovor.webp"),
     ("schet.pdf", "sample-schet.webp"),
     ("akt.pdf", "sample-akt.webp"),
+    ("zaklyuchenie-fragment.pdf", "sample-zaklyuchenie.webp"),
+    ("schet-faksimile.pdf", "sample-schet-faksimile.webp"),
 )
 
 sys.path.insert(0, str(CORE))
 from docfiller_core.filler import fill_template, list_template_variables  # noqa: E402
 
 # Соответствие URL лендинга → шаблон
-SAMPLES: tuple[tuple[str, str], ...] = (
-    ("dogovor-fl.pdf", "Договор_услуги_v2.docx"),
-    ("schet.pdf", "Счёт_на_оплату.docx"),
-    ("akt.pdf", "Акт_оказанных_услуг.docx"),
+# max_pages: обрезать PDF после водяного знака (фрагмент заключения)
+SAMPLES: tuple[tuple[str, str, int | None], ...] = (
+    ("dogovor-fl.pdf", "Договор_услуги_v2.docx", None),
+    ("schet.pdf", "Счёт_на_оплату.docx", None),
+    ("akt.pdf", "Акт_оказанных_услуг.docx", None),
+    ("zaklyuchenie-fragment.pdf", "Заключение_эксперта_гражданский_процесс.docx", 2),
+    ("schet-faksimile.pdf", "Счёт_на_оплату.docx", None),
 )
 
 # Реквизиты исполнителя — публичные с /requisites (АО «ТБанк»).
@@ -106,6 +111,8 @@ DEMO_CONTEXT: dict = {
     "номер_договора": "Д-2026/042",
     "номер_счёта": "СЧ-2026/042",
     "номер_акта": "АКТ-2026/042",
+    "номер_заключения": "42/26",
+    "номер_дела": "2-4567/2026",
     "фио_клиента": "Иванова Мария Сергеевна",
     "плательщик": "Иванова Мария Сергеевна",
     "email_клиента": "ivanova.ms@example.ru",
@@ -116,6 +123,8 @@ DEMO_CONTEXT: dict = {
     "дата_акта": "28.07.2026",
     "дата_начала": "16.07.2026",
     "дата_окончания": "28.07.2026",
+    "дата_заключения": "28.07.2026",
+    "дата_основания": "01.07.2026",
     "сумма": 54000,
     "сумма_к_оплате": 54000,
     "стоимость": 54000,
@@ -133,6 +142,40 @@ DEMO_CONTEXT: dict = {
     "дополнительные_условия": "Расчёты произведены полностью.",
     "документ_основания": "Паспорт гражданина РФ",
     "реквизиты_документа": "серия 4500 № 123456, выдан 01.01.2015",
+    # заключение (вымышленные данные витрины)
+    "фио_эксперта": "Образцов Образец Образцович",
+    "фио_эксперта_дат": "Образцову Образцу Образцовичу",
+    "фио_эксперта_кратко": "О.О. Образцов",
+    "вид_экспертизы": "судебно-психологическая экспертиза",
+    "вид_экспертизы_род": "судебно-психологической экспертизы",
+    "время_начала": "10:00",
+    "время_окончания": "17:30",
+    "место_производства": "г. Москва, ул. Образцовая, д. 1",
+    "назначивший": "Тверской районный суд г. Москвы",
+    "образование_эксперта": "высшее психологическое",
+    "специальность_эксперта": "психология",
+    "стаж_эксперта": "12 лет",
+    "учёная_степень": "не имеет",
+    "должность_эксперта": "судебный эксперт",
+    "вопросы_эксперту": (
+        "1. Имеются ли у подэкспертного признаки?\n"
+        "2. Способен ли он осознавать значение своих действий?"
+    ),
+    "объекты_исследования": "Материалы гражданского дела, медицинская документация",
+    "материалы_дела": "Том 1, л.д. 1–80",
+    "присутствовавшие": "не присутствовали",
+    "применённые_методы": "Клиническая беседа, анализ документов",
+    "содержание_исследования": (
+        "Проведено исследование по стандартной методике (образец витрины)."
+    ),
+    "оценка_результатов": "Результаты согласуются между собой (образец).",
+    "выводы": (
+        "1. Признаков не выявлено.\n"
+        "2. Способен осознавать значение своих действий."
+    ),
+    "дополнительные_обстоятельства": "не установлены",
+    "приложения": "Приложение № 1 — схема исследования",
+    "год": "2026",
 }
 
 
@@ -203,13 +246,16 @@ def _watermark_overlay(width: float, height: float, font_name: str) -> bytes:
     return buf.getvalue()
 
 
-def apply_sample_watermark(pdf_path: Path) -> None:
+def apply_sample_watermark(pdf_path: Path, *, max_pages: int | None = None) -> None:
     font_name = _liberation_font()
     reader = PdfReader(str(pdf_path))
     if not reader.pages:
         raise SystemExit(f"Пустой PDF: {pdf_path}")
     writer = PdfWriter()
-    for page in reader.pages:
+    pages = list(reader.pages)
+    if max_pages is not None:
+        pages = pages[: max(1, int(max_pages))]
+    for page in pages:
         box = page.mediabox
         w, h = float(box.width), float(box.height)
         wm = PdfReader(io.BytesIO(_watermark_overlay(w, h, font_name))).pages[0]
@@ -219,6 +265,47 @@ def apply_sample_watermark(pdf_path: Path) -> None:
     with tmp.open("wb") as fh:
         writer.write(fh)
     tmp.replace(pdf_path)
+
+
+def _demo_stamp_png(path: Path) -> None:
+    """Демо-печать «ОБРАЗЕЦ» (не реальная)."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    size = 600
+    im = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.ellipse([20, 20, size - 20, size - 20], outline=(160, 40, 40, 220), width=10)
+    d.ellipse([50, 50, size - 50, size - 50], outline=(160, 40, 40, 180), width=3)
+    try:
+        font = ImageFont.truetype(
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48
+        )
+    except OSError:
+        font = ImageFont.load_default()
+    text = "ОБРАЗЕЦ"
+    bbox = d.textbbox((0, 0), text, font=font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    d.text(((size - tw) / 2, (size - th) / 2 - 10), text, fill=(160, 40, 40, 220), font=font)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    im.save(path, "PNG")
+
+
+def _demo_sign_png(path: Path) -> None:
+    """Демо-подпись (волнистая линия, не реальная)."""
+    from PIL import Image, ImageDraw
+
+    w, h = 770, 260
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    pts = []
+    for x in range(40, w - 40, 4):
+        import math
+
+        y = h // 2 + int(28 * math.sin(x / 28.0)) + int(12 * math.sin(x / 11.0))
+        pts.append((x, y))
+    d.line(pts, fill=(20, 40, 120, 230), width=4)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    im.save(path, "PNG")
 
 
 def render_thumbs(samples_dir: Path, img_dir: Path) -> None:
@@ -273,17 +360,27 @@ def generate(gotenberg_url: str, out_dir: Path, thumbs: bool = True) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="dok-samples-") as tmp:
         tmp_path = Path(tmp)
-        for pdf_name, template_name in SAMPLES:
+        stamp = tmp_path / "demo_stamp.png"
+        sign = tmp_path / "demo_sign.png"
+        _demo_stamp_png(stamp)
+        _demo_sign_png(sign)
+        for pdf_name, template_name, max_pages in SAMPLES:
             src = TEMPLATES / template_name
             if not src.is_file():
                 raise SystemExit(f"Нет шаблона: {src}")
-            docx_out = tmp_path / template_name
+            docx_out = tmp_path / f"{pdf_name}.docx"
             ctx = build_context(template_name)
+            images = None
+            if pdf_name == "schet-faksimile.pdf":
+                images = {
+                    "факсимиле_печать": stamp,
+                    "факсимиле_директор": sign,
+                }
             print(f"→ {template_name} ({len(ctx)} полей) → {pdf_name}")
-            fill_template(src, docx_out, ctx, settings=DEMO_SETTINGS)
+            fill_template(src, docx_out, ctx, settings=DEMO_SETTINGS, images=images)
             pdf_out = out_dir / pdf_name
             convert_docx_to_pdf(docx_out, pdf_out, gotenberg_url)
-            apply_sample_watermark(pdf_out)
+            apply_sample_watermark(pdf_out, max_pages=max_pages)
             pages = len(PdfReader(str(pdf_out)).pages)
             print(f"  OK {pdf_out} ({pages} стр., {pdf_out.stat().st_size} байт)")
     if thumbs:

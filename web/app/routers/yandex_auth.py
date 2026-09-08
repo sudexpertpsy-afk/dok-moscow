@@ -219,11 +219,20 @@ def yandex_callback(
         )
 
     if intent == "link":
+        oauth_return = request.session.pop("yandex_oauth_return", None)
         _clear_oauth_session(request)
         if user is None or link_uid is None or int(link_uid) != user.id:
             return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
         db_user = db.get(User, user.id)
         assert db_user is not None
+
+        def _security_return() -> str:
+            if oauth_return:
+                return str(oauth_return)
+            if db_user.role.value == "service_admin" and db_user.org_id is None:
+                return "/admin/security/"
+            return "/cabinet/settings/security"
+
         try:
             link_identity(db, db_user, profile)
         except ValueError as exc:
@@ -234,8 +243,11 @@ def yandex_callback(
                 user_id=db_user.id,
                 details={"provider": "yandex", "ip": ip, "error": str(exc)},
             )
+            sec_base = _security_return()
             return RedirectResponse(
-                f"/cabinet/settings/security?oauth_err={str(exc)}",
+                f"{sec_base.rstrip('/')}?oauth_err={str(exc)}"
+                if "?" not in sec_base
+                else f"{sec_base}&oauth_err={str(exc)}",
                 status_code=status.HTTP_303_SEE_OTHER,
             )
         record_event(
@@ -247,8 +259,10 @@ def yandex_callback(
             commit=False,
         )
         db.commit()
+        sec_base = _security_return()
+        sep = "&" if "?" in sec_base else "?"
         return RedirectResponse(
-            "/cabinet/settings/security?oauth_ok=linked",
+            f"{sec_base}{sep}oauth_ok=linked",
             status_code=status.HTTP_303_SEE_OTHER,
         )
 

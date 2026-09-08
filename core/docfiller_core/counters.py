@@ -256,7 +256,7 @@ def get_counters_for_template(template_name):
     Используется только для отладки/просмотра — основной поток идёт через
     suggest_next(field_name, template_name).
     """
-    # TODO(этап 4+): vulture — нет внешних вызовов; оставить или удалить после ревью.
+    # Отладочный просмотр счётчиков шаблона (desktop).
     data = _load()
     prefix = f"{template_name}::"
     result = {}

@@ -12,17 +12,16 @@
       <p class="muted">Без опубликованной редакции: <strong>{{ need_fill_count }}</strong> акт(ов). Подтягивание из ИПС создаёт черновики — публикация вручную.</p>
       {% endif %}
     </div>
-    <div class="actions">
+    <div class="actions" style="flex-wrap:wrap">
       <form method="post" action="/admin/legal/bootstrap" hx-boost="false"
-            onsubmit="return confirm('Подтянуть тексты из ИПС для актов без публикации? Сеть и троттлинг обязательны.');">
+            onsubmit="return confirm('Подтянуть тексты из ИПС для актов без публикации? Запрос может занять несколько минут.');">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="secondary">Наполнить из ИПС</button>
       </form>
       {% if draft_count %}
       <form method="post" action="/admin/legal/publish-drafts" hx-boost="false"
-            onsubmit="return confirm('Опубликовать все непустые черновики ({{ draft_count }}) на /zakon? Это действие владельца — откат только новой редакцией.');">
+            onsubmit="return confirm('Опубликовать все непустые черновики ({{ draft_count }}) на /zakon — в том числе обновления уже опубликованных актов?');">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <input type="hidden" name="only_new" value="1">
         <button type="submit">Опубликовать черновики ({{ draft_count }})</button>
       </form>
       {% endif %}
@@ -44,7 +43,7 @@
         <th>Режим</th>
         <th>Мониторинг</th>
         <th>Черновик</th>
-        <th></th>
+        <th>Действия</th>
       </tr>
     </thead>
     <tbody>
@@ -63,7 +62,30 @@
         <td class="muted">{{ row.act.mode.value }}</td>
         <td class="muted">{% if row.act.watch_enabled %}вкл.{% else %}выкл.{% endif %}</td>
         <td class="muted">{% if row.draft %}#{{ row.draft.id }}{% else %}—{% endif %}</td>
-        <td><a href="/admin/legal/{{ row.act.id }}">Открыть</a></td>
+        <td>
+          <div class="actions" style="flex-wrap:wrap;gap:0.35rem;justify-content:flex-end">
+            {% if row.draft %}
+            <form method="post" action="/admin/legal/{{ row.act.id }}/publish/{{ row.draft.id }}" hx-boost="false"
+                  onsubmit="return confirm('Опубликовать черновик #{{ row.draft.id }} на /zakon?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="return_to" value="list">
+              <button type="submit">Подтвердить</button>
+            </form>
+            <form method="post" action="/admin/legal/{{ row.act.id }}/reject/{{ row.draft.id }}" hx-boost="false"
+                  onsubmit="return confirm('Отклонить черновик #{{ row.draft.id }}?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="return_to" value="list">
+              <button type="submit" class="secondary">Отклонить</button>
+            </form>
+            {% endif %}
+            <a class="btn secondary" href="/admin/legal/{{ row.act.id }}">Открыть</a>
+            <form method="post" action="/admin/legal/{{ row.act.id }}/delete" hx-boost="false"
+                  onsubmit="return confirm('Удалить акт «{{ row.act.title|e }}» и все его редакции? Это необратимо.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="danger">Удалить</button>
+            </form>
+          </div>
+        </td>
       </tr>
       {% else %}
       <tr><td colspan="6" class="muted">Реестр пуст — выполните bootstrap или добавьте акт.</td></tr>

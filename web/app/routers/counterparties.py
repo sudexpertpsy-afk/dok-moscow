@@ -152,12 +152,14 @@ def suggest_party(
 ):
     if not _dadata_rate_ok(user):
         return HTMLResponse("<p class='muted'>Слишком много запросов. Подождите минуту.</p>", status_code=429)
+    # hx-include с name="инн" из настроек организации
+    inn_ru = str(request.query_params.get("инн") or "")
     items = suggest(
         db,
         org_id=require_org_id(user),
         user_id=user.id,
         kind="party",
-        query=q or inn,
+        query=q or inn or inn_ru,
     )
     return templates.TemplateResponse(
         request=request,
@@ -180,12 +182,18 @@ def suggest_address(
 ):
     if not _dadata_rate_ok(user):
         return HTMLResponse("<p class='muted'>Слишком много запросов. Подождите минуту.</p>", status_code=429)
+    # hx-include с кириллическими name из «Настройки → Реквизиты»
+    addr_ru = str(
+        request.query_params.get("юр_адрес")
+        or request.query_params.get("почтовый_адрес")
+        or ""
+    )
     items = suggest(
         db,
         org_id=require_org_id(user),
         user_id=user.id,
         kind="address",
-        query=q or address,
+        query=q or address or addr_ru,
     )
     return templates.TemplateResponse(
         request=request,
@@ -199,23 +207,32 @@ def suggest_bank(
     request: Request,
     q: str = "",
     bank_bik: str = "",
+    bank_name: str = "",
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
     if not _dadata_rate_ok(user):
         return HTMLResponse("<p class='muted'>Слишком много запросов. Подождите минуту.</p>", status_code=429)
+    query = (q or bank_bik or bank_name or "").strip()
     items = suggest(
         db,
         org_id=require_org_id(user),
         user_id=user.id,
         kind="bank",
-        query=q or bank_bik,
+        query=query,
     )
     mapped = [bank_to_fields(i) for i in items]
+    # Точный БИК (9 цифр) и один результат — сразу подставить без клика
+    auto_apply = bool(mapped) and len(mapped) == 1 and query.isdigit() and len(query) == 9
     return templates.TemplateResponse(
         request=request,
         name="cabinet/partials/suggest_bank.html",
-        context={"request": request, "items": items, "mapped": mapped},
+        context={
+            "request": request,
+            "items": items,
+            "mapped": mapped,
+            "auto_apply": auto_apply,
+        },
     )
 
 

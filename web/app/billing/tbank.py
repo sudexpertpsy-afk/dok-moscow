@@ -84,7 +84,13 @@ class TBankClient:
 
     def _http(self) -> httpx.Client:
         if self._client is None:
-            self._client = httpx.Client(timeout=self.config.timeout)
+            # certifi + Russian Trusted CA; без verify=False — W-45/G-08
+            from app.ssl_util import ssl_verify_context
+
+            self._client = httpx.Client(
+                timeout=self.config.timeout,
+                verify=ssl_verify_context(),
+            )
         return self._client
 
     def _call(self, method: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -96,7 +102,11 @@ class TBankClient:
         url = f"{self.config.api_base.rstrip('/')}/{method}"
         # Не логируем Token/Password и полный body
         log.info("T-Bank %s OrderId=%s", method, body.get("OrderId") or body.get("PaymentId"))
-        resp = self._http().post(url, json=body)
+        try:
+            resp = self._http().post(url, json=body)
+        except httpx.ConnectError as exc:
+            log.error("T-Bank ConnectError url=%s err=%s", url, exc)
+            raise
         resp.raise_for_status()
         data = resp.json()
         if not data.get("Success"):
@@ -127,7 +137,7 @@ class TBankClient:
         amount_kop: int,
         order_id: str,
         description: str,
-        notification_url: str,
+        notification_url: str | None = None,
         success_url: str,
         fail_url: str,
         customer_key: str | None = None,
@@ -140,11 +150,13 @@ class TBankClient:
             "Amount": int(amount_kop),
             "OrderId": order_id,
             "Description": description[:250],
-            "NotificationURL": notification_url,
             "SuccessURL": success_url,
             "FailURL": fail_url,
             "PayType": "O",  # одностадийный
         }
+        # Probe Init без NotificationURL — иначе банк шлёт вебхук по OrderId вне БД.
+        if notification_url:
+            payload["NotificationURL"] = notification_url
         if recurrent and customer_key:
             payload["Recurrent"] = "Y"
             payload["CustomerKey"] = customer_key

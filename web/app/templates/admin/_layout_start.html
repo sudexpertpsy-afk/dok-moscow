@@ -4,9 +4,9 @@
     <div class="org">Администратор сервиса</div>
     <nav class="nav" data-nav-sortable data-nav-area="admin" aria-label="Меню администратора">
       {% for key, label, href in admin_nav %}
-      <div class="nav-item" draggable="true" data-nav-key="{{ key }}">
+      <div class="nav-item" data-nav-key="{{ key }}">
         <span class="nav-handle" role="button" title="Перетащить пункт меню" aria-label="Перетащить «{{ label }}»" tabindex="-1">⋮⋮</span>
-        <a href="{{ href }}" class="{% if active == key %}active{% endif %}" hx-boost="true">
+        <a href="{{ href }}" class="{% if active == key %}active{% endif %}" hx-boost="true" draggable="false">
           {{ label }}
           {% if key == 'admin_leads' and new_leads_count %}
           <span class="nav-badge" title="Новые заявки">{{ new_leads_count }}</span>

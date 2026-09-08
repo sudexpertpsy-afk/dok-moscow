@@ -37,6 +37,15 @@ def validate_docx_bytes(data: bytes) -> None:
     if "word/document.xml" not in names:
         raise DocxUploadError("Некорректный .docx: нет word/document.xml")
 
+    from app.services.templates import ensure_core_on_path
+
+    ensure_core_on_path()
+    from docfiller_core.template_security import zip_has_vba_or_encryption
+
+    blocked = zip_has_vba_or_encryption(data)
+    if blocked:
+        raise DocxUploadError(blocked)
+
     total_uncompressed = 0
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as zf:

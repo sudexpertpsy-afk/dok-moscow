@@ -27,6 +27,14 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="{% if target.is_active %}danger{% endif %}">{% if target.is_active %}Отключить{% else %}Включить{% endif %}</button>
     </form>
+    <form class="inline-form" method="post" action="/admin/users/{{ target.id }}/delete"
+          hx-boost="false"
+          onsubmit="return confirm('Удалить пользователя {{ target.email|e }}? Это необратимо.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="danger">Удалить</button>
+    </form>
+    {% else %}
+    <span class="muted">Свою учётную запись удалить нельзя.</span>
     {% endif %}
     {% if target.totp_enabled %}
     <form class="inline-form" method="post" action="/admin/users/{{ target.id }}/reset-2fa"

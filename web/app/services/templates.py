@@ -20,7 +20,84 @@ def ensure_core_on_path() -> None:
 
 
 def templates_dir() -> Path:
+    """Корень каталога шаблонов (TEMPLATES_DIR).
+
+    W-46: на проде — `/srv/dok/data/templates` с подкаталогами `system/` и
+    `overrides/`. Локально/в тестах может оставаться плоский `core/Шаблоны`.
+    """
     return Path(get_settings().templates_dir)
+
+
+def is_layered_templates(root: Path | None = None) -> bool:
+    root = root or templates_dir()
+    return (root / "system").is_dir()
+
+
+def system_templates_dir(root: Path | None = None) -> Path:
+    root = root or templates_dir()
+    layered = root / "system"
+    return layered if layered.is_dir() else root
+
+
+def overrides_templates_dir(root: Path | None = None) -> Path:
+    """Каталог записи админки: overrides/ в layered, иначе плоский root."""
+    root = root or templates_dir()
+    if is_layered_templates(root):
+        ovr = root / "overrides"
+        ovr.mkdir(parents=True, exist_ok=True)
+        return ovr
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def registry_templates_dir(root: Path | None = None) -> Path:
+    """Где лежит contracts_registry.json (корень TEMPLATES_DIR или system/)."""
+    root = root or templates_dir()
+    if (root / "contracts_registry.json").is_file():
+        return root
+    sys_dir = system_templates_dir(root)
+    if (sys_dir / "contracts_registry.json").is_file():
+        return sys_dir
+    return root
+
+
+def resolve_shared_docx(name: str, root: Path | None = None) -> Path | None:
+    """Путь к общему DOCX: overrides перекрывает system (или плоский root)."""
+    safe = Path(name).name
+    if safe != name or not safe.endswith(".docx") or safe.startswith("~$"):
+        return None
+    root = root or templates_dir()
+    if is_layered_templates(root):
+        ovr = overrides_templates_dir(root) / safe
+        if ovr.is_file():
+            return ovr
+        sys_p = system_templates_dir(root) / safe
+        if sys_p.is_file():
+            return sys_p
+        return None
+    path = root / safe
+    return path if path.is_file() else None
+
+
+def iter_shared_docx(root: Path | None = None) -> list[Path]:
+    """Список общих DOCX: union имён, при коллизии — файл из overrides."""
+    root = root or templates_dir()
+    by_name: dict[str, Path] = {}
+    if is_layered_templates(root):
+        for path in sorted(system_templates_dir(root).glob("*.docx")):
+            if path.name.startswith("~$"):
+                continue
+            by_name[path.name] = path
+        for path in sorted(overrides_templates_dir(root).glob("*.docx")):
+            if path.name.startswith("~$"):
+                continue
+            by_name[path.name] = path
+    else:
+        for path in sorted(root.glob("*.docx")):
+            if path.name.startswith("~$"):
+                continue
+            by_name[path.name] = path
+    return [by_name[k] for k in sorted(by_name.keys(), key=str.lower)]
 
 
 _templates_cache: tuple[float, list[dict]] | None = None
@@ -31,42 +108,117 @@ def invalidate_templates_cache() -> None:
     _templates_cache = None
 
 
-def list_templates() -> list[dict]:
-    """Каталог шаблонов с кэшем по mtime каталога (без открытия каждого DOCX на каждый запрос)."""
+def _templates_stamp(root: Path) -> float:
+    stamps = []
+    for p in (root, system_templates_dir(root), overrides_templates_dir(root)):
+        try:
+            stamps.append(p.stat().st_mtime)
+        except OSError:
+            pass
+    return max(stamps) if stamps else 0.0
+
+
+def list_templates(*, include_deleted: bool = False) -> list[dict]:
+    """Каталог шаблонов с кэшем по mtime каталога (без открытия каждого DOCX на каждый запрос).
+
+    include_deleted=True — для публичной витрины /obraztsy (W-45): tombstone админки
+    скрывает шаблон только из кабинета, не с маркетинговых страниц.
+    """
     global _templates_cache
     ensure_core_on_path()
     from docfiller_core.filler import describe_template
+    from docfiller_core.template_manifest import (
+        document_kind,
+        group_sort_key,
+        infer_group,
+        load_manifest,
+    )
 
     root = templates_dir()
-    try:
-        stamp = root.stat().st_mtime
-    except OSError:
-        stamp = 0.0
-    if _templates_cache is not None and _templates_cache[0] == stamp:
+    stamp = _templates_stamp(root)
+    # кэш только для кабинетного режима (без удалённых)
+    if (
+        not include_deleted
+        and _templates_cache is not None
+        and _templates_cache[0] == stamp
+    ):
         return _templates_cache[1]
 
+    from app.services.template_admin import load_deleted_templates
+
+    deleted = set() if include_deleted else load_deleted_templates(root)
     items = []
-    for path in sorted(root.glob("*.docx")):
-        if path.name.startswith("~$"):
+    for path in iter_shared_docx(root):
+        if path.name in deleted:
             continue
+        man = load_manifest(path)
+        group = infer_group(path.name, man)
+        desc = (man.description if man and man.description else None) or describe_template(path) or path.stem.replace("_", " ")
+        kind = (man.kind if man else None) or document_kind(path.name, templates_dir=system_templates_dir(root))
         items.append(
             {
                 "name": path.name,
                 "stem": path.stem,
-                "description": describe_template(path) or path.stem.replace("_", " "),
+                "description": desc,
+                "group": group,
+                "kind": kind,
             }
         )
-    _templates_cache = (stamp, items)
+    items.sort(key=lambda x: (*group_sort_key(x.get("group") or "Прочее"), x["name"].lower()))
+    if not include_deleted:
+        _templates_cache = (stamp, items)
     return items
 
 
+def list_templates_for_org(org_id: int) -> list[dict]:
+    """Общие шаблоны + свои шаблоны организации (свои выше при совпадении имени)."""
+    ensure_core_on_path()
+    from app.services.org_templates import list_org_templates
+    from docfiller_core.template_manifest import group_sort_key
+
+    shared = []
+    for item in list_templates():
+        shared.append({**item, "source": "shared", "title": item["stem"].replace("_", " ")})
+    org_items = list_org_templates(org_id)
+    for it in org_items:
+        it.setdefault("group", "Прочее")
+        it.setdefault("kind", "документ")
+    org_names = {i["name"] for i in org_items}
+    # свои перекрывают одноимённые общие в списке
+    merged = [i for i in shared if i["name"] not in org_names] + org_items
+    merged.sort(
+        key=lambda x: (
+            0 if x.get("source") == "org" else 1,
+            *group_sort_key(x.get("group") or "Прочее"),
+            x["name"].lower(),
+        )
+    )
+    return merged
+
+
+def templates_grouped(items: list[dict]) -> list[tuple[str, list[dict]]]:
+    """Сгруппировать каталог: [(группа, [шаблоны…]), …] с порядком GROUP_ORDER."""
+    ensure_core_on_path()
+    from docfiller_core.template_manifest import group_sort_key
+
+    buckets: dict[str, list[dict]] = {}
+    for it in items:
+        g = it.get("group") or "Прочее"
+        buckets.setdefault(g, []).append(it)
+    return sorted(buckets.items(), key=lambda kv: group_sort_key(kv[0]))
+
+
 def template_path(name: str) -> Path:
-    """Безопасный путь к общему шаблону (без path traversal)."""
+    """Безопасный путь к общему шаблону (без path traversal). Override wins.
+
+    Tombstone (.deleted_templates.json) скрывает шаблон только в list_templates
+    кабинета; файл на диске остаётся доступен для генерации и /obraztsy.
+    """
     safe = Path(name).name
     if safe != name or not safe.endswith(".docx"):
         raise FileNotFoundError("Шаблон не найден")
-    path = templates_dir() / safe
-    if not path.is_file():
+    path = resolve_shared_docx(safe)
+    if path is None:
         raise FileNotFoundError("Шаблон не найден")
     return path
 
@@ -83,21 +235,6 @@ def resolve_template_path(name: str, org_id: int | None = None) -> Path:
         if org_path.is_file():
             return org_path
     return template_path(safe)
-
-
-def list_templates_for_org(org_id: int) -> list[dict]:
-    """Общие шаблоны + свои шаблоны организации (свои выше при совпадении имени)."""
-    from app.services.org_templates import list_org_templates
-
-    shared = []
-    for item in list_templates():
-        shared.append({**item, "source": "shared", "title": item["stem"].replace("_", " ")})
-    org_items = list_org_templates(org_id)
-    org_names = {i["name"] for i in org_items}
-    # свои перекрывают одноимённые общие в списке
-    merged = [i for i in shared if i["name"] not in org_names] + org_items
-    merged.sort(key=lambda x: (0 if x.get("source") == "org" else 1, x["name"].lower()))
-    return merged
 
 
 def template_variables(
@@ -129,8 +266,13 @@ def generate_docx(
     template_name: str,
     context: dict,
     number: str | None = None,
+    with_facsimile: bool = False,
 ) -> Document:
-    """Сгенерировать DOCX, сохранить файл и запись documents."""
+    """Сгенерировать DOCX, сохранить файл и запись documents.
+
+    with_facsimile=True — встроить изображения (только если явно запрошено
+    «встроить и в DOCX»; обычная выдача всегда без факсимиле).
+    """
     ensure_core_on_path()
     from docfiller_core.filler import fill_template
     from docfiller_core.utils import safe_filename
@@ -147,11 +289,27 @@ def generate_docx(
         out_path = out_dir / out_name
         n += 1
 
-    fill_template(src, out_path, context, settings=org.requisites or {})
+    from app.services.facsimile import images_for_fill, should_use_images_for_docx
+    from app.services.settings_svc import ensure_requisites
+
+    # Полные реквизиты с каноническими ключами банка (ё/алиасы), не «сырой» JSONB.
+    images = None
+    if with_facsimile or should_use_images_for_docx(context):
+        images = images_for_fill(org.id) or None
+    fill_context = {k: v for k, v in context.items() if not str(k).startswith("_")}
+    fill_template(
+        src,
+        out_path,
+        fill_context,
+        settings=ensure_requisites(org),
+        images=images,
+    )
 
     rel = str(out_path.relative_to(Path(get_settings().files_root)))
     # не храним ПДн-тяжёлый полный контекст как есть? ТЗ: контекст JSONB — нужен для повтора.
     # Маскируем при логировании, в БД храним как в Шаблонере.
+    # служебные флаги факсимиле сохраняем для PDF-конвертации
+    stored_ctx = dict(context)
     doc = Document(
         org_id=org.id,
         contract_id=None,
@@ -160,13 +318,40 @@ def generate_docx(
         number=number or str(context.get("номер_договора") or "") or None,
         file_path=rel,
         format=DocumentFormat.docx,
-        context=dict(context),
+        context=stored_ctx,
         created_by=user_id,
     )
     db.add(doc)
     db.commit()
     db.refresh(doc)
     return doc
+
+
+def fill_docx_with_facsimile(
+    *,
+    org: Organization,
+    template_name: str,
+    context: dict,
+    output_path: Path,
+) -> Path:
+    """Временный DOCX с InlineImage для конвертации в PDF (W-43)."""
+    ensure_core_on_path()
+    from docfiller_core.filler import fill_template
+
+    from app.services.facsimile import images_for_fill
+    from app.services.settings_svc import ensure_requisites
+
+    src = resolve_template_path(template_name, org.id)
+    fill_context = {k: v for k, v in (context or {}).items() if not str(k).startswith("_")}
+    images = images_for_fill(org.id) or None
+    fill_template(
+        src,
+        output_path,
+        fill_context,
+        settings=ensure_requisites(org),
+        images=images,
+    )
+    return output_path
 
 
 def absolute_file(doc: Document) -> Path:

@@ -6,13 +6,25 @@
 <section class="panel">
       <h1>Комплект готов</h1>
       {{ steps_bar(step, steps) }}
+      {% if any_fax %}
+      <p><span class="badge ok">PDF с печатью и подписью</span> (по отмеченным документам)</p>
+      {% else %}
+      <p><span class="badge">PDF без факсимиле</span></p>
+      {% endif %}
       <table class="table">
-        <thead><tr><th>Документ</th><th>Номер</th><th></th></tr></thead>
+        <thead><tr><th>Документ</th><th>Номер</th><th>Факсимиле</th><th></th></tr></thead>
         <tbody>
           {% for d in documents %}
           <tr>
             <td>{{ display_name(d.template) }}</td>
             <td class="muted">{{ d.number or '—' }}</td>
+            <td>
+              {% if fax_flags.get(d.id) %}
+              <span class="badge ok">с печатью</span>
+              {% else %}
+              <span class="badge">без</span>
+              {% endif %}
+            </td>
             <td><a href="/cabinet/documents/{{ d.id }}/download" hx-boost="false">Скачать</a>
               · <a href="/cabinet/documents/{{ d.id }}">Карточка</a>
               · <a href="/cabinet/package/repeat/{{ d.id }}">Повторить</a>
@@ -24,11 +36,11 @@
       <p class="muted" style="margin:0.75rem 0 0">Сроки договора (если указана дата окончания) попали в <a href="/cabinet/calendar/">календарь</a> с напоминанием.</p>
       <div class="actions">
         <a class="btn" href="/cabinet/package/zip">Все в ZIP</a>
-        <form method="post" action="/cabinet/package/pdf" style="display:inline">
+        <form method="post" action="/cabinet/package/pdf" style="display:inline" hx-boost="false">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="secondary">Комплект одним PDF</button>
         </form>
-        <form method="post" action="/cabinet/package/reset" style="display:inline">
+        <form method="post" action="/cabinet/package/reset" style="display:inline" hx-boost="false">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="secondary">Новый комплект</button>
         </form>

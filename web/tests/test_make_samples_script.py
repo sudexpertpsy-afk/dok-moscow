@@ -25,7 +25,7 @@ def test_sample_templates_exist_and_fill():
 
     tmp = Path("/tmp/dok_sample_fill_test")
     tmp.mkdir(exist_ok=True)
-    for pdf_name, template_name in mod.SAMPLES:
+    for pdf_name, template_name, _max_pages in mod.SAMPLES:
         src = mod.TEMPLATES / template_name
         assert src.is_file(), f"нет шаблона {template_name}"
         out = tmp / template_name

@@ -1,4 +1,4 @@
-/* T8: history-suggest, linked-поля, адаптер DaData на формах документов. */
+/* T8: history-suggest, linked-поля, DaData и справочники refs. */
 (function () {
   function qs(sel, root) {
     return (root || document).querySelector(sel);
@@ -9,6 +9,10 @@
 
   function fieldByName(name, form) {
     return form.querySelector('[name="' + CSS.escape(name) + '"]');
+  }
+
+  function suggestHtml(html) {
+    return (html || "").trim();
   }
 
   function currentValues(form) {
@@ -72,10 +76,13 @@
 
   function bindHistory(form) {
     qsa("[data-history]", form).forEach(function (el) {
+      if (el.hasAttribute("data-dadata") || el.hasAttribute("data-ref")) return;
       var box = qs('[data-suggest-for="' + el.name + '"]', el.closest(".field-block"));
       if (!box) return;
       var timer = null;
+      var seq = 0;
       function load() {
+        var my = ++seq;
         var url =
           "/cabinet/form-assist/suggest?field=" +
           encodeURIComponent(el.name) +
@@ -86,7 +93,8 @@
             return r.text();
           })
           .then(function (html) {
-            box.innerHTML = html || "";
+            if (my !== seq) return;
+            box.innerHTML = suggestHtml(html);
             qsa(".suggest-pick", box).forEach(function (btn) {
               btn.addEventListener("click", function () {
                 el.value = btn.getAttribute("data-value") || "";
@@ -155,64 +163,119 @@
     }
   }
 
+  function bindSuggestFetch(el, box, urlBuilder, onPick) {
+    var timer = null;
+    var seq = 0;
+    var abort = null;
+    function load() {
+      var q = (el.value || "").trim();
+      if (q.length < 1 && el.getAttribute("data-ref") === "territories") {
+        box.innerHTML = "";
+        return;
+      }
+      // DaData address/party/bank: сервер отвечает только от 2 символов
+      if (el.hasAttribute("data-dadata") && q.length < 2) {
+        box.innerHTML = "";
+        return;
+      }
+      if (q.length < 1 && el.hasAttribute("data-ref")) {
+        box.innerHTML = "";
+        return;
+      }
+      var my = ++seq;
+      if (abort) abort.abort();
+      abort = typeof AbortController !== "undefined" ? new AbortController() : null;
+      fetch(urlBuilder(q), {
+        credentials: "same-origin",
+        headers: { "HX-Request": "true" },
+        signal: abort ? abort.signal : undefined,
+      })
+        .then(function (r) {
+          return r.text();
+        })
+        .then(function (html) {
+          if (my !== seq) return;
+          box.innerHTML = suggestHtml(html);
+          qsa("button", box).forEach(function (btn) {
+            btn.addEventListener(
+              "click",
+              function (ev) {
+                ev.preventDefault();
+                ev.stopImmediatePropagation();
+                onPick(btn);
+                box.innerHTML = "";
+              },
+              true
+            );
+          });
+        })
+        .catch(function (err) {
+          if (err && err.name === "AbortError") return;
+        });
+    }
+    el.addEventListener("input", function () {
+      clearTimeout(timer);
+      timer = setTimeout(load, 150);
+    });
+    el.addEventListener("focus", function () {
+      if ((el.value || "").trim().length >= 2 || el.hasAttribute("data-ref")) load();
+    });
+    el.addEventListener("blur", function () {
+      setTimeout(function () {
+        box.innerHTML = "";
+      }, 200);
+    });
+  }
+
   function bindDadata(form) {
     qsa("[data-dadata]", form).forEach(function (el) {
       var kind = el.getAttribute("data-dadata");
       var box = qs('[data-suggest-for="' + el.name + '"]', el.closest(".field-block"));
       var path = dadataPath(kind);
       if (!box || !path) return;
-      var timer = null;
-      function load() {
-        var q = (el.value || "").trim();
-        if (q.length < 2) {
-          box.innerHTML = "";
-          return;
+      bindSuggestFetch(
+        el,
+        box,
+        function (q) {
+          return path + "?q=" + encodeURIComponent(q);
+        },
+        function (btn) {
+          try {
+            if (kind === "party" && btn.hasAttribute("data-json")) {
+              applyPartyFields(form, JSON.parse(btn.getAttribute("data-json") || "{}"), el);
+            } else if (kind === "bank" && btn.hasAttribute("data-json")) {
+              applyBankFields(form, JSON.parse(btn.getAttribute("data-json") || "{}"), el);
+            } else if (kind === "address") {
+              var addr = btn.getAttribute("data-value") || "";
+              if (addr) el.value = addr;
+            }
+          } catch (e) {}
         }
-        fetch(path + "?q=" + encodeURIComponent(q), {
-          credentials: "same-origin",
-          headers: { "HX-Request": "true" },
-        })
-          .then(function (r) {
-            return r.text();
-          })
-          .then(function (html) {
-            box.innerHTML = html || "";
-            qsa("button", box).forEach(function (btn) {
-              btn.addEventListener(
-                "click",
-                function (ev) {
-                  ev.preventDefault();
-                  ev.stopImmediatePropagation();
-                  try {
-                    if (kind === "party" && btn.hasAttribute("data-json")) {
-                      applyPartyFields(
-                        form,
-                        JSON.parse(btn.getAttribute("data-json") || "{}"),
-                        el
-                      );
-                    } else if (kind === "bank" && btn.hasAttribute("data-json")) {
-                      applyBankFields(
-                        form,
-                        JSON.parse(btn.getAttribute("data-json") || "{}"),
-                        el
-                      );
-                    } else if (kind === "address") {
-                      var addr = btn.getAttribute("data-value") || "";
-                      if (addr) el.value = addr;
-                    }
-                  } catch (e) {}
-                  box.innerHTML = "";
-                },
-                true
-              );
-            });
-          })
-          .catch(function () {});
-      }
-      el.addEventListener("input", function () {
-        clearTimeout(timer);
-        timer = setTimeout(load, 300);
-      });
+      );
+    });
+  }
+
+  function bindRefs(form) {
+    qsa("[data-ref]", form).forEach(function (el) {
+      var kind = el.getAttribute("data-ref");
+      var box = qs('[data-suggest-for="' + el.name + '"]', el.closest(".field-block"));
+      if (!box || !kind) return;
+      bindSuggestFetch(
+        el,
+        box,
+        function (q) {
+          return (
+            "/cabinet/form-assist/refs/" +
+            encodeURIComponent(kind) +
+            "?q=" +
+            encodeURIComponent(q)
+          );
+        },
+        function (btn) {
+          var val = btn.getAttribute("data-value") || "";
+          if (val) el.value = val;
+        }
+      );
     });
   }
 
@@ -224,6 +287,7 @@
       bindLinked(form);
       bindHistory(form);
       bindDadata(form);
+      bindRefs(form);
     });
   }
 

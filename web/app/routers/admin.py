@@ -39,6 +39,8 @@ _ADMIN_ACTIVE_KEYS = {
     "status": "admin_status",
     "legal": "admin_legal",
     "server": "admin_server",
+    "admin_security": "admin_security",
+    "security": "admin_security",
 }
 
 
@@ -120,6 +122,10 @@ def admin_home(
     recent_leads = db.scalars(select(Lead).order_by(Lead.id.desc()).limit(8)).all()
     recent_orgs = db.scalars(select(Organization).order_by(Organization.id.desc()).limit(8)).all()
     stats = _org_stats(db)
+    from app.services.facsimile import count_orgs_with_branding
+
+    org_ids = list(db.scalars(select(Organization.id)).all())
+    branding_orgs = count_orgs_with_branding(org_ids)
     return templates.TemplateResponse(
         request=request,
         name="admin/home.html",
@@ -132,6 +138,7 @@ def admin_home(
                 "users": users_n,
                 "leads": leads_n,
                 "open_invites": open_invites,
+                "branding_orgs": branding_orgs,
             },
             recent_leads=recent_leads,
             recent_orgs=recent_orgs,
@@ -164,6 +171,9 @@ def admin_organizations(
 ):
     orgs = list(db.scalars(select(Organization).order_by(Organization.id.desc())).all())
     extra = _subscription_list_context(db, orgs)
+    ok = request.query_params.get("ok")
+    err = request.query_params.get("err")
+    flash_ok = "Организация удалена." if ok == "org-deleted" else ok
     return templates.TemplateResponse(
         request=request,
         name="admin/organizations.html",
@@ -173,8 +183,8 @@ def admin_organizations(
             "orgs",
             orgs=orgs,
             org_stats=_org_stats(db),
-            flash_ok=request.query_params.get("ok"),
-            flash_error=request.query_params.get("err"),
+            flash_ok=flash_ok,
+            flash_error=err,
             **extra,
         ),
     )
@@ -241,6 +251,8 @@ def admin_organization_detail(
     source_lead = None
     if org.source_lead_id:
         source_lead = db.get(Lead, org.source_lead_id)
+    from app.services.facsimile import branding_slots_summary
+
     return templates.TemplateResponse(
         request=request,
         name="admin/organization_detail.html",
@@ -258,6 +270,7 @@ def admin_organization_detail(
             sub_history=subscription_history(db, org_id),
             reason_choices=REASON_CHOICES,
             source_lead=source_lead,
+            branding_slots=branding_slots_summary(org_id),
             flash_ok=request.query_params.get("ok"),
             flash_error=request.query_params.get("err"),
         ),
@@ -420,6 +433,34 @@ def rename_organization(
     return RedirectResponse(f"/admin/organizations/{org_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/organizations/{org_id}/delete", response_class=HTMLResponse)
+def delete_organization_route(
+    org_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from app.services.admin_delete import AdminDeleteError, delete_organization
+
+    org = db.get(Organization, org_id)
+    if org is None:
+        return RedirectResponse("/admin/organizations", status_code=status.HTTP_303_SEE_OTHER)
+    try:
+        delete_organization(db, org=org, actor=user)
+    except AdminDeleteError as exc:
+        from urllib.parse import quote
+
+        return RedirectResponse(
+            f"/admin/organizations?err={quote(str(exc))}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    return RedirectResponse(
+        "/admin/organizations?ok=org-deleted",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
 @router.get("/users", response_class=HTMLResponse)
 def admin_users(
     request: Request,
@@ -428,10 +469,28 @@ def admin_users(
 ):
     users = db.scalars(select(User).order_by(User.id.desc()).limit(200)).all()
     orgs = {o.id: o.name for o in db.scalars(select(Organization)).all()}
+    ok = request.query_params.get("ok")
+    err = request.query_params.get("err")
+    flash_ok = None
+    flash_error = None
+    if ok == "user-deleted":
+        flash_ok = "Пользователь удалён."
+    elif ok:
+        flash_ok = ok
+    if err:
+        flash_error = err
     return templates.TemplateResponse(
         request=request,
         name="admin/users.html",
-        context=_ctx(request, user, "users", users=users, org_names=orgs),
+        context=_ctx(
+            request,
+            user,
+            "users",
+            users=users,
+            org_names=orgs,
+            flash_ok=flash_ok,
+            flash_error=flash_error,
+        ),
     )
 
 
@@ -495,6 +554,34 @@ def toggle_user(
     return RedirectResponse(f"/admin/users/{user_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/users/{user_id}/delete", response_class=HTMLResponse)
+def delete_user_route(
+    user_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from urllib.parse import quote
+
+    from app.services.admin_delete import AdminDeleteError, delete_user
+
+    target = db.get(User, user_id)
+    if target is None:
+        return RedirectResponse("/admin/users", status_code=status.HTTP_303_SEE_OTHER)
+    try:
+        delete_user(db, target=target, actor=user)
+    except AdminDeleteError as exc:
+        return RedirectResponse(
+            f"/admin/users?err={quote(str(exc))}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    return RedirectResponse(
+        "/admin/users?ok=user-deleted",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
 @router.post("/users/{user_id}/reset-2fa", response_class=HTMLResponse)
 def admin_reset_2fa(
     user_id: int,
@@ -548,6 +635,7 @@ def _leads_page_ctx(
     from app.services.leads import (
         STATUS_FILTERS,
         STATUS_LABELS,
+        LEAD_PROFILES,
         beta_defaults,
         default_org_name,
         lead_view,
@@ -578,6 +666,7 @@ def _leads_page_ctx(
         status_filter=status_filter,
         status_filters=STATUS_FILTERS,
         status_labels=STATUS_LABELS,
+        lead_profiles=LEAD_PROFILES,
         default_tariff=def_tariff,
         default_months=def_months,
         default_org_name=default_org_name,
@@ -792,6 +881,107 @@ def note_lead_route(
     )
 
 
+@router.post("/leads/{lead_id}/edit", response_class=HTMLResponse)
+def edit_lead_route(
+    lead_id: int,
+    request: Request,
+    email: str = Form(""),
+    profile: str = Form(""),
+    inn: str = Form(""),
+    comment: str = Form(""),
+    admin_note: str = Form(""),
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from app.models import User as UserModel
+    from app.services.leads import LeadError, update_lead
+
+    lead = db.get(Lead, lead_id)
+    if lead is None:
+        return RedirectResponse("/admin/leads", status_code=status.HTTP_303_SEE_OTHER)
+    actor = db.get(UserModel, user.id)
+    assert actor is not None
+    try:
+        update_lead(
+            db,
+            lead=lead,
+            actor=actor,
+            email=email,
+            profile=profile,
+            inn=inn,
+            comment=comment,
+            admin_note=admin_note,
+        )
+    except LeadError as exc:
+        db.rollback()
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/leads.html",
+            context=_leads_page_ctx(request, user, db, flash_error=str(exc)),
+            status_code=400,
+        )
+    return RedirectResponse(
+        f"/admin/leads?ok=Данные+заявки+сохранены#lead-{lead_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/leads/{lead_id}/reopen", response_class=HTMLResponse)
+def reopen_lead_route(
+    lead_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from app.models import User as UserModel
+    from app.services.leads import LeadError, reopen_lead
+
+    lead = db.get(Lead, lead_id)
+    if lead is None:
+        return RedirectResponse("/admin/leads", status_code=status.HTTP_303_SEE_OTHER)
+    actor = db.get(UserModel, user.id)
+    assert actor is not None
+    try:
+        reopen_lead(db, lead=lead, actor=actor)
+    except LeadError as exc:
+        db.rollback()
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/leads.html",
+            context=_leads_page_ctx(request, user, db, flash_error=str(exc)),
+            status_code=400,
+        )
+    return RedirectResponse(
+        f"/admin/leads?ok=Заявка+возвращена+в+новые#lead-{lead_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/leads/{lead_id}/delete", response_class=HTMLResponse)
+def delete_lead_route(
+    lead_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from app.models import User as UserModel
+    from app.services.leads import delete_lead
+
+    lead = db.get(Lead, lead_id)
+    if lead is None:
+        return RedirectResponse("/admin/leads", status_code=status.HTTP_303_SEE_OTHER)
+    actor = db.get(UserModel, user.id)
+    assert actor is not None
+    delete_lead(db, lead=lead, actor=actor)
+    return RedirectResponse(
+        "/admin/leads?ok=Заявка+удалена",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
 @router.get("/invites", response_class=HTMLResponse)
 def admin_invites(
     request: Request,
@@ -812,6 +1002,8 @@ def admin_invites(
             orgs=orgs,
             org_names=org_names,
             invite_ttl=get_settings().invite_ttl_hours,
+            flash_ok=request.query_params.get("ok"),
+            flash_error=request.query_params.get("err"),
         ),
     )
 
@@ -906,6 +1098,157 @@ def revoke_invite(
     return RedirectResponse("/admin/invites", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/invites/{invite_id}/resend", response_class=HTMLResponse)
+def resend_admin_invite(
+    invite_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    """Повторить приглашение: погасить старый токен, выдать новый для той же орг/e-mail."""
+    from app.services.audit import record_event
+    from app.services.limits import assert_can_add_user
+    from app.services.mail import send_email
+
+    settings = get_settings()
+    invite = db.get(Invite, invite_id)
+    orgs = db.scalars(select(Organization).order_by(Organization.name)).all()
+    org_names = {o.id: o.name for o in orgs}
+
+    def page(*, flash_ok=None, flash_error=None, last_invite_link=None, code=200):
+        invites = db.scalars(select(Invite).order_by(Invite.id.desc()).limit(100)).all()
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/invites.html",
+            context=_ctx(
+                request,
+                user,
+                "invites",
+                invites=invites,
+                orgs=orgs,
+                org_names=org_names,
+                flash_ok=flash_ok,
+                flash_error=flash_error,
+                last_invite_link=last_invite_link,
+                invite_ttl=settings.invite_ttl_hours,
+            ),
+            status_code=code,
+        )
+
+    if invite is None:
+        return page(flash_error="Приглашение не найдено.", code=404)
+
+    email_norm = invite.email.strip().lower()
+    org = db.get(Organization, invite.org_id)
+    if org is None:
+        return page(flash_error="Организация не найдена.", code=404)
+    if db.scalar(select(User).where(User.email == email_norm)):
+        return page(
+            flash_error="Пользователь с таким e-mail уже зарегистрирован.",
+            code=409,
+        )
+
+    try:
+        assert_can_add_user(db, org.id)
+    except HTTPException as exc:
+        return page(flash_error=str(exc.detail), code=int(exc.status_code))
+
+    now = utcnow()
+    # погасить исходное и любые другие открытые по этому e-mail
+    for inv in db.scalars(
+        select(Invite).where(
+            Invite.email == email_norm,
+            Invite.used_at.is_(None),
+            Invite.expires_at > now,
+        )
+    ).all():
+        inv.expires_at = now - timedelta(seconds=1)
+
+    token = new_invite_token()
+    new_inv = Invite(
+        org_id=org.id,
+        email=email_norm,
+        token=token,
+        expires_at=now + timedelta(hours=settings.invite_ttl_hours),
+        lead_id=invite.lead_id,
+        note=(invite.note or "")[:500] or None,
+    )
+    db.add(new_inv)
+    db.flush()
+
+    if invite.lead_id:
+        lead = db.get(Lead, invite.lead_id)
+        if lead is not None:
+            lead.invite_id = new_inv.id
+            lead.org_id = org.id
+            lead.updated_at = now
+
+    link = _invite_link(request, token)
+    email_sent = send_email(
+        settings,
+        to_addr=email_norm,
+        subject=f"[Док.Москва] Приглашение в «{org.name}»",
+        body=(
+            f"Вас пригласили в организацию «{org.name}» на Док.Москва.\n\n"
+            f"Принять приглашение: {link}\n\n"
+            f"Ссылка действует {settings.invite_ttl_hours} ч.\n"
+        ),
+    )
+    record_event(
+        db,
+        type="invite_resent",
+        org_id=org.id,
+        user_id=user.id,
+        details={
+            "from_invite_id": invite_id,
+            "invite_id": new_inv.id,
+            "email": email_norm,
+            "email_sent": email_sent,
+        },
+        commit=False,
+    )
+    db.commit()
+    msg = "Приглашение повторено" + (", письмо отправлено." if email_sent else ".")
+    return page(flash_ok=msg, last_invite_link=link)
+
+
+@router.post("/invites/{invite_id}/delete", response_class=HTMLResponse)
+def delete_admin_invite(
+    invite_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from sqlalchemy import update
+
+    from app.services.audit import record_event
+
+    invite = db.get(Invite, invite_id)
+    if invite is None:
+        return RedirectResponse("/admin/invites", status_code=status.HTTP_303_SEE_OTHER)
+
+    email = invite.email
+    org_id = invite.org_id
+    # Lead.invite_id — ON DELETE SET NULL; на SQLite обнуляем явно
+    db.execute(update(Lead).where(Lead.invite_id == invite_id).values(invite_id=None))
+    record_event(
+        db,
+        type="invite_deleted",
+        org_id=org_id,
+        user_id=user.id,
+        details={"invite_id": invite_id, "email": email, "used": bool(invite.used_at)},
+        commit=False,
+    )
+    db.delete(invite)
+    db.commit()
+    return RedirectResponse(
+        "/admin/invites?ok=Приглашение+удалено",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
 @router.get("/status", response_class=HTMLResponse)
 def admin_status(
     request: Request,
@@ -925,6 +1268,7 @@ def admin_status(
     )
     checks = [
         ("Администраторы сервиса", f"{admin_n} активных", admin_n > 0),
+        ("APP_VERSION", settings.app_version, True),
         ("SECRET_KEY", "задан" if settings.secret_key and "dev-only" not in settings.secret_key else "dev-заглушка", "dev-only" not in (settings.secret_key or "")),
         ("DaData", "ключ задан" if settings.dadata_key else "нет ключа", bool(settings.dadata_key)),
         ("SMTP", settings.smtp_host or "не настроен", bool(settings.smtp_host)),

@@ -20,7 +20,6 @@ from app.services.package_generate import (
 )
 from app.services.package_master import (
     CP_TO_TYPE,
-    SESSION_KEY,
     TYPE_LABELS,
     TYPE_TO_CP,
     collect_fields,
@@ -32,6 +31,7 @@ from app.services.package_master import (
     infer_type,
     selected_templates,
 )
+from app.services.package_wizard_store import clear_wizard, load_wizard, save_wizard
 from app.services.party_check import refresh_stale_egrul
 from app.templating import templates
 
@@ -39,19 +39,17 @@ router = APIRouter(prefix="/cabinet/package", tags=["package"])
 
 
 def _wizard(request: Request) -> dict:
-    data = request.session.get(SESSION_KEY)
-    if not isinstance(data, dict):
-        data = {}
-        request.session[SESSION_KEY] = data
-    return data
+    # На диске (FILES_ROOT/_wizard), не в cookie: иначе большой core_values
+    # раздувает dok_session и step3 не видит selected после редиректа.
+    return load_wizard(request)
 
 
 def _save(request: Request, data: dict) -> None:
-    request.session[SESSION_KEY] = data
+    save_wizard(request, data)
 
 
 def _clear(request: Request) -> None:
-    request.session.pop(SESSION_KEY, None)
+    clear_wizard(request)
 
 
 def _page(request: Request, user: CurrentUser, org, db, step: int, **extra):
@@ -269,7 +267,10 @@ async def package_step2_post(
         _save(request, data)
         return RedirectResponse("/cabinet/package/step2", status_code=303)
 
-    checked = [name for name, _ in extras_meta if form.get(f"extra_{name}")]
+    # name="extras" value="<stem>" — без пробелов в имени поля (старый extra_<stem> тоже читаем).
+    checked = [str(v) for v in form.getlist("extras") if v]
+    if not checked:
+        checked = [name for name, _ in extras_meta if form.get(f"extra_{name}")]
     data["contract_template"] = contract
     data["extras"] = checked
     selected = selected_templates(contract, checked)
@@ -330,6 +331,10 @@ def package_step3_get(
             data["egrul_warning"] = egrul_warning
             _save(request, data)
 
+    from app.services.facsimile import org_has_any_branding, package_facsimile_summary
+
+    facsimile_summary = package_facsimile_summary(selected, display_name=display_name)
+
     return templates.TemplateResponse(
         request=request,
         name="cabinet/package_step3.html",
@@ -343,6 +348,8 @@ def package_step3_get(
             selected=selected,
             display_name=display_name,
             egrul_warning=egrul_warning,
+            facsimile_summary=facsimile_summary,
+            facsimile_has_images=org_has_any_branding(org.id),
         ),
     )
 
@@ -370,10 +377,41 @@ async def package_step3_post(
     _save(request, data)
 
     from app.services.limits import assert_can_generate
+    from app.services.settings_svc import bank_is_complete, ensure_requisites, is_bill_template
 
     assert_can_generate(db, org.id)
 
+    if any(is_bill_template(t) for t in selected) and not bank_is_complete(ensure_requisites(org)):
+        all_fields = list(dict.fromkeys([*core_names, *additional]))
+        values = {**core_values, **additional_values}
+        assist = _assist_ctx(db, org.id, all_fields, values)
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/package_step3.html",
+            context=_page(
+                request,
+                user,
+                org,
+                db,
+                3,
+                wizard=data,
+                core_names=core_names,
+                additional=additional,
+                values=assist["values"],
+                field_meta=assist["field_meta"],
+                number_peeks=assist["number_peeks"],
+                selected=selected,
+                display_name=display_name,
+                flash_error=(
+                    "В комплекте есть счёт на оплату, но в «Настройки → Банк» не заполнены "
+                    "реквизиты получателя. Заполните банк и повторите генерацию."
+                ),
+            ),
+            status_code=400,
+        )
+
     try:
+        fax_map = {t: bool(form.get(f"fax_{t}")) for t in selected}
         result = generate_package(
             db=db,
             org=org,
@@ -384,8 +422,12 @@ async def package_step3_post(
             core_values=core_values,
             additional_values=additional_values,
             counterparty_id=data.get("counterparty_id"),
+            facsimile_by_template=fax_map,
         )
     except Exception as exc:
+        all_fields = list(dict.fromkeys([*core_names, *additional]))
+        values = {**core_values, **additional_values}
+        assist = _assist_ctx(db, org.id, all_fields, values)
         return templates.TemplateResponse(
             request=request,
             name="cabinet/package_step3.html",
@@ -393,7 +435,9 @@ async def package_step3_post(
                 wizard=data,
                 core_names=core_names,
                 additional=additional,
-                values={**core_values, **additional_values},
+                values=assist["values"],
+                field_meta=assist["field_meta"],
+                number_peeks=assist["number_peeks"],
                 selected=selected,
                 display_name=display_name,
                 flash_error=f"Ошибка генерации: {exc}",
@@ -424,6 +468,10 @@ def package_done(
     docs = []
     for i in ids:
         docs.append(get_document_for_org(db, org_id, int(i)))
+    from app.services.facsimile import doc_has_facsimile
+
+    fax_flags = {d.id: doc_has_facsimile(d) for d in docs}
+    any_fax = any(fax_flags.values())
     return templates.TemplateResponse(
         request=request,
         name="cabinet/package_done.html",
@@ -431,6 +479,8 @@ def package_done(
             wizard=data,
             documents=docs,
             display_name=display_name,
+            fax_flags=fax_flags,
+            any_fax=any_fax,
         ),
     )
 

@@ -7,7 +7,7 @@
   <section class="panel">
     <h1>Новое приглашение</h1>
     <p class="muted">Срок действия: {{ invite_ttl }} ч.</p>
-    <form method="post" action="/admin/invites">
+    <form method="post" action="/admin/invites" hx-boost="false">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label for="org_id">Организация</label>
       <select id="org_id" name="org_id" required>
@@ -28,17 +28,17 @@
   </section>
   <section class="panel">
     <h1>Как это работает</h1>
-    <p class="muted">Пользователь открывает ссылку, задаёт пароль и попадает в кабинет организации. Отозвать неиспользованное приглашение можно в таблице справа.</p>
+    <p class="muted">Пользователь открывает ссылку, задаёт пароль и попадает в кабинет организации. В таблице: отозвать открытое, повторить (новый токен и письмо) или удалить строку.</p>
   </section>
 </div>
 
 <section class="panel" style="margin-top:1rem">
   <h1>Недавние приглашения</h1>
   <table class="table">
-    <thead><tr><th>Org</th><th>E-mail</th><th>Статус</th><th>Истекает</th><th></th></tr></thead>
+    <thead><tr><th>Org</th><th>E-mail</th><th>Статус</th><th>Истекает</th><th>Действия</th></tr></thead>
     <tbody>
       {% for i in invites %}
-      <tr>
+      <tr id="invite-{{ i.id }}">
         <td><a href="/admin/organizations/{{ i.org_id }}">{{ org_names.get(i.org_id, i.org_id) }}</a></td>
         <td>{{ i.email }}</td>
         <td>
@@ -46,14 +46,28 @@
           {% elif i.is_expired() %}<span class="badge danger">истёк / отозван</span>
           {% else %}<span class="badge warn">открыт</span>{% endif %}
         </td>
-        <td class="muted">{{ i.expires_at }}</td>
+        <td class="muted">{{ i.expires_at.strftime('%d.%m.%Y %H:%M') if i.expires_at else '—' }}</td>
         <td>
-          {% if not i.used_at and not i.is_expired() %}
-          <form class="inline-form" method="post" action="/admin/invites/{{ i.id }}/revoke">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="danger">Отозвать</button>
-          </form>
-          {% endif %}
+          <div class="actions" style="flex-wrap:wrap;gap:0.35rem;justify-content:flex-end">
+            {% if not i.used_at %}
+            <form class="inline-form" method="post" action="/admin/invites/{{ i.id }}/resend" hx-boost="false"
+                  onsubmit="return confirm('Повторить приглашение для {{ i.email|e }}? Старая открытая ссылка перестанет действовать.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="secondary">Повторить</button>
+            </form>
+            {% endif %}
+            {% if not i.used_at and not i.is_expired() %}
+            <form class="inline-form" method="post" action="/admin/invites/{{ i.id }}/revoke" hx-boost="false">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="secondary">Отозвать</button>
+            </form>
+            {% endif %}
+            <form class="inline-form" method="post" action="/admin/invites/{{ i.id }}/delete" hx-boost="false"
+                  onsubmit="return confirm('Удалить строку приглашения #{{ i.id }} ({{ i.email|e }})?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="danger">Удалить</button>
+            </form>
+          </div>
         </td>
       </tr>
       {% else %}

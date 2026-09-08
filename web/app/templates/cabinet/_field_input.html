@@ -1,30 +1,52 @@
-{# Макрос поля формы документа/комплекта (T8). #}
+{# Макрос поля формы документа/комплекта (T8 / W-41). #}
 {% macro field_input(var, values, field_meta, number_peeks, id_prefix='f') %}
 {% set meta = field_meta.get(var, {}) %}
 {% set val = values.get(var, '') %}
 {% set fid = id_prefix ~ '_' ~ var %}
 <div class="field-block" data-field="{{ var }}">
-  <label for="{{ fid }}">{{ meta.label or var }}</label>
+  <label for="{{ fid }}">{{ meta.label or var }}{% if meta.required %} <span class="req">*</span>{% endif %}</label>
   {% if meta.hint %}<p class="field-hint muted">{{ meta.hint }}</p>{% endif %}
-  {% if meta.multiline %}
+  {% if meta.is_checkbox %}
+  <label class="checkbox-inline" for="{{ fid }}">
+    <input id="{{ fid }}" type="checkbox" name="{{ var }}" value="да"
+           class="form-field"
+           data-field="{{ var }}"
+           {% if val in ('да', 'yes', 'true', '1', 'on') %}checked{% endif %}>
+    Да
+  </label>
+  {% elif meta.is_select %}
+  <select id="{{ fid }}" name="{{ var }}" class="form-field" data-field="{{ var }}"
+          {% if meta.required %}required{% endif %}>
+    <option value="">— выберите —</option>
+    {% for opt in meta.options or [] %}
+    <option value="{{ opt }}" {% if val == opt %}selected{% endif %}>{{ opt }}</option>
+    {% endfor %}
+  </select>
+  {% elif meta.multiline %}
   <textarea id="{{ fid }}" name="{{ var }}" rows="3"
             class="form-field"
             data-field="{{ var }}"
+            {% if meta.required %}required{% endif %}
             {% if meta.history %}data-history="1"{% endif %}
-            {% if meta.dadata %}data-dadata="{{ meta.dadata }}"{% endif %}>{{ val }}</textarea>
+            {% if meta.dadata %}data-dadata="{{ meta.dadata }}"{% endif %}
+            {% if meta.ref %}data-ref="{{ meta.ref }}"{% endif %}>{{ val }}</textarea>
   {% else %}
   <input id="{{ fid }}" name="{{ var }}" value="{{ val }}"
-         class="form-field"
+         class="form-field{% if meta.is_money %} field-money{% endif %}"
          data-field="{{ var }}"
+         {% if meta.is_money %}data-money="1" inputmode="decimal"{% endif %}
+         {% if meta.required and not meta.is_number %}required{% endif %}
          {% if meta.is_date %}placeholder="дд.мм.гггг" autocomplete="off"{% endif %}
          {% if meta.is_number and number_peeks.get(var) %}placeholder="авто: {{ number_peeks[var] }}"{% endif %}
          {% if meta.history %}data-history="1"{% endif %}
          {% if meta.dadata %}data-dadata="{{ meta.dadata }}"{% endif %}
+         {% if meta.ref %}data-ref="{{ meta.ref }}"{% endif %}
          {% if var in (
            'принято_от', 'фио_субъекта', 'паспорт_субъекта', 'адрес_субъекта',
            'плательщик', 'основание_пко', 'предмет_основание', 'дата_начала',
            'фио_подписанта_кратко', 'должность_подписанта_род', 'дата_акта',
-           'приложение_пко'
+           'приложение_пко', 'выдано_рко', 'основание_рко', 'приложение_рко',
+           'назначение_платежа'
          ) %}
          data-linked-target="1" data-linked-auto="{% if val %}0{% else %}1{% endif %}"
          {% endif %}
@@ -36,8 +58,11 @@
          data-linked-src="1"
          {% endif %}
   >
+  {% if meta.is_money %}
+  <p class="field-hint muted">В шаблоне можно вывести прописью: <span class="mono">{{ '{{ ' ~ var ~ ' | прописью }}' }}</span></p>
   {% endif %}
-  {% if meta.history or meta.dadata %}
+  {% endif %}
+  {% if meta.history or meta.dadata or meta.ref %}
   <div class="suggest-box" id="suggest_{{ fid }}" data-suggest-for="{{ var }}"></div>
   {% endif %}
 </div>

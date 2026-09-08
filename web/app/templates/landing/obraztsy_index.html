@@ -1,0 +1,39 @@
+{% extends "landing/base.html" %}
+{% block title %}Образцы документов экспертизы — {{ app_name }}{% endblock %}
+{% block meta_description %}Библиотека образцов: договоры, счета, акты, заключения эксперта по ГПК и УПК. PDF с водяным знаком и список заполняемых полей.{% endblock %}
+{% block canonical %}{{ public_base_url }}/obraztsy{% endblock %}
+{% block og_title %}Образцы документов экспертизы — {{ app_name }}{% endblock %}
+{% block og_description %}{{ total }} шаблонов судебной экспертизы: договоры, счета, акты, заключения. Откройте PDF-образец или заполните в кабинете.{% endblock %}
+{% block og_url %}{{ public_base_url }}/obraztsy{% endblock %}
+{% block twitter_title %}Образцы документов экспертизы — {{ app_name }}{% endblock %}
+
+{% block content %}
+<article class="lp-legal lp-obraztsy">
+  <div class="lp-wrap">
+    <p class="zk-eyebrow"><a href="/">Главная</a> · Образцы</p>
+    <h1>Образцы документов</h1>
+    <p class="lp-section-lead">Встроенные шаблоны Док.Москва: описание, поля и нормативная база. PDF с водяным знаком «ОБРАЗЕЦ» — там, где витрина уже собрана.</p>
+
+    {% for group, items in groups %}
+    <section class="lp-obraztsy-group" aria-labelledby="g-{{ loop.index }}">
+      <h2 id="g-{{ loop.index }}">{{ group }}</h2>
+      <ul class="lp-obraztsy-list">
+        {% for it in items %}
+        <li>
+          <a href="/obraztsy/{{ it.slug }}">
+            <strong>{{ it.title }}</strong>
+            <span>{{ it.purpose }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endfor %}
+
+    <p class="lp-section-foot">
+      <a class="lp-btn" href="/#apply" data-ym-goal="cta_apply">Заполнить в кабинете за 5 минут</a>
+      <a class="lp-btn lp-btn-ghost" href="/zakon/">Нормативная база →</a>
+    </p>
+  </div>
+</article>
+{% endblock %}

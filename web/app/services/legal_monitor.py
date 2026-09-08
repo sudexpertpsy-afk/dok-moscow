@@ -88,6 +88,7 @@ def check_act(
     http: ThrottledClient,
     since: date | None = None,
     send_mail: bool = True,
+    _timeout_retries: int = 1,
 ) -> ActWatchLog:
     """Проверить один акт. Ошибка источника не пробрасывается наружу."""
     since = since or (date.today() - timedelta(days=14))
@@ -183,12 +184,26 @@ def check_act(
             )
         return log_row
     except Exception as exc:
+        # W-45/G-06: единичные timeout на крупных кодексах (КоАП) — один повтор
+        detail = str(exc)[:1000]
+        is_timeout = "timed out" in detail.lower() or "timeout" in detail.lower()
+        if is_timeout and _timeout_retries > 0:
+            log.warning("legal watch timeout retry act=%s", act.slug)
+            return check_act(
+                db,
+                act,
+                pub=pub,
+                http=http,
+                since=since,
+                send_mail=send_mail,
+                _timeout_retries=_timeout_retries - 1,
+            )
         log.exception("legal watch error act=%s", act.slug)
         log_row = ActWatchLog(
             act_id=act.id,
             checked_at=utcnow(),
             result=ActWatchResult.source_error,
-            details=str(exc)[:1000],
+            details=detail,
         )
         db.add(log_row)
         act.last_checked_at = utcnow()
@@ -199,7 +214,7 @@ def check_act(
                 act_title=act.title,
                 act_slug=act.slug,
                 error_count=errors,
-                last_detail=str(exc)[:500],
+                last_detail=detail[:500],
             )
         return log_row
 

@@ -19,29 +19,162 @@
       {% if read_only %}
       <p class="muted" style="margin:0 0 1rem">Просмотр реквизитов организации. Изменение доступно администратору.</p>
       {% for f in ORG_FIELDS %}
-        <label for="o_{{ loop.index }}">{{ f }}</label>
+        <label for="o_{{ loop.index }}">{{ ORG_FIELD_LABELS.get(f, f) }}</label>
         <input id="o_{{ loop.index }}" value="{{ requisites.организация.get(f, '') }}" readonly disabled>
       {% endfor %}
       {% else %}
-      <form method="post" action="/cabinet/settings/">
+      {% if not dadata_enabled %}
+      <p class="muted">Подсказки справочника DaData выключены — заполняйте поля вручную.</p>
+      {% else %}
+      <p class="muted" style="margin:0 0 1rem">Введите ИНН или название — подставим реквизиты из справочника ЕГРЮЛ. Адрес тоже можно выбрать из подсказки.</p>
+      {% endif %}
+      <form method="post" action="/cabinet/settings/" hx-boost="false" id="org-settings-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        {% for f in ORG_FIELDS %}
-          <label for="o_{{ loop.index }}">{{ f }}</label>
-          <input id="o_{{ loop.index }}" name="{{ f }}" value="{{ requisites.организация.get(f, '') }}">
+        <label for="org_inn">{{ ORG_FIELD_LABELS['инн'] }}{% if dadata_enabled %} <span class="muted">(справочник)</span>{% endif %}</label>
+        <input id="org_inn" name="инн" value="{{ requisites.организация.get('инн', '') }}"
+               autocomplete="off" inputmode="numeric"
+               {% if dadata_enabled %}
+               hx-get="/cabinet/counterparties/suggest/party"
+               hx-trigger="keyup changed delay:300ms"
+               hx-target="#org-party-suggest"
+               hx-include="[name='инн']"
+               {% endif %}>
+        <div id="org-party-suggest" class="suggest-box"></div>
+        {% for f in ORG_FIELDS if f != 'инн' %}
+          <label for="org_{{ f }}">{{ ORG_FIELD_LABELS.get(f, f) }}{% if dadata_enabled and f in ('юр_адрес', 'почтовый_адрес') %} <span class="muted">(справочник)</span>{% endif %}</label>
+          <input id="org_{{ f }}" name="{{ f }}" value="{{ requisites.организация.get(f, '') }}"
+                 autocomplete="off"
+                 {% if dadata_enabled and f == 'юр_адрес' %}
+                 hx-get="/cabinet/counterparties/suggest/address"
+                 hx-trigger="keyup changed delay:150ms"
+                 hx-target="#org-address-suggest"
+                 hx-include="[name='юр_адрес']"
+                 {% elif dadata_enabled and f == 'почтовый_адрес' %}
+                 hx-get="/cabinet/counterparties/suggest/address"
+                 hx-trigger="keyup changed delay:150ms"
+                 hx-target="#org-post-address-suggest"
+                 hx-include="[name='почтовый_адрес']"
+                 {% endif %}>
+          {% if dadata_enabled and f == 'юр_адрес' %}<div id="org-address-suggest" class="suggest-box"></div>{% endif %}
+          {% if dadata_enabled and f == 'почтовый_адрес' %}<div id="org-post-address-suggest" class="suggest-box"></div>{% endif %}
         {% endfor %}
         <div class="actions"><button type="submit">Сохранить</button></div>
       </form>
+      {% if dadata_enabled %}
+      <style>
+      .suggest-box { margin: 0.25rem 0 0.6rem; }
+      .suggest-box button {
+        display: block; width: 100%; text-align: left; margin: 0.2rem 0;
+        background: #fff; color: var(--ink); border: 1px solid var(--line);
+        border-radius: 8px; padding: 0.55rem 0.7rem; font-weight: 500;
+      }
+      </style>
+      <script>
+      function applyParty(btn) {
+        try {
+          var d = JSON.parse(btn.getAttribute('data-json') || '{}');
+          var set = function (name, val) {
+            var el = document.querySelector('#org-settings-form [name="' + name + '"]');
+            if (el && val) el.value = val;
+          };
+          set('инн', d.inn);
+          set('кпп', d.kpp);
+          set('огрн', d.ogrn);
+          set('полное_название', d.name);
+          var shortEl = document.querySelector('#org-settings-form [name="короткое_название"]');
+          if (shortEl && d.name && !(shortEl.value || '').trim()) shortEl.value = d.name;
+          set('юр_адрес', d.address);
+          var post = document.querySelector('#org-settings-form [name="почтовый_адрес"]');
+          if (post && d.address && !(post.value || '').trim()) post.value = d.address;
+          var box = document.getElementById('org-party-suggest');
+          if (box) box.innerHTML = '';
+        } catch (e) {}
+      }
+      function applyAddress(btn) {
+        var v = btn.getAttribute('data-value') || '';
+        var box = btn.closest('.suggest-box');
+        var targetName = (box && box.id === 'org-post-address-suggest') ? 'почтовый_адрес' : 'юр_адрес';
+        var el = document.querySelector('#org-settings-form [name="' + targetName + '"]');
+        if (el) el.value = v;
+        if (box) box.innerHTML = '';
+      }
+      </script>
+      {% endif %}
       {% endif %}
 
       {% elif section == 'банк' %}
-      <form method="post" action="/cabinet/settings/bank">
+      {% if not bank_complete %}
+      <div class="alert alert-error" style="margin:0 0 1rem">
+        Банковские реквизиты не заполнены — в счетах на оплату останутся пустые «Банк получателя», БИК и расчётный счёт.
+      </div>
+      {% endif %}
+      {% if not dadata_enabled %}
+      <p class="muted">Подсказки справочника банков выключены (нет DADATA_KEY) — заполняйте поля вручную.</p>
+      {% else %}
+      <p class="muted" style="margin:0 0 1rem">
+        Введите <strong>БИК</strong> или название банка — название и корр. счёт подставятся из справочника.
+        Расчётный счёт вашей организации укажите вручную (его нет в общем справочнике).
+      </p>
+      {% endif %}
+      <form method="post" action="/cabinet/settings/bank" hx-boost="false" id="bank-settings-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        {% for f in BANK_FIELDS %}
-          <label for="b_{{ loop.index }}">{{ f }}</label>
-          <input id="b_{{ loop.index }}" name="{{ f }}" value="{{ requisites.банк.get(f, '') }}">
-        {% endfor %}
+        <label for="bank_bik">{{ BANK_FIELD_LABELS['бик'] }}{% if dadata_enabled %} <span class="muted">(справочник)</span>{% endif %}</label>
+        <input id="bank_bik" name="bank_bik" value="{{ requisites.банк.get('бик', '') }}"
+               autocomplete="off" inputmode="numeric" placeholder="044525593"
+               {% if dadata_enabled %}
+               hx-get="/cabinet/counterparties/suggest/bank"
+               hx-trigger="keyup changed delay:250ms"
+               hx-target="#org-bank-suggest"
+               hx-include="[name='bank_bik']"
+               {% endif %}>
+        <div id="org-bank-suggest" class="suggest-box"></div>
+        <label for="bank_name">{{ BANK_FIELD_LABELS['банк'] }}{% if dadata_enabled %} <span class="muted">(справочник)</span>{% endif %}</label>
+        <input id="bank_name" name="bank_name" value="{{ requisites.банк.get('банк', '') }}"
+               autocomplete="off" placeholder='АО «АЛЬФА-БАНК»'
+               {% if dadata_enabled %}
+               hx-get="/cabinet/counterparties/suggest/bank"
+               hx-trigger="keyup changed delay:300ms"
+               hx-target="#org-bank-suggest"
+               hx-include="[name='bank_name']"
+               {% endif %}>
+        <label for="bank_corr_account">{{ BANK_FIELD_LABELS['корр_счёт'] }}{% if dadata_enabled %} <span class="muted">(из справочника по БИК)</span>{% endif %}</label>
+        <input id="bank_corr_account" name="corr_account" value="{{ requisites.банк.get('корр_счёт', '') }}"
+               autocomplete="off" inputmode="numeric" placeholder="30101810200000000593">
+        <label for="bank_account">{{ BANK_FIELD_LABELS['расчётный_счёт'] }}</label>
+        <input id="bank_account" name="account" value="{{ requisites.банк.get('расчётный_счёт', '') }}"
+               autocomplete="off" inputmode="numeric" placeholder="20 цифр расчётного счёта">
         <div class="actions"><button type="submit">Сохранить</button></div>
       </form>
+      <style>
+      .suggest-box { margin: 0.25rem 0 0.6rem; }
+      .suggest-box button {
+        display: block; width: 100%; text-align: left; margin: 0.2rem 0;
+        background: #fff; color: var(--ink); border: 1px solid var(--line);
+        border-radius: 8px; padding: 0.55rem 0.7rem; font-weight: 500;
+      }
+      .suggest-box button:hover { background: #eef7f4; }
+      </style>
+      <script>
+      function applyBank(btn) {
+        try {
+          var data = JSON.parse(btn.getAttribute('data-json') || '{}');
+          [['bank_bik', data.bank_bik], ['bank_name', data.bank_name], ['bank_corr_account', data.bank_corr_account]]
+            .forEach(function (pair) {
+              var el = document.getElementById(pair[0]);
+              if (el && pair[1]) el.value = pair[1];
+            });
+          var box = document.getElementById('org-bank-suggest');
+          if (box) box.innerHTML = '';
+          var acc = document.getElementById('bank_account');
+          if (acc) acc.focus();
+        } catch (e) {}
+      }
+      document.body.addEventListener('htmx:afterSwap', function (ev) {
+        if (!ev.target || ev.target.id !== 'org-bank-suggest') return;
+        var btn = ev.target.querySelector('[data-auto-apply="1"]');
+        if (btn) applyBank(btn);
+      });
+      </script>
 
       {% elif section == 'подписанты' %}
       <form method="post" action="/cabinet/settings/signatories">
@@ -103,124 +236,10 @@
       </form>
 
       {% elif section == 'безопасность' %}
-      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:0 0 0.4rem">Яндекс ID</h2>
-      <p class="muted">Вход через Яндекс без пароля на этом устройстве. Привязка — по желанию.</p>
-      {% if yandex_linked %}
-      <p><span class="badge ok">Привязан</span>{% if yandex_provider_email %} <span class="muted">{{ yandex_provider_email }}</span>{% endif %}</p>
-      <form method="post" action="/cabinet/settings/security/yandex/unlink" style="max-width:22rem;margin-top:0.6rem">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        {% if yandex_can_unlink %}
-        <div class="actions"><button type="submit" class="danger">Отвязать Яндекс ID</button></div>
-        {% else %}
-        <p class="muted">{{ yandex_unlink_hint }}</p>
-        <button type="submit" class="danger" disabled>Отвязать Яндекс ID</button>
-        {% endif %}
-      </form>
-      {% elif yandex_available %}
-      <form method="post" action="/cabinet/settings/security/yandex/link" style="max-width:22rem">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <label for="yandex_link_password">Текущий пароль</label>
-        <input id="yandex_link_password" name="password" type="password" required autocomplete="current-password" {% if not has_password %}disabled{% endif %}>
-        {% if not has_password %}
-        <p class="muted">Сначала задайте пароль ниже, затем привяжите Яндекс ID.</p>
-        {% endif %}
-        <div class="actions"><button type="submit" {% if not has_password %}disabled{% endif %}>Привязать Яндекс ID</button></div>
-      </form>
-      {% else %}
-      <p class="muted">Вход через Яндекс сейчас недоступен.</p>
-      {% endif %}
-
-      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.6rem 0 0.4rem">Пароль</h2>
-      <p class="muted">{% if has_password %}Смена пароля учётки.{% else %}Задайте пароль, чтобы можно было входить без Яндекс ID и отвязывать привязку.{% endif %} {{ password_hint }}</p>
-      <form method="post" action="/cabinet/settings/security/password" style="max-width:22rem">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        {% if has_password %}
-        <label for="cur_password">Текущий пароль</label>
-        <input id="cur_password" name="current_password" type="password" required autocomplete="current-password">
-        {% endif %}
-        <label for="new_password">Новый пароль</label>
-        <input id="new_password" name="password" type="password" required autocomplete="new-password">
-        <label for="new_password2">Повтор пароля</label>
-        <input id="new_password2" name="password2" type="password" required autocomplete="new-password">
-        <div class="actions"><button type="submit">{% if has_password %}Сменить пароль{% else %}Задать пароль{% endif %}</button></div>
-      </form>
-
-      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.6rem 0 0.4rem">Двухфакторная аутентификация</h2>
-      {% if force_2fa_setup and not totp_enabled %}
-      <div class="alert alert-error">Политика организации требует включить 2FA для продолжения работы.</div>
-      {% endif %}
-      <p class="muted">Дополнительная защита входа кодом из приложения. По умолчанию выключена.</p>
-
-      {% if totp_backup_codes %}
-      <div class="alert alert-ok">
-        <p><strong>Резервные коды показываются один раз.</strong> Сохраните их в надёжном месте.</p>
-        <ul class="mono" style="margin:0.6rem 0;padding-left:1.2rem">
-          {% for c in totp_backup_codes %}<li>{{ c }}</li>{% endfor %}
-        </ul>
-        <div class="actions">
-          <a class="btn" href="/cabinet/settings/security/2fa/backup.txt">Скачать .txt</a>
-          <form method="post" action="/cabinet/settings/security/2fa/dismiss-backup" style="display:inline">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="secondary">Готово</button>
-          </form>
-        </div>
-      </div>
-      {% elif totp_setup_secret %}
-      <p>Отсканируйте в приложении Яндекс Ключ, Google Authenticator или любом совместимом.</p>
-      {% if totp_setup_qr %}
-      <p><img src="{{ totp_setup_qr }}" alt="QR-код 2FA" width="200" height="200" style="background:#fff;padding:0.5rem"></p>
-      {% endif %}
-      <p class="muted">Секрет для ручного ввода:</p>
-      <p class="mono" style="word-break:break-all">{{ totp_setup_secret }}</p>
-      <form method="post" action="/cabinet/settings/security/2fa/confirm" style="max-width:22rem;margin-top:1rem">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <label for="totp_confirm">Код из приложения</label>
-        <input id="totp_confirm" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
-        <div class="actions"><button type="submit">Подтвердить и включить</button></div>
-      </form>
-      {% elif totp_enabled %}
-      <p><span class="badge ok">2FA включена</span></p>
-      <form method="post" action="/cabinet/settings/security/2fa/disable" style="max-width:22rem;margin-top:0.8rem">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <label for="totp_off_password">Текущий пароль</label>
-        <input id="totp_off_password" name="password" type="password" required autocomplete="current-password">
-        <label for="totp_off_code">Код из приложения или резервный</label>
-        <input id="totp_off_code" name="code" type="text" required autocomplete="one-time-code">
-        <div class="actions"><button type="submit" class="danger">Отключить 2FA</button></div>
-      </form>
-      {% else %}
-      <form method="post" action="/cabinet/settings/security/2fa/start" style="max-width:22rem">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <label for="totp_on_password">Текущий пароль</label>
-        <input id="totp_on_password" name="password" type="password" required autocomplete="current-password">
-        <div class="actions"><button type="submit">Включить 2FA</button></div>
-      </form>
-      {% endif %}
-
-      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.6rem 0 0.4rem">Хранение файлов</h2>
-      <p class="muted">Документы старше указанного срока удаляются ночным заданием. 0 — не удалять. По умолчанию 1095 дней (≈3 года).</p>
-      <form method="post" action="/cabinet/settings/security">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <label for="retention">Срок хранения файлов, дней</label>
-        <input id="retention" name="срок_дней_файлов" type="number" min="0" max="36500" value="{{ retention_days }}" required>
-        <div class="actions"><button type="submit">Сохранить</button></div>
-      </form>
-      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.4rem 0 0.4rem">Журнал входов</h2>
-      <table class="table">
-        <thead><tr><th>Когда</th><th>Тип</th><th>User</th><th>Детали</th></tr></thead>
-        <tbody>
-          {% for e in security_events %}
-          <tr>
-            <td class="muted">{{ e.ts }}</td>
-            <td class="mono">{{ e.type }}</td>
-            <td>{{ e.user_id or "—" }}</td>
-            <td class="muted mono">{{ e.details }}</td>
-          </tr>
-          {% else %}
-          <tr><td colspan="4" class="muted">Пока нет событий</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      {% set security_base = '/cabinet/settings/security' %}
+      {% set show_retention = true %}
+      {% set show_admin_2fa_hint = false %}
+      {% include "partials/security_account.html" %}
       {% endif %}
     </section>
   {% include "cabinet/_layout_end.html" %}

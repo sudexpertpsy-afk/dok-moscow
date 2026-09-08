@@ -28,7 +28,43 @@ ORG_FIELDS = [
     "окпо",
     "город",
 ]
+ORG_FIELD_LABELS = {
+    "короткое_название": "Краткое название",
+    "полное_название": "Полное название",
+    "инн": "ИНН",
+    "кпп": "КПП",
+    "огрн": "ОГРН",
+    "юр_адрес": "Юридический адрес",
+    "почтовый_адрес": "Почтовый адрес",
+    "телефон": "Телефон",
+    "email": "E-mail",
+    "лицензия": "Лицензия",
+    "окпо": "ОКПО",
+    "город": "Город",
+}
 BANK_FIELDS = ["расчётный_счёт", "банк", "бик", "корр_счёт"]
+# Стабильные ASCII-имена формы → ключи в JSONB (как в шаблонах).
+# Cyrillic name= в HTML иногда теряется в прокси/браузере — тогда банк «сохраняется» пустым.
+BANK_FORM_MAP = {
+    "account": "расчётный_счёт",
+    "bank_name": "банк",
+    "bik": "бик",
+    "bank_bik": "бик",  # имя поля подсказки DaData
+    "corr_account": "корр_счёт",
+}
+BANK_FIELD_LABELS = {
+    "расчётный_счёт": "Расчётный счёт",
+    "банк": "Банк",
+    "бик": "БИК",
+    "корр_счёт": "Корр. счёт",
+}
+# Поддержка ключей без «ё» (ручной YAML / старые данные).
+_BANK_KEY_ALIASES = {
+    "расчетный_счет": "расчётный_счёт",
+    "расчетный_счёт": "расчётный_счёт",
+    "расчётный_счет": "расчётный_счёт",
+    "корр_счет": "корр_счёт",
+}
 SIGNATORY_BLOCKS = {
     "исполнитель": ["фио", "фио_кратко", "должность", "должность_род", "основание"],
     "бухгалтер": ["фио"],
@@ -37,15 +73,55 @@ SIGNATORY_BLOCKS = {
 PRICE_FIELDS = ["сппэ", "кспэ", "рецензия", "обучение_спэ", "обучение_полиграф"]
 
 
+def normalize_bank_block(raw: dict | None) -> dict[str, str]:
+    """Привести блок «банк» к каноническим ключам с «ё»."""
+    src = dict(raw or {})
+    for alias, canonical in _BANK_KEY_ALIASES.items():
+        if canonical not in src or not str(src.get(canonical) or "").strip():
+            if alias in src and str(src.get(alias) or "").strip():
+                src[canonical] = src[alias]
+    out: dict[str, str] = {}
+    for key in BANK_FIELDS:
+        out[key] = str(src.get(key) or "").strip()
+    return out
+
+
+def bank_from_form(form: Any) -> dict[str, str]:
+    """Считать банковские поля из формы (ASCII-имена и устаревшие кириллические)."""
+    values: dict[str, str] = {}
+    for form_name, key in BANK_FORM_MAP.items():
+        if form_name in form:
+            raw = str(form.get(form_name) or "").strip()
+            # bank_bik и bik пишут в один ключ — не затирать непустым пустым
+            if key in values and not raw:
+                continue
+            values[key] = raw
+    for key in BANK_FIELDS:
+        if key in form and (key not in values or not values[key]):
+            values[key] = str(form.get(key) or "").strip()
+    return values
+
+
+def bank_is_complete(requisites: dict | None) -> bool:
+    block = normalize_bank_block((requisites or {}).get("банк"))
+    return all(block.get(k) for k in ("расчётный_счёт", "банк", "бик", "корр_счёт"))
+
+
+def is_bill_template(template_name: str) -> bool:
+    """Счёт на оплату (в т.ч. переименованные шаблоны Счет_/Счёт_)."""
+    stem = template_name.rsplit(".", 1)[0].casefold().replace("ё", "е")
+    return "на_оплату" in stem or stem.startswith("счет_на")
+
+
 def ensure_requisites(org: Organization) -> dict:
+    """Полная структура реквизитов (defaults ⊕ JSONB). Не пачкает сессию на чтении."""
     base = empty_requisites()
     current = org.requisites or {}
-    # deep merge: current overrides base
     ensure_core_on_path()
     from docfiller_core.config import _deep_merge
 
     merged = _deep_merge(base, current)
-    org.requisites = merged
+    merged["банк"] = normalize_bank_block(merged.get("банк"))
     return merged
 
 
@@ -75,10 +151,11 @@ def update_section(org: Organization, section: str, values: dict[str, Any]) -> l
             req["организация"] = block
 
     elif section == "банк":
-        block = dict(req.get("банк") or {})
+        block = normalize_bank_block(req.get("банк"))
         for f in BANK_FIELDS:
             if f in values:
                 block[f] = str(values.get(f) or "").strip()
+        block = normalize_bank_block(block)
         bik = block.get("бик") or ""
         account = block.get("расчётный_счёт") or ""
         if bik:

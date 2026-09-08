@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import Settings, get_settings
@@ -42,6 +43,16 @@ STATUS_FILTERS: tuple[tuple[str, str], ...] = (
 )
 
 BETA_MONTHS = (1, 3, 6, 12)
+
+LEAD_PROFILES: tuple[str, ...] = (
+    "Экспертная организация (СРО)",
+    "Судебно-экспертное учреждение",
+    "Независимый эксперт / ИП",
+    "Юридическая компания",
+    "Другое",
+)
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 REJECT_EMAIL_BODY = (
     "Здравствуйте!\n\n"
@@ -605,6 +616,128 @@ def save_admin_note(
         commit=False,
     )
     db.commit()
+
+
+def update_lead(
+    db: Session,
+    *,
+    lead: Lead,
+    actor: User,
+    email: str,
+    profile: str | None,
+    inn: str | None,
+    comment: str | None,
+    admin_note: str | None,
+) -> Lead:
+    """Правка полей заявки администратором (без смены статуса воронки)."""
+    email_n = (email or "").strip().lower()
+    if not email_n or not _EMAIL_RE.match(email_n):
+        raise LeadError("Укажите корректный e-mail")
+    profile_n = (profile or "").strip()[:255] or None
+    if profile_n and profile_n not in LEAD_PROFILES:
+        raise LeadError("Неизвестный профиль деятельности")
+    inn_n = normalize_lead_inn(inn)
+    if inn_n is not None and len(inn_n) not in (10, 12):
+        raise LeadError("ИНН должен содержать 10 или 12 цифр")
+    comment_n = (comment or "").strip() or None
+    note_n = (admin_note or "").strip() or None
+
+    if email_n != lead.email:
+        clash = db.scalar(
+            select(Lead)
+            .where(Lead.email == email_n, Lead.id != lead.id)
+            .order_by(Lead.id.desc())
+        )
+        if clash is not None:
+            raise LeadError(f"E-mail уже есть у заявки #{clash.id}")
+
+    before = {
+        "email": lead.email,
+        "profile": lead.profile,
+        "inn": lead.inn,
+        "comment": lead.comment,
+        "admin_note": lead.admin_note,
+    }
+    lead.email = email_n
+    lead.profile = profile_n
+    lead.inn = inn_n
+    lead.comment = comment_n
+    lead.admin_note = note_n
+    lead.updated_at = utcnow()
+    record_event(
+        db,
+        type="lead_updated",
+        org_id=lead.org_id,
+        user_id=actor.id,
+        details={
+            "lead_id": lead.id,
+            "before": before,
+            "after": {
+                "email": lead.email,
+                "profile": lead.profile,
+                "inn": lead.inn,
+                "comment": lead.comment,
+                "admin_note": lead.admin_note,
+            },
+        },
+        commit=False,
+    )
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
+def reopen_lead(
+    db: Session,
+    *,
+    lead: Lead,
+    actor: User,
+) -> Lead:
+    """Вернуть отклонённую/спам-заявку в статус «новая»."""
+    if lead.status not in (LeadStatus.rejected, LeadStatus.spam):
+        raise LeadError("Вернуть в новые можно только отклонённую или спам")
+    prev = lead.status.value
+    lead.status = LeadStatus.new
+    lead.updated_at = utcnow()
+    record_event(
+        db,
+        type="lead_reopened",
+        org_id=lead.org_id,
+        user_id=actor.id,
+        details={"lead_id": lead.id, "email": lead.email, "from_status": prev},
+        commit=False,
+    )
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
+def delete_lead(
+    db: Session,
+    *,
+    lead: Lead,
+    actor: User,
+) -> int:
+    """Удалить заявку. Связи org.source_lead / invite.lead обнуляются (ON DELETE SET NULL)."""
+    lead_id = lead.id
+    email = lead.email
+    org_id = lead.org_id
+    # Явно обнуляем на случай SQLite без FK
+    db.execute(
+        update(Organization).where(Organization.source_lead_id == lead_id).values(source_lead_id=None)
+    )
+    db.execute(update(Invite).where(Invite.lead_id == lead_id).values(lead_id=None))
+    record_event(
+        db,
+        type="lead_deleted",
+        org_id=org_id,
+        user_id=actor.id,
+        details={"lead_id": lead_id, "email": email, "status": lead.status.value},
+        commit=False,
+    )
+    db.delete(lead)
+    db.commit()
+    return lead_id
 
 
 def mark_lead_registered_from_invite(db: Session, invite: Invite) -> None:

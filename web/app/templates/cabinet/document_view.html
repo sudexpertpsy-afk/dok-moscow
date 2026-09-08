@@ -7,6 +7,25 @@
       <p><strong>{{ doc.template }}</strong> · {{ doc.format.value|upper }}
         {% if doc.number %}· № {{ doc.number }}{% endif %}
       </p>
+      {% if facsimile_badge %}
+      <p>
+        {% if facsimile_on %}
+        <span class="badge ok">PDF с печатью и подписью</span>
+        {% else %}
+        <span class="badge">PDF без факсимиле</span>
+        {% endif %}
+      </p>
+      {% endif %}
+      {% if facsimile_onboarding %}
+      <div class="alert alert-ok" style="display:flex;gap:1rem;align-items:flex-start;justify-content:space-between;flex-wrap:wrap">
+        <span>Можно добавлять печать и подпись автоматически —
+          <a href="/cabinet/settings/branding">Настройки → Печать и подписи</a>.</span>
+        <form method="post" action="/cabinet/settings/branding/onboarding-dismiss" style="margin:0">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="secondary">Больше не показывать</button>
+        </form>
+      </div>
+      {% endif %}
       <p class="muted mono">{{ doc.file_path }}</p>
       <div class="actions">
         <a class="btn" href="/cabinet/documents/{{ doc.id }}/download" hx-boost="false">Скачать</a>
@@ -14,6 +33,15 @@
         <form method="post" action="/cabinet/documents/{{ doc.id }}/pdf" style="display:inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="secondary">В PDF (Gotenberg)</button>
+        </form>
+        {% endif %}
+        {% if facsimile_can_toggle %}
+        <form method="post" action="/cabinet/documents/{{ doc.id }}/regenerate-facsimile" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="with_facsimile" value="{{ '0' if facsimile_on else '1' }}">
+          <button type="submit" class="secondary">
+            {% if facsimile_on %}Перегенерировать без факсимиле{% else %}Перегенерировать с печатью и подписью{% endif %}
+          </button>
         </form>
         {% endif %}
         <a class="btn secondary" href="/cabinet/journal">В журнал</a>

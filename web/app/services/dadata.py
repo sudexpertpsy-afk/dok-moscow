@@ -14,6 +14,8 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import Event
+from app.services import dadata_cache_store as db_cache
+from app.services.rate_counters import get_count, incr_counter, set_if_absent
 
 DADATA_BASE = "https://suggestions.dadata.ru/suggestions/api/4_1/rs"
 
@@ -162,7 +164,7 @@ class _Cache:
             self._party.clear()
 
 
-_cache = _Cache()
+_cache = _Cache(ttl_sec=600)  # L1 in-process ≤10 мин; L2 — dadata_cache в БД
 
 
 def clear_dadata_cache() -> None:
@@ -173,8 +175,17 @@ def _today_start() -> datetime:
     return datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
+def _dadata_day_key(org_id: int) -> str:
+    return f"dadata:day:{org_id}:{_today_start().date().isoformat()}"
+
+
 def usage_today(db: Session, org_id: int) -> int:
-    return int(
+    """Суточный счётчик org: rate_counters, с холодным стартом из Event."""
+    key = _dadata_day_key(org_id)
+    n = get_count(db, key)
+    if n > 0:
+        return n
+    ev = int(
         db.scalar(
             select(func.count())
             .select_from(Event)
@@ -186,6 +197,10 @@ def usage_today(db: Session, org_id: int) -> int:
         )
         or 0
     )
+    if ev > 0:
+        set_if_absent(db, key, window_start=_today_start(), count=ev)
+        return ev
+    return 0
 
 
 def party_check_usage_today(db: Session, org_id: int) -> int:
@@ -204,6 +219,7 @@ def party_check_usage_today(db: Session, org_id: int) -> int:
 
 
 def _record_usage(db: Session, org_id: int, user_id: int | None, kind: str, query: str) -> None:
+    incr_counter(db, _dadata_day_key(org_id), window_start=_today_start(), by=1)
     db.add(
         Event(
             org_id=org_id,
@@ -246,7 +262,8 @@ def _request(path: str, body: dict) -> list[dict]:
         return []
     url = f"{DADATA_BASE}/{path.lstrip('/')}"
     try:
-        response = httpx.post(url, json=body, headers=headers, timeout=8.0)
+        # Подсказки должны отвечать быстро; 8s давало ощущение «зависания».
+        response = httpx.post(url, json=body, headers=headers, timeout=3.0)
     except httpx.HTTPError:
         return []
     if response.status_code >= 400:
@@ -272,14 +289,22 @@ def suggest(
     if len(q) < 2:
         return []
 
-    settings = get_settings()
-    if usage_today(db, org_id) >= settings.dadata_daily_limit:
-        return []
-
     cache_key = f"{kind}:{q.lower()}:{count}"
     cached = _cache.get(cache_key)
     if cached is not None:
         return cached
+    hit = db_cache.cache_get(db, cache_key)
+    if hit and isinstance(hit.get("items"), list):
+        items = [
+            SuggestItem(value=str(x.get("value") or ""), data=dict(x.get("data") or {}))
+            for x in hit["items"]
+        ]
+        _cache.set(cache_key, items)
+        return items
+
+    settings = get_settings()
+    if usage_today(db, org_id) >= settings.dadata_daily_limit:
+        return []
 
     path_map = {
         "party": "suggest/party",
@@ -293,6 +318,11 @@ def suggest(
     raw = _request(path, {"query": q, "count": count})
     items = [SuggestItem(value=str(s.get("value") or ""), data=dict(s.get("data") or {})) for s in raw]
     _cache.set(cache_key, items)
+    db_cache.cache_set(
+        db,
+        cache_key,
+        {"items": [{"value": i.value, "data": i.data} for i in items]},
+    )
     if items and _headers() is not None:
         _record_usage(db, org_id, user_id, kind, q)
     return items
@@ -473,6 +503,17 @@ def find_party(
         if cached is not None:
             _record_party_usage(db, org_id, user_id, q, cached.inn or q)
         return cached
+    db_hit = db_cache.cache_get(db, cache_key)
+    if db_hit is not None:
+        raw = db_hit.get("raw")
+        card = parse_party_suggestion(raw) if isinstance(raw, dict) else None
+        if card is None and db_hit.get("empty"):
+            _cache.set_party(cache_key, None)
+            return None
+        _cache.set_party(cache_key, card)
+        if card is not None:
+            _record_party_usage(db, org_id, user_id, q, card.inn or q)
+        return card
 
     if _headers() is None:
         return None
@@ -480,11 +521,13 @@ def find_party(
     raw_list = _request("findById/party", {"query": q})
     if not raw_list:
         _cache.set_party(cache_key, None)
+        db_cache.cache_set(db, cache_key, {"empty": True})
         return None
 
     card = parse_party_suggestion(raw_list[0])
     _cache.set_party(cache_key, card)
     if card is not None:
+        db_cache.cache_set(db, cache_key, {"raw": raw_list[0]})
         _record_party_usage(db, org_id, user_id, q, card.inn or q)
     return card
 

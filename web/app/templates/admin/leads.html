@@ -5,7 +5,7 @@
 
 <section class="panel">
   <h1>Заявки с лендинга</h1>
-  <p class="muted">Полный цикл: организация + бета-подписка + приглашение. Повторные обращения с тем же e-mail поднимают существующую заявку.</p>
+  <p class="muted">Полный цикл: организация + бета-подписка + приглашение. Повторные обращения с тем же e-mail поднимают существующую заявку. В строке можно править данные, дополнять комментарий/заметку или удалить заявку.</p>
 
   <form method="get" action="/admin/leads" class="leads-filter">
     <label for="status">Статус</label>
@@ -53,18 +53,27 @@
         <td class="lead-actions">
           {% if v.existing_user %}
             <p class="muted">Уже зарегистрирован в {% if v.existing_org_name %}«{{ v.existing_org_name }}»{% else %}сервисе{% endif %}</p>
-          {% elif v.open_invite and L.status.value != 'new' %}
+          {% elif v.open_invite %}
             <p class="muted">Инвайт уже отправлен {{ v.open_invite.created_at.strftime('%d.%m.%Y') if v.open_invite.created_at else '' }}</p>
-            <form method="post" action="/admin/leads/{{ L.id }}/resend" style="display:inline">
+            <form method="post" action="/admin/leads/{{ L.id }}/resend" style="display:inline" hx-boost="false">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit" class="secondary">Отправить инвайт повторно</button>
             </form>
-          {% elif v.open_invite and L.status.value == 'new' %}
-            <p class="muted">Инвайт уже отправлен {{ v.open_invite.created_at.strftime('%d.%m.%Y') if v.open_invite.created_at else '' }}</p>
-            <form method="post" action="/admin/leads/{{ L.id }}/resend" style="display:inline">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button type="submit" class="secondary">Отправить инвайт повторно</button>
-            </form>
+            {% if L.status.value in ['new', 'invited', 'rejected'] and orgs %}
+            <details class="lead-secondary">
+              <summary>Инвайт в существующую организацию</summary>
+              <form method="post" action="/admin/leads/{{ L.id }}/invite" class="lead-existing-invite" hx-boost="false">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="send_email_now" value="1">
+                <select name="org_id" required>
+                  {% for o in orgs %}
+                  <option value="{{ o.id }}">{{ o.name }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="secondary">Пригласить</button>
+              </form>
+            </details>
+            {% endif %}
           {% else %}
             {% if L.status.value in ['new', 'rejected'] %}
             <button type="button" class="sub-open-btn" data-open-dialog="lead-create-{{ L.id }}">Создать организацию и пригласить</button>
@@ -76,7 +85,7 @@
                 </div>
                 <button type="button" class="sub-dialog-close" data-close-dialog aria-label="Закрыть">×</button>
               </div>
-              <form method="post" action="/admin/leads/{{ L.id }}/create-org" class="sub-manage">
+              <form method="post" action="/admin/leads/{{ L.id }}/create-org" class="sub-manage" hx-boost="false">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <label for="org_name_{{ L.id }}">Название организации</label>
                 <input id="org_name_{{ L.id }}" name="org_name" value="{{ default_org_name(L) }}" required maxlength="255">
@@ -118,7 +127,7 @@
             {% if L.status.value in ['new', 'invited', 'rejected'] and orgs %}
             <details class="lead-secondary">
               <summary>Инвайт в существующую организацию</summary>
-              <form method="post" action="/admin/leads/{{ L.id }}/invite" class="lead-existing-invite">
+              <form method="post" action="/admin/leads/{{ L.id }}/invite" class="lead-existing-invite" hx-boost="false">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="send_email_now" value="1">
                 <select name="org_id" required>
@@ -132,37 +141,64 @@
             {% endif %}
 
             {% if L.status.value == 'invited' %}
-            <form method="post" action="/admin/leads/{{ L.id }}/resend" style="display:inline">
+            <form method="post" action="/admin/leads/{{ L.id }}/resend" style="display:inline" hx-boost="false">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit" class="secondary">Отправить инвайт повторно</button>
             </form>
             {% endif %}
           {% endif %}
 
+          {% if L.status.value in ['rejected', 'spam'] %}
+          <form method="post" action="/admin/leads/{{ L.id }}/reopen" style="display:inline" hx-boost="false">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="secondary">Вернуть в новые</button>
+          </form>
+          {% endif %}
+
           {% if L.status.value not in ['spam', 'registered'] %}
           <div class="lead-soft-actions">
-            <form method="post" action="/admin/leads/{{ L.id }}/reject" style="display:inline">
+            <form method="post" action="/admin/leads/{{ L.id }}/reject" style="display:inline" hx-boost="false">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <label style="display:inline-flex;gap:0.35rem;align-items:center;font-size:0.85rem">
                 <input type="checkbox" name="send_mail" value="1" style="width:auto"> письмо
               </label>
               <button type="submit" class="secondary">Отклонить</button>
             </form>
-            <form method="post" action="/admin/leads/{{ L.id }}/spam" style="display:inline">
+            <form method="post" action="/admin/leads/{{ L.id }}/spam" style="display:inline" hx-boost="false">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit" class="secondary">Пометить спам</button>
             </form>
           </div>
           {% endif %}
 
-          <details class="lead-secondary">
-            <summary>Заметка администратора</summary>
-            <form method="post" action="/admin/leads/{{ L.id }}/note">
+          <details class="lead-secondary" {% if request.query_params.get('edit') == L.id|string %}open{% endif %}>
+            <summary>Правка данных</summary>
+            <form method="post" action="/admin/leads/{{ L.id }}/edit" class="lead-edit-form" hx-boost="false">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <textarea name="admin_note" rows="2" maxlength="2000">{{ L.admin_note or '' }}</textarea>
-              <button type="submit" class="secondary">Сохранить</button>
+              <label for="email_{{ L.id }}">E-mail</label>
+              <input id="email_{{ L.id }}" type="email" name="email" value="{{ L.email }}" required maxlength="320">
+              <label for="profile_{{ L.id }}">Профиль</label>
+              <select id="profile_{{ L.id }}" name="profile">
+                <option value="">—</option>
+                {% for p in lead_profiles %}
+                <option value="{{ p }}" {% if L.profile == p %}selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+              </select>
+              <label for="inn_{{ L.id }}">ИНН</label>
+              <input id="inn_{{ L.id }}" type="text" name="inn" value="{{ L.inn or '' }}" maxlength="12" inputmode="numeric" pattern="\d{10}|\d{12}" placeholder="10 или 12 цифр">
+              <label for="comment_{{ L.id }}">Комментарий заявителя</label>
+              <textarea id="comment_{{ L.id }}" name="comment" rows="3" maxlength="4000">{{ L.comment or '' }}</textarea>
+              <label for="admin_note_{{ L.id }}">Заметка администратора</label>
+              <textarea id="admin_note_{{ L.id }}" name="admin_note" rows="2" maxlength="2000">{{ L.admin_note or '' }}</textarea>
+              <button type="submit">Сохранить данные</button>
             </form>
           </details>
+
+          <form method="post" action="/admin/leads/{{ L.id }}/delete" class="lead-delete-form" hx-boost="false"
+                onsubmit="return confirm('Удалить заявку #{{ L.id }} ({{ L.email|e }})? Это необратимо.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="danger">Удалить заявку</button>
+          </form>
         </td>
       </tr>
       {% else %}

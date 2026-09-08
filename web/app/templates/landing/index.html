@@ -10,8 +10,8 @@
     <h1 class="lp-headline">{% if content_slots.hero_headline %}{{ content_slots.hero_headline }}{% else %}Комплект документов экспертизы — за 5 минут вместо часа{% endif %}</h1>
     <p class="lp-sub">{% if content_slots.hero_sub %}{{ content_slots.hero_sub }}{% else %}Договор, счёт, акт и кассовый ордер по шаблонам, выверенным практикующей судебно-экспертной организацией. Реквизиты заказчика — из ЕГРЮЛ по одному ИНН. Сроки договоров — под контролем.{% endif %}</p>
     <div class="lp-cta">
-      <a class="lp-btn" href="#apply">Оставить заявку</a>
-      <a class="lp-btn lp-btn-ghost" href="#samples">Примеры документов ↓</a>
+      <a class="lp-btn" href="#lp-demo">Попробовать демо</a>
+      <a class="lp-btn lp-btn-ghost" href="#apply">Оставить заявку</a>
     </div>
     <p class="lp-trust">Сделано экспертами ООО «УСЭ» (лицензия ЛО-77-01-017900) · Данные хранятся в России · 152-ФЗ</p>
   </div>
@@ -30,7 +30,40 @@
   </div>
 </section>
 
-<section class="lp-section" id="pain" aria-labelledby="pain-title">
+<section class="lp-strip lp-strip-stats" id="hero-stats" aria-label="Цифры">
+  <div class="lp-wrap lp-strip-inner">
+    <p>{{ landing_stats.templates }}+ шаблонов · {% if landing_stats.docs_created %}{{ landing_stats.docs_created }} документов создано в пилоте · {% endif %}выверено практикой ООО «УСЭ» с {{ landing_stats.practice_since }}</p>
+  </div>
+</section>
+
+<section class="lp-section lp-demo-section" id="lp-demo" aria-labelledby="demo-title"
+  data-examples='{{ demo_examples|tojson }}'>
+  <div class="lp-wrap">
+    <h2 id="demo-title">Попробуйте прямо сейчас — без регистрации</h2>
+    <p class="lp-section-lead">Введите ИНН — покажем карточку заказчика из ЕГРЮЛ так же, как в кабинете.</p>
+    <form class="lp-demo-form" action="#" method="get">
+      <label for="lp-demo-inn">ИНН организации или ИП</label>
+      <div class="lp-demo-row-input">
+        <input id="lp-demo-inn" name="inn" type="text" inputmode="numeric" maxlength="12"
+          pattern="[0-9]{10}|[0-9]{12}" autocomplete="off" placeholder="10 или 12 цифр" required>
+        <button type="submit" class="lp-btn">Показать карточку</button>
+      </div>
+    </form>
+    <p class="lp-demo-examples">
+      Примеры:
+      {% for ex in demo_examples %}
+        <button type="button" class="lp-demo-chip" data-demo-inn="{{ ex.inn }}">{{ ex.inn }}</button>
+      {% endfor %}
+    </p>
+    <p class="lp-demo-status" role="status" aria-live="polite"></p>
+    <dl class="lp-demo-card" hidden></dl>
+    <p class="lp-demo-cta">
+      <a class="lp-btn lp-btn-outline" href="#apply" data-demo-apply>Так это выглядит в кабинете. Получить доступ →</a>
+    </p>
+  </div>
+</section>
+
+<section class="lp-section lp-section-alt" id="pain" aria-labelledby="pain-title">
   <div class="lp-wrap">
     <h2 id="pain-title">Знакомо?</h2>
     <p class="lp-section-lead">Типичные сбои бумажной рутины судебного эксперта — до того, как документы попадают в суд.</p>
@@ -52,7 +85,7 @@
   </div>
 </section>
 
-<section class="lp-section lp-section-alt" id="how" aria-labelledby="how-title">
+<section class="lp-section" id="how" aria-labelledby="how-title">
   <div class="lp-wrap">
     <h2 id="how-title">Как это работает</h2>
     <p class="lp-section-lead">Три шага от ИНН заказчика до готового комплекта документов экспертизы.</p>
@@ -92,6 +125,36 @@
       </li>
     </ol>
     <p class="lp-section-foot">Средний комплект — 4 документа за 5 минут.</p>
+  </div>
+</section>
+
+<section class="lp-section lp-section-alt" id="lp-calc" aria-labelledby="calc-title">
+  <div class="lp-wrap lp-calc-wrap">
+    <h2 id="calc-title">Сколько времени вы теряете на комплекты</h2>
+    <p class="lp-section-lead">Оцените экономию относительно ручной сборки в Word.</p>
+    <div class="lp-calc">
+      <label class="lp-calc-field">
+        <span>Комплектов в месяц: <strong data-calc-kits-label>10</strong></span>
+        <input id="lp-calc-kits" type="range" min="1" max="50" value="10" step="1">
+      </label>
+      <label class="lp-calc-field">
+        <span>Минут на комплект вручную: <strong data-calc-mins-label>60</strong></span>
+        <input id="lp-calc-mins" type="range" min="30" max="120" value="60" step="5">
+      </label>
+      <label class="lp-calc-field lp-calc-rate-field">
+        <span>Ставка эксперта, ₽/час</span>
+        <input id="lp-calc-rate" type="number" min="500" max="20000" step="100" value="2000">
+      </label>
+      <div class="lp-calc-result" aria-live="polite">
+        <p>Вы тратите ~<strong data-calc-hours>10</strong> часов в месяц.
+          С Док.Москва — ~<strong data-calc-dok>50</strong> минут.
+          Экономия: <strong data-calc-save>9</strong> часов ≈ <strong data-calc-money>18&nbsp;000</strong> ₽.</p>
+      </div>
+      <div class="lp-cta lp-cta-center">
+        <a class="lp-btn" href="#apply" data-calc-apply>Оставить заявку</a>
+      </div>
+      <p class="lp-section-foot">Тариф «Специалист» — 990 ₽/мес, окупается за первый комплект.</p>
+    </div>
   </div>
 </section>
 
@@ -158,38 +221,67 @@
   </div>
 </section>
 
-<section class="lp-strip" id="stats" aria-label="Цифры">
-  <div class="lp-wrap lp-strip-inner">
-    <p>26 шаблонов · комплект за ~5 минут · реквизиты из ЕГРЮЛ без ручного ввода · документы в DOCX и PDF</p>
+<section class="lp-section" id="practice" aria-labelledby="practice-title">
+  <div class="lp-wrap lp-practice">
+    <h2 id="practice-title">Сделано практикой</h2>
+    <p class="lp-section-lead">
+      Сервис вырос из внутренней рутины действующей судебно-экспертной организации
+      ООО «УСЭ» (лицензия ЛО‑77‑01‑017900). Подробнее — на странице
+      <a href="/praktika/">Практики</a>.
+    </p>
+    <div class="lp-cards lp-cards-3 lp-quotes">
+      <article class="lp-card lp-quote-card lp-quote-placeholder">
+        <p class="lp-quote-text">Слот под отзыв бета‑пользователя — наполним по мере пилота.</p>
+        <p class="lp-quote-meta">— Бета‑участник</p>
+      </article>
+      <article class="lp-card lp-quote-card lp-quote-placeholder">
+        <p class="lp-quote-text">Слот под вторую цитату о комплекте и сроках.</p>
+        <p class="lp-quote-meta">— Бета‑участник</p>
+      </article>
+      <article class="lp-card lp-quote-card lp-quote-placeholder">
+        <p class="lp-quote-text">Слот под третью цитату о ЕГРЮЛ и журнале.</p>
+        <p class="lp-quote-meta">— Бета‑участник</p>
+      </article>
+    </div>
   </div>
 </section>
 
 <section class="lp-section" id="samples" aria-labelledby="samples-title">
   <div class="lp-wrap">
     <h2 id="samples-title">Примеры документов</h2>
-    <p class="lp-section-lead">Обезличенные PDF из настоящих шаблонов сервиса (с водяным знаком «ОБРАЗЕЦ»). Так выглядит результат генерации в кабинете.</p>
+    <p class="lp-section-lead">Обезличенные PDF из настоящих шаблонов сервиса (с водяным знаком «ОБРАЗЕЦ»). Открываются на сайте — без ухода со страницы.</p>
     <div class="lp-sample-grid">
       <article class="lp-sample-card">
-        <a class="lp-sample-thumb" href="/static/samples/dogovor-fl.pdf" target="_blank" rel="noopener">
+        <a class="lp-sample-thumb" href="/static/samples/dogovor-fl.pdf"
+          data-sample-doc="dogovor-fl" data-sample-title="Договор на экспертизу (ФЛ)">
           <img src="/static/img/sample-dogovor.webp" alt="Миниатюра договора на экспертизу" width="480" height="679" loading="lazy" decoding="async">
         </a>
         <h3>Договор на экспертизу (ФЛ)</h3>
-        <a class="lp-btn lp-btn-small" href="/static/samples/dogovor-fl.pdf" target="_blank" rel="noopener">Открыть PDF</a>
+        <a class="lp-btn lp-btn-small" href="/static/samples/dogovor-fl.pdf"
+          data-sample-doc="dogovor-fl" data-sample-title="Договор на экспертизу (ФЛ)">Открыть образец</a>
       </article>
       <article class="lp-sample-card">
-        <a class="lp-sample-thumb" href="/static/samples/schet.pdf" target="_blank" rel="noopener">
+        <a class="lp-sample-thumb" href="/static/samples/schet.pdf"
+          data-sample-doc="schet" data-sample-title="Счёт">
           <img src="/static/img/sample-schet.webp" alt="Миниатюра счёта" width="480" height="679" loading="lazy" decoding="async">
         </a>
         <h3>Счёт</h3>
-        <a class="lp-btn lp-btn-small" href="/static/samples/schet.pdf" target="_blank" rel="noopener">Открыть PDF</a>
+        <a class="lp-btn lp-btn-small" href="/static/samples/schet.pdf"
+          data-sample-doc="schet" data-sample-title="Счёт">Открыть образец</a>
       </article>
       <article class="lp-sample-card">
-        <a class="lp-sample-thumb" href="/static/samples/akt.pdf" target="_blank" rel="noopener">
+        <a class="lp-sample-thumb" href="/static/samples/akt.pdf"
+          data-sample-doc="akt" data-sample-title="Акт">
           <img src="/static/img/sample-akt.webp" alt="Миниатюра акта" width="480" height="679" loading="lazy" decoding="async">
         </a>
         <h3>Акт</h3>
-        <a class="lp-btn lp-btn-small" href="/static/samples/akt.pdf" target="_blank" rel="noopener">Открыть PDF</a>
+        <a class="lp-btn lp-btn-small" href="/static/samples/akt.pdf"
+          data-sample-doc="akt" data-sample-title="Акт">Открыть образец</a>
       </article>
+    </div>
+    <div class="lp-cta lp-cta-center" style="margin-top:1.5rem">
+      <a class="lp-btn lp-btn-outline" href="/static/samples/dogovor-fl.pdf"
+        data-sample-doc="dogovor-fl" data-sample-title="Каталог образцов">Полный каталог — открыть образец договора</a>
     </div>
   </div>
 </section>
@@ -272,9 +364,25 @@
   </div>
 </section>
 
+<section class="lp-section" id="useful" aria-labelledby="useful-title">
+  <div class="lp-wrap">
+    <h2 id="useful-title">Полезное для эксперта</h2>
+    <p class="lp-section-lead">Материалы «Закона» и «Практики» — промежуточный шаг до заявки.</p>
+    <div class="lp-cards lp-cards-3">
+      {% for item in content_hooks %}
+      <article class="lp-card">
+        <h3><a href="{{ item.url }}" data-content-card>{{ item.title }}</a></h3>
+        <p>{{ item.description }}</p>
+        <p><a class="lp-text-link" href="{{ item.url }}" data-content-card>Читать →</a></p>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
 <section class="lp-section lp-final" id="apply" aria-labelledby="apply-title">
   <div class="lp-wrap lp-apply">
-    <h2 id="apply-title">Первые 20 подписчиков беты — 50% навсегда</h2>
+    <h2 id="apply-title">{{ beta_promo.title }}</h2>
     <p class="lp-section-lead">Оставьте e-mail и профиль — откроем доступ по мере запуска беты.</p>
 
     {% if flash_error %}<div class="lp-alert lp-alert-error" role="alert">{{ flash_error }}</div>{% endif %}
@@ -309,21 +417,18 @@
   </div>
 </section>
 
-<script>
-(function () {
-  var root = document.getElementById("pricing");
-  if (!root) return;
-  var buttons = root.querySelectorAll(".lp-period-btn");
-  var prices = root.querySelectorAll(".lp-price[data-month]");
-  buttons.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var period = btn.getAttribute("data-period");
-      buttons.forEach(function (b) { b.classList.toggle("is-active", b === btn); });
-      prices.forEach(function (el) {
-        el.textContent = el.getAttribute("data-" + period) || el.textContent;
-      });
-    });
-  });
-})();
-</script>
+<div id="lp-sample-modal" class="lp-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="lp-modal-title">
+  <div class="lp-modal-backdrop" data-modal-close></div>
+  <div class="lp-modal-panel">
+    <header class="lp-modal-head">
+      <h2 id="lp-modal-title" class="lp-modal-title">Образец</h2>
+      <button type="button" class="lp-modal-close" data-modal-close aria-label="Закрыть">×</button>
+    </header>
+    <iframe class="lp-modal-frame" title="Просмотр PDF" src="about:blank"></iframe>
+    <footer class="lp-modal-foot">
+      <a class="lp-btn lp-btn-outline lp-modal-download" href="#" target="_blank" rel="noopener">Скачать PDF</a>
+      <a class="lp-btn" href="#apply" data-sample-apply data-modal-close>Собрать такой комплект за 5 минут → Оставить заявку</a>
+    </footer>
+  </div>
+</div>
 {% endblock %}

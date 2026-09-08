@@ -20,7 +20,8 @@
         <tr><th>Банк</th><td>{{ cp.bank_name or '—' }} · БИК {{ cp.bank_bik or '—' }}</td></tr>
       </table>
       <div class="actions">
-        <a class="btn" href="/cabinet/counterparties/{{ cp.id }}/edit">Изменить</a>
+        <a class="btn" href="/cabinet/package/?counterparty_id={{ cp.id }}">Вставить в комплект</a>
+        <a class="btn secondary" href="/cabinet/counterparties/{{ cp.id }}/edit">Изменить</a>
         <a class="btn secondary" href="/cabinet/counterparties/">К списку</a>
         <form method="post" action="/cabinet/counterparties/{{ cp.id }}/delete" style="display:inline"
               onsubmit="return confirm('Удалить контрагента?');">

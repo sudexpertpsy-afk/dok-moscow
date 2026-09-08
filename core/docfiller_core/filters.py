@@ -177,7 +177,7 @@ def fio_gender_label(fio):
 
 
 def _decline_fio_part(fio, index, case_code):
-    # TODO(этап 4+): vulture — внутренний хелпер склонений; проверить фильтры шаблонов.
+    # Внутренний хелпер склонений для фильтров шаблонов.
     word = fio_part(fio, index)
     if not word:
         return ''

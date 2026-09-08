@@ -26,6 +26,7 @@ def test_landing_home(app):
     assert 'id="features"' in r.text
     assert 'id="faq"' in r.text
     assert "Оставить заявку" in r.text
+    assert "Попробовать демо" in r.text
     assert "Запросить ранний доступ" not in r.text
     assert 'name="inn"' in r.text
     assert "Популярный" in r.text
@@ -59,11 +60,16 @@ def test_landing_assets_present(app):
 
 
 def test_w37_scope_non_landing_templates_untouched():
-    """W-37: diff вне landing/* шаблонов и публичной статики лендинга = 0."""
+    """Исторический guard W-37 — только на ветке w37-landing-redesign."""
     import subprocess
     from pathlib import Path
 
     repo = Path(__file__).resolve().parents[2]
+    branch = subprocess.check_output(
+        ["git", "branch", "--show-current"], cwd=repo, text=True
+    ).strip()
+    if "w37-landing" not in branch:
+        return
     out = subprocess.check_output(
         ["git", "-c", "core.quotepath=false", "diff", "--name-only", "main...HEAD"],
         cwd=repo,
@@ -85,7 +91,6 @@ def test_w37_scope_non_landing_templates_untouched():
 
     def _norm(path: str) -> str:
         path = path.strip().strip('"')
-        # git quotepath octal escapes → utf-8
         if "\\" in path:
             try:
                 path = path.encode("utf-8").decode("unicode_escape")

@@ -33,10 +33,10 @@ _PUBLIC_EXACT = frozenset(
         "/sitemap.xml",
     }
 )
-_PUBLIC_PREFIXES = ("/zakon",)
+_PUBLIC_PREFIXES = ("/zakon", "/praktika", "/obraztsy", "/api/demo/")
 
 # Каталоги с trailing-slash роутами: без слэша → один 301, не второй hop после host-редиректа.
-_DIRECTORY_INDEX_PATHS = frozenset({"/zakon", "/cabinet/zakon"})
+_DIRECTORY_INDEX_PATHS = frozenset({"/zakon", "/praktika", "/obraztsy", "/cabinet/zakon"})
 
 
 def _hostname(url: str) -> str:
@@ -75,6 +75,9 @@ def path_surface(path: str) -> str:
         "/robots.txt",  # разный текст на каждом хосте
     }:
         return "shared"
+    # /api/demo/* — публичное демо ЕГРЮЛ на лендинге (до общего префикса /api/)
+    if path.startswith("/api/demo/"):
+        return "public"
     if path in _PUBLIC_EXACT or path.startswith(_PUBLIC_PREFIXES):
         return "public"
     if path.startswith(_APP_PREFIXES) or path in {"/login", "/logout"}:

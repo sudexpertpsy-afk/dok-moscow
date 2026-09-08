@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1] / "app" / "static"
 HASH_NAMES = (
     "app.css",
     "landing.css",
+    "landing.js",
     "global-search.js",
     "htmx-config.js",
     "nav-sortable.js",

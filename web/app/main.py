@@ -24,6 +24,7 @@ from app.routers import (
     admin_billing,
     admin_cms,
     admin_legal,
+    admin_security,
     admin_server,
     admin_templates,
     auth,
@@ -40,9 +41,12 @@ from app.routers import (
     global_search,
     jobs,
     journal,
+    demo_api,
     landing,
     package,
     party_check,
+    obraztsy,
+    praktika,
     staff,
     yandex_auth,
     zakon,
@@ -222,8 +226,16 @@ def create_app() -> FastAPI:
     static_dir.mkdir(exist_ok=True)
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+    @app.get("/healthz")
+    def healthz():
+        s = get_settings()
+        return {"ok": True, "version": s.app_version}
+
     app.include_router(landing.router)
+    app.include_router(demo_api.router)
     app.include_router(zakon.router)
+    app.include_router(obraztsy.router)
+    app.include_router(praktika.router)
     app.include_router(auth.router)
     app.include_router(yandex_auth.router)
     app.include_router(billing.router)
@@ -247,6 +259,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_billing.router)
     app.include_router(admin_cms.router)
     app.include_router(admin_legal.router)
+    app.include_router(admin_security.router)
     app.include_router(admin_server.router)
     app.include_router(admin_templates.router)
 

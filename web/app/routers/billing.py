@@ -58,30 +58,45 @@ async def tbank_webhook(request: Request, db: Session = Depends(get_db)):
         )
         return PlainTextResponse("OK", status_code=200)
 
+    order_id = str(payload.get("OrderId") or "")
+    payment_id = str(payload.get("PaymentId") or "")
+
     try:
         apply_payment_notification(db, payload)
         db.commit()
     except TBankError as exc:
+        reason = str(exc)
         webhook_limiter.register_failure(ip)
-        log.warning("webhook rejected reason=%s ip=%s", exc, ip)
-        record_webhook_fail(str(exc), ip=ip)
+        # HOTFIX: неизвестный OrderId / нет платежа — всегда OK банку (гасим ретраи).
+        log.warning(
+            "webhook rejected reason=%s order_id=%s payment_id=%s ip=%s",
+            reason,
+            order_id,
+            payment_id,
+            ip,
+        )
+        record_webhook_fail(reason, ip=ip)
         record_event(
             db,
             type="billing_webhook_rejected",
             org_id=None,
             user_id=None,
             details={
-                "reason": str(exc),
+                "reason": reason,
                 "ip": ip,
-                "order_id": str(payload.get("OrderId") or ""),
+                "order_id": order_id,
+                "payment_id": payment_id,
                 "status": str(payload.get("Status") or ""),
             },
         )
-        # Банку всё равно отвечаем OK на неизвестный OrderId после проверки Token?
-        # При неверном Token — тоже OK, чтобы не усиливать ретраи с неверным секретом.
         return PlainTextResponse("OK", status_code=200)
     except Exception:
-        log.exception("webhook processing error ip=%s", ip)
+        log.exception(
+            "webhook processing error order_id=%s payment_id=%s ip=%s",
+            order_id,
+            payment_id,
+            ip,
+        )
         db.rollback()
         record_webhook_fail("processing_error", ip=ip)
         # 500 — банк повторит доставку

@@ -20,7 +20,16 @@ from .config import load_settings
 
 # Переменные, которые программа подставляет автоматически и которые
 # не нужно показывать пользователю в форме (это «системные» имена).
-SYSTEM_VARIABLES = {'настройки'}
+SYSTEM_VARIABLES = {
+    'настройки',
+    # W-43 факсимиле — изображения, не поля формы
+    'факсимиле_печать',
+    'факсимиле_директор',
+    'факсимиле_бухгалтер',
+    'факсимиле_кассир',
+    # опциональный пункт договора (заполняется чекбоксом формы)
+    'признают_факсимиле',
+}
 
 _W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 _MAX_FIELD_LEN = 2000
@@ -287,7 +296,7 @@ def _sanitize_docx_value(value):
     return xml_escape(text)
 
 
-def fill_template(template_path, output_path, context, settings=None):
+def fill_template(template_path, output_path, context, settings=None, images=None):
     """
     Заполнить шаблон данными и сохранить результат.
 
@@ -295,14 +304,16 @@ def fill_template(template_path, output_path, context, settings=None):
     output_path   — куда сохранить готовый документ.
     context       — словарь {имя_переменной: значение}.
     settings      — словарь/объект настроек организации (веб); иначе load_settings().
+    images        — опционально {имя_плейсхолдера: Path|str} → InlineImage (W-43).
+                    Отсутствующий файл или images=None → пустая строка (как раньше).
     """
     # SandboxedEnvironment: org-загрузки DOCX не должны выполнять произвольный Python (P7).
     env = SandboxedEnvironment()
+    from .config import _to_attrdict, settings_from_dict
+
     if settings is None:
         settings = load_settings()
     elif isinstance(settings, dict):
-        from .config import settings_from_dict
-
         settings = settings_from_dict(settings)
     filters.install(env, declensions=_declensions_from_settings(settings))
 
@@ -311,15 +322,49 @@ def fill_template(template_path, output_path, context, settings=None):
     # Подставить пустую строку для всех переменных, которых нет в данных,
     full_context = {var: '' for var in doc.get_undeclared_template_variables(env)}
 
-    full_context['настройки'] = _sanitize_docx_value(settings)
+    # sanitize даёт обычный dict — вернём AttrDict, чтобы {{ настройки.банк.* }}
+    # стабильно резолвились через атрибуты, а не только через __getitem__.
+    full_context['настройки'] = _to_attrdict(_sanitize_docx_value(settings))
 
     # Пользовательские поля перекрывают всё — на случай, если в реестре
     # вдруг окажется столбец с именем «настройки» или что-то системное.
-    safe_context = {
-        k: ('' if v is None else _sanitize_docx_value(v))
-        for k, v in context.items()
-    }
+    safe_context = {}
+    for k, v in (context or {}).items():
+        if k.startswith('_'):  # служебные флаги веб-слоя
+            continue
+        if v is None:
+            safe_context[k] = ''
+        elif hasattr(v, 'rId') or type(v).__name__ in ('InlineImage', 'RichText', 'Subdoc'):
+            # уже готовый объект docxtpl — не трогаем
+            safe_context[k] = v
+        else:
+            safe_context[k] = _sanitize_docx_value(v)
     full_context.update(safe_context)
+
+    # W-43: изображения после создания DocxTemplate (нужен экземпляр doc)
+    if images:
+        from docx.shared import Mm
+        from docxtpl import InlineImage
+
+        _widths_mm = {
+            'факсимиле_печать': 40,
+            'факсимиле_директор': 65,
+            'факсимиле_бухгалтер': 65,
+            'факсимиле_кассир': 65,
+        }
+        for key, raw_path in images.items():
+            if not raw_path:
+                full_context[key] = ''
+                continue
+            path = Path(raw_path)
+            if not path.is_file():
+                full_context[key] = ''
+                continue
+            width = Mm(_widths_mm.get(key, 40))
+            try:
+                full_context[key] = InlineImage(doc, str(path), width=width)
+            except Exception:
+                full_context[key] = ''
 
     doc.render(full_context, jinja_env=env)
 

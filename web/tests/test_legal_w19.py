@@ -67,6 +67,11 @@ def test_draft_not_on_public_until_publish(app):
     r = client.get("/admin/legal/")
     assert r.status_code == 200
     assert "Ждёт подтверждения" in r.text
+    assert "Подтвердить" in r.text
+    assert "Отклонить" in r.text
+    assert "Удалить" in r.text
+    assert f"/admin/legal/{act_id}/publish/{draft_id}" in r.text
+    assert f"/admin/legal/{act_id}/delete" in r.text
 
     r = client.get(f"/admin/legal/{act_id}")
     assert r.status_code == 200
@@ -96,6 +101,7 @@ def test_draft_not_on_public_until_publish(app):
 
 
 def test_batch_publish_drafts(app):
+    """Кнопка «Опубликовать черновики» публикует и обновления уже опубликованных актов."""
     client, dbmod = app
     _seed_act(dbmod)
     db = dbmod.SessionLocal()
@@ -106,6 +112,14 @@ def test_batch_publish_drafts(app):
         )
         full = next(a for a in acts if a.slug == "73-fz-sudebno-ekspertnaya-deyatelnost")
         other = next(a for a in acts if a.id != full.id)
+        # у full уже может быть published — имитируем обновление редакции
+        pub = create_draft_version(
+            db,
+            act_id=full.id,
+            body_html="<p>Базовая публикация полного акта — достаточно символов.</p>",
+            change_basis="seed-pub",
+        )
+        publish_version(db, pub)
         for act in (full, other):
             create_draft_version(
                 db,
@@ -129,11 +143,12 @@ def test_batch_publish_drafts(app):
     r = client.get("/admin/legal/")
     assert r.status_code == 200
     assert "Опубликовать черновики" in r.text
+    assert "only_new" not in r.text
 
     token = csrf_from(client, "/admin/legal/")
     r = client.post(
         "/admin/legal/publish-drafts",
-        data={"csrf_token": token, "only_new": "1"},
+        data={"csrf_token": token},
         follow_redirects=False,
     )
     assert r.status_code == 303
@@ -149,12 +164,180 @@ def test_batch_publish_drafts(app):
         )
         assert ev is not None
         assert ev.details["ok"] >= 2
+        assert ev.details.get("only_new") is False
     finally:
         db.close()
 
     r = client.get("/zakon/73-fz-sudebno-ekspertnaya-deyatelnost")
     assert r.status_code == 200
     assert "Пакетная публикация" in r.text
+
+
+def test_batch_publish_only_new_skips_existing(app):
+    """only_new=1 — только акты без published (опциональный режим)."""
+    client, dbmod = app
+    _seed_act(dbmod)
+    db = dbmod.SessionLocal()
+    try:
+        ensure_legal_registry(db)
+        acts = list(
+            db.scalars(select(LegalAct).where(LegalAct.status == LegalActStatus.active)).all()
+        )
+        full = next(a for a in acts if a.slug == "73-fz-sudebno-ekspertnaya-deyatelnost")
+        other = next(a for a in acts if a.id != full.id)
+        pub = create_draft_version(
+            db,
+            act_id=full.id,
+            body_html="<p>Уже опубликованный текст акта — достаточно символов.</p>",
+            change_basis="seed-pub",
+        )
+        publish_version(db, pub)
+        draft_full = create_draft_version(
+            db,
+            act_id=full.id,
+            body_html="<p>Обновление полного акта — достаточно символов для публикации.</p>",
+            change_basis="upd",
+        )
+        draft_other = create_draft_version(
+            db,
+            act_id=other.id,
+            body_html="<p>Первый черновик другого акта — достаточно символов.</p>",
+            change_basis="new",
+        )
+        db.commit()
+        draft_full_id, draft_other_id = draft_full.id, draft_other.id
+    finally:
+        db.close()
+
+    assert login(client, "admin@dok.moscow", "AdminPass123!").status_code == 303
+    token = csrf_from(client, "/admin/legal/")
+    r = client.post(
+        "/admin/legal/publish-drafts",
+        data={"csrf_token": token, "only_new": "1"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    db = dbmod.SessionLocal()
+    try:
+        assert db.get(ActVersion, draft_full_id).status == ActVersionStatus.draft
+        assert db.get(ActVersion, draft_other_id).status == ActVersionStatus.published
+        ev = db.scalar(
+            select(Event).where(Event.type == "legal_batch_publish").order_by(Event.id.desc())
+        )
+        assert ev is not None
+        assert ev.details.get("only_new") is True
+    finally:
+        db.close()
+
+
+def test_list_row_confirm_reject_delete(app):
+    client, dbmod = app
+    act_id, slug = _seed_act(dbmod)
+    db = dbmod.SessionLocal()
+    try:
+        pub = create_draft_version(
+            db, act_id=act_id, body_html="<p>v1 опубликован</p>", change_basis="seed"
+        )
+        publish_version(db, pub)
+        draft = create_draft_version(
+            db,
+            act_id=act_id,
+            body_html="<p>v2 черновик из строки списка — достаточно символов.</p>",
+            change_basis="row",
+        )
+        db.commit()
+        draft_id = draft.id
+    finally:
+        db.close()
+
+    assert login(client, "admin@dok.moscow", "AdminPass123!").status_code == 303
+
+    # подтверждение из строки → редирект в список
+    token = csrf_from(client, "/admin/legal/")
+    r = client.post(
+        f"/admin/legal/{act_id}/publish/{draft_id}",
+        data={"csrf_token": token, "return_to": "list"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert r.headers["location"] == "/admin/legal/?ok=published"
+    r = client.get(f"/zakon/{slug}")
+    assert "v2 черновик" in r.text
+
+    # новый черновик → отклонение из строки
+    db = dbmod.SessionLocal()
+    try:
+        draft2 = create_draft_version(
+            db, act_id=act_id, body_html="<p>reject-from-list</p>", change_basis="x"
+        )
+        db.commit()
+        draft2_id = draft2.id
+    finally:
+        db.close()
+
+    token = csrf_from(client, "/admin/legal/")
+    r = client.post(
+        f"/admin/legal/{act_id}/reject/{draft2_id}",
+        data={"csrf_token": token, "return_to": "list"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert r.headers["location"] == "/admin/legal/?ok=rejected"
+    db = dbmod.SessionLocal()
+    try:
+        v = db.get(ActVersion, draft2_id)
+        assert v is not None and v.status == ActVersionStatus.archived
+    finally:
+        db.close()
+
+    # удаление акта из строки
+    token = csrf_from(client, "/admin/legal/")
+    r = client.post(
+        f"/admin/legal/{act_id}/delete",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "ok=deleted" in r.headers["location"]
+    db = dbmod.SessionLocal()
+    try:
+        assert db.get(LegalAct, act_id) is None
+    finally:
+        db.close()
+
+
+def test_add_act_form_and_create(app):
+    client, dbmod = app
+    _seed_act(dbmod)
+    assert login(client, "admin@dok.moscow", "AdminPass123!").status_code == 303
+    r = client.get("/admin/legal/")
+    assert 'href="/admin/legal/new"' in r.text
+    r = client.get("/admin/legal/new")
+    assert r.status_code == 200
+    assert "Добавить" in r.text or "slug" in r.text.lower() or "Slug" in r.text
+
+    token = csrf_from(client, "/admin/legal/new")
+    r = client.post(
+        "/admin/legal/new",
+        data={
+            "csrf_token": token,
+            "slug": "test-new-act-row",
+            "title": "Тестовый акт из формы",
+            "category": "law",
+            "mode": "full_text",
+            "source_url": "https://pravo.gov.ru/ips/",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "ok=created" in r.headers["location"]
+    db = dbmod.SessionLocal()
+    try:
+        act = db.scalar(select(LegalAct).where(LegalAct.slug == "test-new-act-row"))
+        assert act is not None
+        assert act.title == "Тестовый акт из формы"
+    finally:
+        db.close()
 
 
 def test_reject_draft(app):

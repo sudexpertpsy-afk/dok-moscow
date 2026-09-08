@@ -4,6 +4,7 @@
 {% block canonical %}{{ public_base_url }}/tariffs{% endblock %}
 {% block og_title %}Тарифы — {{ app_name }}{% endblock %}
 {% block og_url %}{{ public_base_url }}/tariffs{% endblock %}
+{% block twitter_title %}Тарифы — {{ app_name }}{% endblock %}
 
 {% block content %}
 <article class="lp-legal lp-tariffs-page">
@@ -76,9 +77,27 @@
             <td>✓</td>
           </tr>
           <tr>
-            <th scope="row">Свои шаблоны</th>
+            <th scope="row">Заключения эксперта (ГПК/УПК)</th>
+            <td>—</td>
+            <td>✓</td>
+            <td>✓</td>
+          </tr>
+          <tr>
+            <th scope="row">Печать и подпись в PDF</th>
+            <td>—</td>
+            <td>✓</td>
+            <td>✓</td>
+          </tr>
+          <tr>
+            <th scope="row">Свои шаблоны и свои поля</th>
             <td>—</td>
             <td>—</td>
+            <td>✓</td>
+          </tr>
+          <tr>
+            <th scope="row">Слежение за изменениями НПА</th>
+            <td>—</td>
+            <td>✓</td>
             <td>✓</td>
           </tr>
           <tr>
@@ -113,7 +132,7 @@
     {% endif %}
 
     <p class="lp-cta">
-      <a class="lp-btn" href="/#apply">Оставить заявку</a>
+      <a class="lp-btn" href="/#apply" data-ym-goal="cta_apply">Оставить заявку</a>
       <a class="lp-btn lp-btn-ghost-ink" href="{{ app_base_url }}/cabinet/billing/">Тариф в кабинете</a>
     </p>
   </div>

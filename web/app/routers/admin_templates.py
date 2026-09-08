@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -15,6 +15,7 @@ from app.services.audit import record_event
 from app.services.template_admin import (
     CONTRACT_TYPE_LABELS,
     TemplateAdminError,
+    build_overrides_export_zip,
     delete_template,
     ensure_writable_templates_dir,
     list_admin_templates,
@@ -74,6 +75,130 @@ def templates_page(
         name="admin/templates.html",
         context=_page(request, user, flash_ok=flash_ok, flash_error=flash_error),
     )
+
+
+@router.get("/templates/export-overrides")
+def templates_export_overrides(
+    user: CurrentUser = Depends(require_service_admin),
+):
+    """Скачать overrides/ + tombstone/registry — для переноса правок в репо."""
+    data = build_overrides_export_zip()
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="templates-overrides-{stamp}.zip"'
+        },
+    )
+
+
+@router.get("/templates/fields", response_class=HTMLResponse)
+def system_fields_page(
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+):
+    from app.services.org_fields import FIELD_TYPE_LABELS
+    from app.services.templates import ensure_core_on_path
+
+    ensure_core_on_path()
+    from docfiller_core.system_fields import list_standard_fields
+
+    ok = request.query_params.get("ok")
+    flash_ok = {
+        "upsert": "Поле сохранено в системный реестр.",
+        "delete": "Поле удалено из реестра.",
+    }.get(ok or "")
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/system_fields.html",
+        context=_page(
+            request,
+            user,
+            flash_ok=flash_ok,
+            fields=list_standard_fields(),
+            field_type_labels={k.value: v for k, v in FIELD_TYPE_LABELS.items()},
+        ),
+    )
+
+
+@router.post("/templates/fields/upsert", response_class=HTMLResponse)
+def system_fields_upsert(
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    name: str = Form(...),
+    label: str = Form(...),
+    field_type: str = Form("string"),
+    required: str = Form(""),
+    default: str = Form(""),
+    hint: str = Form(""),
+    options: str = Form(""),
+    _: None = Depends(require_csrf),
+):
+    from app.services.org_fields import parse_options
+    from app.services.templates import ensure_core_on_path
+
+    ensure_core_on_path()
+    from docfiller_core.system_fields import FIELD_TYPES, upsert_standard_field
+
+    n = (name or "").strip()
+    if not n:
+        return _error(request, user, "Укажите имя поля")
+    ftype = (field_type or "string").strip()
+    if ftype not in FIELD_TYPES:
+        return _error(request, user, "Неверный тип поля")
+    opts = parse_options(options)
+    try:
+        upsert_standard_field(
+            {
+                "name": n,
+                "label": label,
+                "type": ftype,
+                "required": required in {"1", "on", "true", "да"},
+                "default": default,
+                "hint": hint,
+                "options": opts or [],
+            }
+        )
+    except ValueError as exc:
+        return _error(request, user, str(exc))
+    record_event(
+        db,
+        type="admin_system_field_upsert",
+        org_id=None,
+        user_id=user.id,
+        details={"name": n, "type": ftype},
+    )
+    return RedirectResponse("/admin/templates/fields?ok=upsert", status_code=303)
+
+
+@router.post("/templates/fields/delete", response_class=HTMLResponse)
+def system_fields_delete(
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    name: str = Form(...),
+    _: None = Depends(require_csrf),
+):
+    from app.services.templates import ensure_core_on_path
+
+    ensure_core_on_path()
+    from docfiller_core.system_fields import delete_standard_field
+
+    n = (name or "").strip()
+    try:
+        delete_standard_field(n)
+    except KeyError:
+        return _error(request, user, "Поле не найдено в реестре")
+    record_event(
+        db,
+        type="admin_system_field_delete",
+        org_id=None,
+        user_id=user.id,
+        details={"name": n},
+    )
+    return RedirectResponse("/admin/templates/fields?ok=delete", status_code=303)
 
 
 @router.post("/templates/upload", response_class=HTMLResponse)

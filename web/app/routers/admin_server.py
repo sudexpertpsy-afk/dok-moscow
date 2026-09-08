@@ -59,7 +59,7 @@ def _journal(
 def _require_totp(db: Session, user: CurrentUser, totp_code: str) -> str | None:
     row = db.get(User, user.id)
     if row is None or not row.totp_enabled:
-        return "Для действий изменения включите 2FA в настройках профиля"
+        return "Для действий изменения включите 2FA в разделе «Безопасность» (/admin/security/)"
     if not verify_user_totp_or_backup(row, (totp_code or "").strip()):
         return "Неверный код 2FA"
     return None

@@ -1,0 +1,46 @@
+{% extends "landing/base.html" %}
+{% block title %}Для частных экспертов — {{ app_name }}{% endblock %}
+{% block meta_description %}Кабинет частного судебного эксперта: договор, счёт, акт и заключение по шаблонам. Реквизиты из ЕГРЮЛ, печать в PDF.{% endblock %}
+{% block canonical %}{{ public_base_url }}/dlya-ekspertov{% endblock %}
+{% block og_title %}Для частных экспертов — {{ app_name }}{% endblock %}
+{% block og_url %}{{ public_base_url }}/dlya-ekspertov{% endblock %}
+
+{% block content %}
+<article class="lp-legal lp-segment">
+  <div class="lp-wrap">
+    <p class="zk-eyebrow"><a href="/">Главная</a> · Для экспертов</p>
+    <h1>Для частных экспертов</h1>
+
+    {% if content_slots.segment_ekspertov %}
+      {{ content_slots.segment_ekspertov }}
+    {% else %}
+    <p class="lp-section-lead">Вся бумажная рутина практики — в одном кабинете, без копирования реквизитов из прошлогодних файлов.</p>
+
+    <h2>Боль</h2>
+    <p>Новый заказ — снова договор «с нуля», риск опечатки в ИНН и счёте, акт забыт, а срок договора уже вышел. Заключение собирается вручную по памяти о реквизитах ГПК/УПК.</p>
+
+    <h2>Сценарий за 3 шага</h2>
+    <ol class="lp-seg-steps">
+      <li>Введите ИНН заказчика — карточка подтянется из ЕГРЮЛ.</li>
+      <li>Соберите комплект: договор, счёт, акт, при необходимости заключение.</li>
+      <li>Скачайте DOCX или PDF; печать и подпись — сразу в PDF, если загрузили факсимиле.</li>
+    </ol>
+
+    <h2>Что особенно полезно</h2>
+    <ul>
+      <li>Шаблоны заключений эксперта по ГПК и УПК</li>
+      <li>Печать и подпись в PDF без принтера и сканера</li>
+      <li>Журналы и нумерация, как в практике организации</li>
+    </ul>
+
+    <h2>Тариф</h2>
+    <p>Обычно достаточно тарифа <a href="/tariffs">«Специалист»</a> — один пользователь, полный кабинет, факсимиле.</p>
+    {% endif %}
+
+    <p class="lp-section-foot">
+      <a class="lp-btn" href="/#apply" data-ym-goal="cta_apply">Оставить заявку</a>
+      <a class="lp-btn lp-btn-ghost" href="/obraztsy">Смотреть образцы</a>
+    </p>
+  </div>
+</article>
+{% endblock %}

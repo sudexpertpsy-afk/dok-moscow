@@ -21,6 +21,12 @@ from app.services.cms import (
     tariff_features,
     tariff_price_label,
 )
+from app.services.landing_demo import (
+    beta_promo_copy,
+    landing_stats,
+    load_content_hooks,
+    load_demo_examples,
+)
 from app.services.leads import create_lead, normalize_lead_inn, notify_admin_new_lead
 from app.templating import templates
 
@@ -75,6 +81,10 @@ def _public_ctx(request: Request, db: Session | None = None, **extra):
         "tariff_price_label": tariff_price_label,
         "tariff_blurb": tariff_blurb,
         "tariff_features": tariff_features,
+        "beta_promo": beta_promo_copy(db),
+        "landing_stats": landing_stats(db),
+        "demo_examples": load_demo_examples(),
+        "content_hooks": load_content_hooks(),
     }
     data.update(extra)
     return data
@@ -322,7 +332,19 @@ def sitemap_xml(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(redirect_url_for_path("/sitemap.xml"), status_code=301)
 
     base = get_settings().public_base_url.rstrip("/")
-    paths = ["/", "/privacy", "/offer", "/requisites", "/tariffs", "/contacts", "/zakon/"]
+    from app.services.public_catalog import all_obraztsy_paths
+
+    paths = [
+        "/",
+        "/privacy",
+        "/offer",
+        "/requisites",
+        "/tariffs",
+        "/contacts",
+        "/zakon/",
+        "/praktika/",
+    ]
+    paths.extend(all_obraztsy_paths())
     body = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',

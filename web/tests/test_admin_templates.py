@@ -9,29 +9,13 @@ from pathlib import Path
 from conftest import csrf_from, login
 
 
-def _minimal_docx() -> bytes:
+def _minimal_docx(text: str = "test") -> bytes:
+    from docx import Document
+
+    doc = Document()
+    doc.add_paragraph(text)
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr(
-            "[Content_Types].xml",
-            (
-                '<?xml version="1.0" encoding="UTF-8"?>'
-                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-                '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-                '<Default Extension="xml" ContentType="application/xml"/>'
-                '<Override PartName="/word/document.xml" '
-                'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
-                "</Types>"
-            ),
-        )
-        zf.writestr(
-            "word/document.xml",
-            (
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-                "<w:body><w:p><w:r><w:t>test</w:t></w:r></w:p></w:body></w:document>"
-            ),
-        )
+    doc.save(buf)
     return buf.getvalue()
 
 
@@ -114,9 +98,26 @@ def test_upload_rename_delete(app, tmp_path, monkeypatch):
         follow_redirects=False,
     )
     assert r.status_code == 303
-    assert not (root / "Договор_рецензия_тест_юрлицо.docx").exists()
+    # W-45: файл остаётся на диске для /obraztsy; кабинет скрывает через tombstone
+    assert (root / "Договор_рецензия_тест_юрлицо.docx").exists()
     reg = load_registry(root)
     assert "Договор_рецензия_тест_юрлицо.docx" not in reg["contracts"]["Юрлицо"]
+    # Tombstone: каталог кабинета не показывает шаблон
+    from app.services.template_admin import (
+        apply_deleted_templates,
+        load_deleted_templates,
+    )
+    from app.services.templates import list_templates
+
+    assert "Договор_рецензия_тест_юрлицо.docx" in load_deleted_templates(root)
+    names = {i["name"] for i in list_templates()}
+    assert "Договор_рецензия_тест_юрлицо.docx" not in names
+    # публичный каталог видит файл
+    names_pub = {i["name"] for i in list_templates(include_deleted=True)}
+    assert "Договор_рецензия_тест_юрлицо.docx" in names_pub
+    touched = apply_deleted_templates(root)
+    assert "Договор_рецензия_тест_юрлицо.docx" in touched
+    assert (root / "Договор_рецензия_тест_юрлицо.docx").exists()
 
 
 def test_upload_rejects_non_docx(app, tmp_path, monkeypatch):
