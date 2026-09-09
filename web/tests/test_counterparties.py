@@ -184,3 +184,113 @@ def test_list_item_masks_passport():
     item = counterparty_list_item(cp)
     assert "123456" not in item["passport"]
     assert "секретный" not in item["address"]
+
+
+def test_counterparties_search_and_delete(app):
+    client, dbmod = app
+    org_id, _ = _seed(dbmod, email="cpsearch@example.com")
+    assert login(client, "cpsearch@example.com", "Passw0rd!").status_code == 303
+    db = dbmod.SessionLocal()
+    try:
+        db.add(
+            Counterparty(
+                org_id=org_id,
+                type=CounterpartyType.ul,
+                name='ООО "АльфаПоиск"',
+                inn="7707083893",
+                source=CounterpartySource.manual,
+            )
+        )
+        db.add(
+            Counterparty(
+                org_id=org_id,
+                type=CounterpartyType.fl,
+                fio="Бета Иванов",
+                source=CounterpartySource.manual,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.get("/cabinet/counterparties/?q=Альфа")
+    assert r.status_code == 200
+    assert "АльфаПоиск" in r.text
+    assert "Бета Иванов" not in r.text
+    assert 'name="q"' in r.text
+    assert "Удалить" in r.text
+
+    r = client.get("/cabinet/counterparties/?q=Бета")
+    assert "Бета Иванов" in r.text
+    assert "АльфаПоиск" not in r.text
+
+    db = dbmod.SessionLocal()
+    try:
+        beta = db.scalar(
+            select(Counterparty).where(
+                Counterparty.org_id == org_id, Counterparty.fio == "Бета Иванов"
+            )
+        )
+        assert beta is not None
+        beta_id = beta.id
+    finally:
+        db.close()
+
+    token = csrf_from(client, "/cabinet/counterparties/")
+    r = client.post(
+        f"/cabinet/counterparties/{beta_id}/delete",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "ok=deleted" in r.headers["location"]
+    db = dbmod.SessionLocal()
+    try:
+        assert db.get(Counterparty, beta_id) is None
+    finally:
+        db.close()
+    assert "Бета Иванов" not in client.get("/cabinet/counterparties/").text
+
+
+def test_cannot_delete_counterparty_with_contract(app):
+    from app.models import Contract
+
+    client, dbmod = app
+    org_id, _ = _seed(dbmod, email="cpdelblock@example.com")
+    assert login(client, "cpdelblock@example.com", "Passw0rd!").status_code == 303
+    db = dbmod.SessionLocal()
+    try:
+        cp = Counterparty(
+            org_id=org_id,
+            type=CounterpartyType.ul,
+            name="ООО С договором",
+            source=CounterpartySource.manual,
+        )
+        db.add(cp)
+        db.flush()
+        db.add(
+            Contract(
+                org_id=org_id,
+                counterparty_id=cp.id,
+                number="1",
+                template="Договор_услуги_v2.docx",
+            )
+        )
+        db.commit()
+        cp_id = cp.id
+    finally:
+        db.close()
+
+    token = csrf_from(client, "/cabinet/counterparties/")
+    r = client.post(
+        f"/cabinet/counterparties/{cp_id}/delete",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "error=" in r.headers["location"]
+    db = dbmod.SessionLocal()
+    try:
+        assert db.get(Counterparty, cp_id) is not None
+    finally:
+        db.close()

@@ -24,9 +24,10 @@
         <a class="btn secondary" href="/cabinet/counterparties/{{ cp.id }}/edit">Изменить</a>
         <a class="btn secondary" href="/cabinet/counterparties/">К списку</a>
         <form method="post" action="/cabinet/counterparties/{{ cp.id }}/delete" style="display:inline"
+              hx-boost="false"
               onsubmit="return confirm('Удалить контрагента?');">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="secondary">Удалить</button>
+          <button type="submit" class="danger">Удалить</button>
         </form>
       </div>
     </section>

@@ -4,13 +4,25 @@
 {% include "cabinet/_layout_start.html" %}
 <section class="panel">
       <h1>Контрагенты</h1>
+      {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+      {% if flash_ok == 'deleted' %}<div class="alert alert-ok">Контрагент удалён.</div>{% endif %}
       <div class="actions">
         <a class="btn" href="/cabinet/counterparties/new?type=ul">Юрлицо</a>
         <a class="btn secondary" href="/cabinet/counterparties/new?type=fl">Физлицо</a>
         <a class="btn secondary" href="/cabinet/counterparties/new?type=expert">Эксперт</a>
       </div>
-      <table class="table" style="margin-top:1rem">
-        <thead><tr><th>Тип</th><th>Наименование / ФИО</th><th>ИНН</th><th>Паспорт</th><th>Адрес</th></tr></thead>
+      <form method="get" action="/cabinet/counterparties/" class="grid-2" style="margin:1rem 0;align-items:end">
+        <div>
+          <label for="cp-q">Поиск</label>
+          <input id="cp-q" name="q" value="{{ q or '' }}" placeholder="Наименование, ФИО или ИНН" autocomplete="off">
+        </div>
+        <div class="actions" style="margin:0">
+          <button type="submit">Найти</button>
+          {% if q %}<a class="btn secondary" href="/cabinet/counterparties/">Сбросить</a>{% endif %}
+        </div>
+      </form>
+      <table class="table" style="margin-top:0.5rem">
+        <thead><tr><th>Тип</th><th>Наименование / ФИО</th><th>ИНН</th><th>Паспорт</th><th>Адрес</th><th></th></tr></thead>
         <tbody>
           {% for i in items %}
           <tr>
@@ -19,9 +31,17 @@
             <td class="mono">{{ i.inn or '—' }}</td>
             <td class="muted">{{ i.passport or '—' }}</td>
             <td class="muted">{{ i.address or '—' }}</td>
+            <td>
+              <form method="post" action="/cabinet/counterparties/{{ i.id }}/delete" style="display:inline"
+                    hx-boost="false"
+                    onsubmit="return confirm('Удалить этого контрагента?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="danger">Удалить</button>
+              </form>
+            </td>
           </tr>
           {% else %}
-          <tr><td colspan="5" class="muted">Пока пусто</td></tr>
+          <tr><td colspan="6" class="muted">{% if q %}Ничего не найдено по запросу «{{ q }}».{% else %}Пока пусто{% endif %}</td></tr>
           {% endfor %}
         </tbody>
       </table>

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TypeVar
 
 from fastapi import HTTPException, status
-from sqlalchemy import Select, select
+from sqlalchemy import Select, or_, select
 from sqlalchemy.orm import Session
 
 from app.deps import CurrentUser
@@ -76,14 +76,24 @@ def get_document_for_org(db: Session, org_id: int, document_id: int) -> Document
     return row
 
 
-def list_counterparties(db: Session, org_id: int) -> list[Counterparty]:
-    return list(
-        db.scalars(
-            select(Counterparty)
-            .where(Counterparty.org_id == org_id)
-            .order_by(Counterparty.id.desc())
-        ).all()
-    )
+def list_counterparties(
+    db: Session,
+    org_id: int,
+    *,
+    q: str | None = None,
+) -> list[Counterparty]:
+    stmt = select(Counterparty).where(Counterparty.org_id == org_id)
+    needle = (q or "").strip()
+    if needle:
+        like = f"%{needle}%"
+        stmt = stmt.where(
+            or_(
+                Counterparty.name.ilike(like),
+                Counterparty.fio.ilike(like),
+                Counterparty.inn.ilike(like),
+            )
+        )
+    return list(db.scalars(stmt.order_by(Counterparty.id.desc())).all())
 
 
 def list_counterparty_options(db: Session, org_id: int, limit: int = 300) -> list[Counterparty]:
