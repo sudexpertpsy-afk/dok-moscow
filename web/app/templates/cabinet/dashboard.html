@@ -25,7 +25,25 @@
     <a class="btn secondary" href="/cabinet/support/improve">Предложить улучшение</a>
   </div>
 
-  {% if dash.empty_org %}
+  {% if onboarding and onboarding.visible %}
+  <div class="alert alert-ok" style="margin-bottom:1.25rem">
+    <strong>Старт кабинета</strong>
+    <ol style="margin:0.5rem 0 0;padding-left:1.2rem">
+      {% for step in onboarding.steps %}
+      <li style="{% if step.done %}opacity:0.65;text-decoration:line-through{% endif %}">
+        {% if step.done %}✓ {% endif %}<a href="{{ step.url }}">{{ step.title }}</a>
+        {% if step.hint %}<span class="muted"> — {{ step.hint }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    {% if onboarding.can_dismiss %}
+    <form method="post" action="/cabinet/onboarding/dismiss" hx-boost="false" style="margin-top:0.75rem">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary" style="padding:0.25rem 0.7rem">Скрыть чеклист</button>
+    </form>
+    {% endif %}
+  </div>
+  {% elif dash.empty_org %}
   <div class="alert alert-ok">
     <strong>С чего начать</strong>
     <ol style="margin:0.5rem 0 0;padding-left:1.2rem">

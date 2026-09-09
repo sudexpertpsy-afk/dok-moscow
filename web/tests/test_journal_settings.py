@@ -183,7 +183,7 @@ def test_settings_price_and_counters(app):
     finally:
         db.close()
 
-    csrf = csrf_from(client, "/cabinet/settings/counters")
+    csrf = csrf_from(client, "/cabinet/settings/numbering")
     r = client.post(
         "/cabinet/settings/counters",
         data={
