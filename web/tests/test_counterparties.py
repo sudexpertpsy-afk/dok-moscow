@@ -252,12 +252,12 @@ def test_counterparties_search_and_delete(app):
     assert "Бета Иванов" not in client.get("/cabinet/counterparties/").text
 
 
-def test_cannot_delete_counterparty_with_contract(app):
+def test_delete_counterparty_cascades_contracts(app):
     from app.models import Contract
 
     client, dbmod = app
-    org_id, _ = _seed(dbmod, email="cpdelblock@example.com")
-    assert login(client, "cpdelblock@example.com", "Passw0rd!").status_code == 303
+    org_id, _ = _seed(dbmod, email="cpdelcascade@example.com")
+    assert login(client, "cpdelcascade@example.com", "Passw0rd!").status_code == 303
     db = dbmod.SessionLocal()
     try:
         cp = Counterparty(
@@ -288,9 +288,13 @@ def test_cannot_delete_counterparty_with_contract(app):
         follow_redirects=False,
     )
     assert r.status_code == 303
-    assert "error=" in r.headers["location"]
+    assert "ok=deleted" in r.headers["location"]
     db = dbmod.SessionLocal()
     try:
-        assert db.get(Counterparty, cp_id) is not None
+        assert db.get(Counterparty, cp_id) is None
+        left = db.scalars(
+            select(Contract).where(Contract.org_id == org_id, Contract.counterparty_id == cp_id)
+        ).all()
+        assert left == []
     finally:
         db.close()

@@ -113,23 +113,25 @@ def apply_fields(cp, fields: dict, *, source: CounterpartySource | None = None) 
 
 
 def delete_counterparty(db, org_id: int, cp) -> None:
-    """Удалить контрагента своей org. Документы/события — SET NULL; договоры — блок."""
-    from sqlalchemy import func, select
+    """Удалить контрагента своей org вместе со связанными договорами.
+
+    Документы и события календаря: FK SET NULL. Раньше договоры блокировали
+    удаление (RESTRICT), а в кабинете не было UI удаления договоров — тупик.
+    """
+    from sqlalchemy import select
 
     from app.models import Contract
 
     if cp.org_id != org_id:
         raise ValueError("Контрагент другой организации")
-    n_contracts = int(
-        db.scalar(
-            select(func.count())
-            .select_from(Contract)
-            .where(Contract.org_id == org_id, Contract.counterparty_id == cp.id)
-        )
-        or 0
+    contracts = list(
+        db.scalars(
+            select(Contract).where(
+                Contract.org_id == org_id,
+                Contract.counterparty_id == cp.id,
+            )
+        ).all()
     )
-    if n_contracts:
-        raise ValueError(
-            "Нельзя удалить: есть связанные договоры. Сначала закройте или удалите договоры."
-        )
+    for contract in contracts:
+        db.delete(contract)
     db.delete(cp)
