@@ -18,9 +18,13 @@ from app.models import (
     JobType,
     utcnow,
 )
-from app.services.gotenberg import GotenbergError, convert_docx_to_pdf
+from app.services.gotenberg import convert_docx_to_pdf
 from app.services.limits import needs_watermark
-from app.services.package_generate import build_merged_pdf, build_zip, package_export_dir
+from app.services.package_generate import (
+    build_merged_pdf,
+    build_zip,
+    package_export_dir,
+)
 from app.services.templates import absolute_file
 from app.services.watermark import apply_guest_watermark
 
@@ -121,7 +125,27 @@ def _execute(db: Session, job: Job) -> dict[str, Any]:
         return _run_package_pdf(db, job, payload)
     if job.type == JobType.package_zip:
         return _run_package_zip(db, job, payload)
+    if job.type == JobType.org_export:
+        return _run_org_export(db, job, payload)
     raise ValueError(f"unknown job type {job.type}")
+
+
+def _run_org_export(db: Session, job: Job, payload: dict) -> dict[str, Any]:
+    from app.services.org_export import build_org_export_zip
+
+    def progress_cb(n: int) -> None:
+        job.progress = max(5, min(95, int(n)))
+        db.commit()
+
+    result = build_org_export_zip(
+        db,
+        job.org_id,
+        user_id=job.user_id,
+        progress_cb=progress_cb,
+    )
+    result["download_url"] = f"/cabinet/jobs/{job.id}/download"
+    result["view_url"] = "/cabinet/settings/data?ok=exported"
+    return result
 
 
 def _run_document_pdf(db: Session, job: Job, payload: dict) -> dict[str, Any]:

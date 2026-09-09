@@ -559,6 +559,8 @@ ROUTE_EXCEPTION_NOTES: dict[str, str] = {
     "/cabinet/settings/branding/{slot}/preview.png": "GET превью",
     "/cabinet/settings/price": "вкладка настроек",
     "/cabinet/settings/counters": "вкладка настроек",
+    "/cabinet/settings/data": "W-49 C выгрузка данных",
+    "/cabinet/settings/data/export": "POST выгрузка ZIP",
     "/cabinet/settings/security": "вкладка безопасности",
     "/cabinet/settings/security/2fa/start": "2FA",
     "/cabinet/settings/security/2fa/confirm": "2FA",
