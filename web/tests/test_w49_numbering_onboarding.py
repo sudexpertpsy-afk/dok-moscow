@@ -237,6 +237,10 @@ def test_onboarding_checklist_auto_and_dismiss(app):
         assert cl.steps[0].done is True
         assert cl.steps[1].done is False
         assert cl.can_dismiss is False
+        cp_step = next(s for s in cl.steps if s.key == "counterparties")
+        assert cp_step.url.endswith("/counterparties/import")
+        assert cp_step.primary_label and "Импортировать" in cp_step.primary_label
+        assert cp_step.alt_url and "/counterparties/new" in cp_step.alt_url
 
         confirm_numbering_defaults(db, org, None)
         db.commit()

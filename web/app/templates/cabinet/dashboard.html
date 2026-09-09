@@ -31,8 +31,17 @@
     <ol style="margin:0.5rem 0 0;padding-left:1.2rem">
       {% for step in onboarding.steps %}
       <li style="{% if step.done %}opacity:0.65;text-decoration:line-through{% endif %}">
-        {% if step.done %}✓ {% endif %}<a href="{{ step.url }}">{{ step.title }}</a>
-        {% if step.hint %}<span class="muted"> — {{ step.hint }}</span>{% endif %}
+        {% if step.done %}✓ {% endif %}
+        {% if step.primary_label %}
+          <a href="{{ step.url }}">{{ step.primary_label }}</a>
+          {% if step.alt_url and step.alt_label %}
+            <span class="muted"> · </span><a href="{{ step.alt_url }}">{{ step.alt_label }}</a>
+          {% endif %}
+          <span class="muted"> — {{ step.title }}{% if step.hint %}, {{ step.hint }}{% endif %}</span>
+        {% else %}
+          <a href="{{ step.url }}">{{ step.title }}</a>
+          {% if step.hint %}<span class="muted"> — {{ step.hint }}</span>{% endif %}
+        {% endif %}
       </li>
       {% endfor %}
     </ol>

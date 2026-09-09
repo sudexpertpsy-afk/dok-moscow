@@ -29,12 +29,16 @@ docker compose --env-file .env exec -T postgres \
 
 echo "[$STAMP] → архив файлов"
 # W-46: FILES_ROOT = /srv/dok/data/files (bind host==container)
+# W-49: не бэкапить временные imports/exports (TTL 24ч; иначе удваивают архив).
 FILES_ROOT="${FILES_ROOT:-/srv/dok/data/files}"
+TAR_EXCLUDES=(--exclude='*/imports' --exclude='*/imports/*' --exclude='*/exports' --exclude='*/exports/*')
 if [[ -d "$FILES_ROOT" ]]; then
-  tar -C "$FILES_ROOT" -czf "$WORK/files.tar.gz" .
+  tar -C "$FILES_ROOT" "${TAR_EXCLUDES[@]}" -czf "$WORK/files.tar.gz" .
 elif docker compose --env-file .env ps --status running -q app >/dev/null 2>&1; then
+  # shellcheck disable=SC2086
   docker compose --env-file .env exec -T app \
-    tar -C "$FILES_ROOT" -czf - . > "$WORK/files.tar.gz"
+    tar -C "$FILES_ROOT" --exclude='*/imports' --exclude='*/imports/*' \
+      --exclude='*/exports' --exclude='*/exports/*' -czf - . > "$WORK/files.tar.gz"
 else
   echo "✗ Нет каталога $FILES_ROOT и app не запущен" >&2
   exit 1

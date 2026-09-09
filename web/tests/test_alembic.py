@@ -87,4 +87,37 @@ def test_alembic_upgrade_head_clean_db():
 
     with eng.connect() as conn:
         ver = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
-        assert ver
+    assert ver
+
+    # W-49: downgrade b49numbering01 обязан работать (откат на v1.1.9).
+    down = subprocess.run(
+        [sys.executable, "-m", "alembic", "downgrade", "a49support01"],
+        cwd=str(WEB_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert down.returncode == 0, down.stdout + down.stderr
+    eng.dispose()
+    eng = create_engine(PG_URL)
+    cols = {c["name"] for c in inspect(eng).get_columns("counters")}
+    assert "number_template" not in cols
+    org_cols = {c["name"] for c in inspect(eng).get_columns("organizations")}
+    assert "onboarding" not in org_cols
+
+    up2 = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=str(WEB_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert up2.returncode == 0, up2.stdout + up2.stderr
+    eng.dispose()
+    eng = create_engine(PG_URL)
+    cols = {c["name"] for c in inspect(eng).get_columns("counters")}
+    assert "number_template" in cols
+    org_cols = {c["name"] for c in inspect(eng).get_columns("organizations")}
+    assert "onboarding" in org_cols

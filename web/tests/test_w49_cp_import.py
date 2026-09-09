@@ -9,11 +9,13 @@ from datetime import timedelta
 
 from openpyxl import Workbook
 from sqlalchemy import select
+import pytest
 
 from app.defaults import empty_requisites
 from app.models import (
     Counterparty,
     CounterpartyType,
+    Event,
     Organization,
     Subscription,
     SubscriptionStatus,
@@ -27,6 +29,7 @@ from app.security import hash_password
 from app.services.billing import ensure_beta_subscriptions, ensure_tariffs
 from app.services.cp_import import (
     DuplicateMode,
+    ImportRejectedXls,
     auto_map_columns,
     classify_rows,
     commit_rows,
@@ -97,12 +100,37 @@ def test_xlsx_and_xls_reject():
     wb.save(buf)
     table = parse_xlsx_bytes(buf.getvalue())
     assert table.rows[0][1] == "ООО Тест"
-    try:
+    with pytest.raises(ImportRejectedXls) as ei:
         parse_upload("old.xls", b"\xd0\xcf\x11\xe0")
-        raise AssertionError("expected ImportErrorMsg")
-    except Exception as exc:
-        assert "xlsx" in str(exc).lower()
+    msg = str(ei.value).lower()
+    assert "xls" in msg and "xlsx" in msg
+    assert "сохранить" in msg
 
+
+def test_xls_reject_http_event(app):
+    client, dbmod = app
+    org_id, email = _seed(dbmod, "xls@example.com")
+    assert login(client, email, "Passw0rd!").status_code == 303
+    csrf = csrf_from(client, "/cabinet/counterparties/import")
+    r = client.post(
+        "/cabinet/counterparties/import/upload",
+        data={"csrf_token": csrf},
+        files={"file": ("legacy.xls", b"\xd0\xcf\x11\xe0\xa1\xb1", "application/vnd.ms-excel")},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "error=" in r.headers["location"]
+    db = dbmod.SessionLocal()
+    try:
+        ev = db.scalars(
+            select(Event)
+            .where(Event.org_id == org_id, Event.type == "import.rejected_xls")
+            .order_by(Event.id.desc())
+        ).first()
+        assert ev is not None
+        assert (ev.details or {}).get("filename") == "legacy.xls"
+    finally:
+        db.close()
 
 def test_validators_and_duplicates(app):
     _, dbmod = app
