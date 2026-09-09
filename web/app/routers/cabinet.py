@@ -12,7 +12,7 @@ from app.deps import CurrentUser, assert_same_org, require_org_user
 from app.models import Organization, TariffCode
 from app.nav_context import cabinet_nav
 from app.navigation import cabinet_menu_tuples, roles_for_user
-from app.security import get_csrf_token
+from app.security import check_csrf, get_csrf_token
 from app.templating import templates
 
 router = APIRouter(prefix="/cabinet", tags=["cabinet"])
@@ -66,12 +66,17 @@ def cabinet_home(
     db: Session = Depends(get_db),
 ):
     """W-28: дашборд вместо редиректа на документы."""
+    from app.services.billing import get_tariff_limits
     from app.services.dashboard import load_dashboard
+    from app.services.onboarding import build_onboarding_checklist
 
     org = db.get(Organization, user.org_id)
     if org is None:
         raise HTTPException(status_code=404, detail="Организация не найдена")
     dash = load_dashboard(db, org.id)
+    limits = get_tariff_limits(db, org.id)
+    is_paid = limits.tariff_code in (TariffCode.specialist, TariffCode.organization)
+    checklist = build_onboarding_checklist(db, org, is_paid=is_paid)
     return templates.TemplateResponse(
         request=request,
         name="cabinet/dashboard.html",
@@ -84,8 +89,34 @@ def cabinet_home(
             "nav": cabinet_nav(db, user),
             "active": "home",
             "dash": dash,
+            "onboarding": checklist,
         },
     )
+
+
+@router.post("/onboarding/dismiss", response_class=HTMLResponse)
+async def onboarding_dismiss(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    """Скрыть чеклист онбординга (доступно с шага 2)."""
+    from app.services.billing import get_tariff_limits
+    from app.services.onboarding import build_onboarding_checklist, dismiss_onboarding
+
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+    org = db.get(Organization, user.org_id)
+    if org is None:
+        raise HTTPException(status_code=404, detail="Организация не найдена")
+    limits = get_tariff_limits(db, org.id)
+    is_paid = limits.tariff_code in (TariffCode.specialist, TariffCode.organization)
+    checklist = build_onboarding_checklist(db, org, is_paid=is_paid)
+    if checklist.can_dismiss:
+        dismiss_onboarding(org)
+        db.commit()
+    return RedirectResponse("/cabinet/", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/package", response_class=HTMLResponse)

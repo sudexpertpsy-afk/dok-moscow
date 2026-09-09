@@ -30,12 +30,16 @@ async def jobs_loop(stop: asyncio.Event) -> None:
                 if n:
                     log.info("Processed %s job(s)", n)
                 ticks += 1
-                if ticks % 1800 == 0:
+                if ticks % 1800 == 0:  # ~раз в час при timeout=2
+                    from app.services.cp_import import cleanup_stale_imports
                     from app.services.org_export import cleanup_stale_exports
 
-                    cleaned = await asyncio.to_thread(cleanup_stale_exports)
-                    if cleaned:
-                        log.info("Removed %s stale export files", cleaned)
+                    cleaned_imp = await asyncio.to_thread(cleanup_stale_imports)
+                    if cleaned_imp:
+                        log.info("Removed %s stale import dirs", cleaned_imp)
+                    cleaned_exp = await asyncio.to_thread(cleanup_stale_exports)
+                    if cleaned_exp:
+                        log.info("Removed %s stale export files", cleaned_exp)
             finally:
                 db.close()
         except Exception:

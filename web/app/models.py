@@ -199,6 +199,8 @@ class Organization(Base):
         nullable=True,
         index=True,
     )
+    # W-49 B: чеклист онбординга {dismissed, numbering_confirmed, …}
+    onboarding: Mapped[dict | None] = mapped_column(JsonType, nullable=True)
 
     users: Mapped[list[User]] = relationship(back_populates="organization")
     invites: Mapped[list[Invite]] = relationship(back_populates="organization")
@@ -467,6 +469,12 @@ class Counter(Base):
     prefix: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     value: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     suffix: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    # W-49 B: None → legacy «prefix + n + suffix» (байт-в-байт).
+    number_template: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    reset_yearly: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    cycle_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     organization: Mapped[Organization] = relationship(back_populates="counters")
 
@@ -1367,6 +1375,7 @@ class JobType(str, enum.Enum):
     document_pdf = "document_pdf"
     package_pdf = "package_pdf"
     package_zip = "package_zip"
+    counterparty_import = "counterparty_import"
     org_export = "org_export"
 
 

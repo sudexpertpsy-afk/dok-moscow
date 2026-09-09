@@ -200,40 +200,70 @@
         <div class="actions"><button type="submit">Сохранить</button></div>
       </form>
 
-      {% elif section == 'счётчики' %}
+      {% elif section == 'нумерация' %}
+      <p class="muted">Шаблон номера: токены
+        <code>{{ '{префикс}' }}</code>, <code>{{ '{n}' }}</code>/<code>{{ '{nn}' }}</code>/<code>{{ '{nnn}' }}</code>,
+        <code>{{ '{гггг}' }}</code>/<code>{{ '{гг}' }}</code>, <code>{{ '{суффикс}' }}</code>.
+        По умолчанию — как раньше: <code>{{ default_template }}</code>.</p>
       <table class="table">
-        <thead><tr><th>Ключ</th><th>Префикс</th><th>Текущее</th><th>Суффикс</th><th>Следующий</th></tr></thead>
-        <tbody>
-          {% for c in counters %}
+        <thead>
           <tr>
-            <td class="mono">{{ c.key }}</td>
-            <td>{{ c.prefix }}</td>
-            <td>{{ c.value }}</td>
-            <td>{{ c.suffix }}</td>
-            <td class="mono">{{ c.prefix }}{{ c.value + 1 }}{{ c.suffix }}</td>
+            <th>Документ</th>
+            <th>Шаблон</th>
+            <th>Выдано</th>
+            <th>Следующий</th>
+            <th>Сброс</th>
           </tr>
-          {% else %}
-          <tr><td colspan="5" class="muted">Счётчики появятся после генерации документов</td></tr>
+        </thead>
+        <tbody>
+          {% for c in counter_views %}
+          <tr>
+            <td><strong>{{ c.label }}</strong><br><span class="mono muted">{{ c.key }}</span></td>
+            <td class="mono">{{ c.template }}</td>
+            <td>{{ c.value }}</td>
+            <td class="mono">{{ c.preview }}</td>
+            <td>{% if c.reset_yearly %}ежегодно{% else %}нет{% endif %}</td>
+          </tr>
           {% endfor %}
         </tbody>
       </table>
-      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.2rem 0 0.4rem">Корректировка</h2>
-      <p class="muted">Укажите значение, которое уже использовано (следующий будет +1). Требуется подтверждение.</p>
-      <form method="post" action="/cabinet/settings/counters" hx-boost="false">
+
+      <form method="post" action="/cabinet/settings/numbering" hx-boost="false" style="margin-top:1rem">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <label>Ключ</label>
-        <input name="key" placeholder="dogovor" required>
-        <label>Префикс</label>
-        <input name="prefix">
-        <label>Текущее число</label>
-        <input name="value" type="number" value="0" required>
-        <label>Суффикс</label>
-        <input name="suffix">
-        <label style="display:flex;align-items:center;gap:0.5rem;margin-top:0.8rem">
-          <input type="checkbox" name="confirm" value="1" required> Подтверждаю изменение счётчика
-        </label>
-        <div class="actions"><button type="submit">Сохранить счётчик</button></div>
+        <input type="hidden" name="action" value="confirm_defaults">
+        <button type="submit" class="secondary">Оставить нумерацию как есть</button>
+        <span class="muted" style="margin-left:0.5rem">для онбординга — без изменений</span>
       </form>
+
+      <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.5rem 0 0.4rem">Изменить счётчик</h2>
+      <p class="muted">«Начать с» — следующий выдаваемый номер. Нельзя задать меньше уже выданного максимума.</p>
+      <form method="post" action="/cabinet/settings/numbering" hx-boost="false" class="stack" style="max-width:36rem">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="num_key">Ключ</label>
+        <select id="num_key" name="key" required>
+          {% for c in counter_views %}
+          <option value="{{ c.key }}">{{ c.label }} ({{ c.key }})</option>
+          {% endfor %}
+        </select>
+        <label for="num_template">Шаблон номера</label>
+        <input id="num_template" name="template" value="{{ default_template }}" maxlength="128" required>
+        <label for="num_prefix">Префикс</label>
+        <input id="num_prefix" name="prefix" placeholder="Д-">
+        <label for="num_suffix">Суффикс</label>
+        <input id="num_suffix" name="suffix" placeholder="">
+        <label for="num_start">Начать с (следующий номер)</label>
+        <input id="num_start" name="start_from" type="number" min="1" value="1" required>
+        <label style="display:flex;align-items:center;gap:0.5rem">
+          <input type="checkbox" name="reset_yearly" value="1"> Сбрасывать ежегодно 1 января
+        </label>
+        <label style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem">
+          <input type="checkbox" name="confirm" value="1" required> Подтверждаю изменение нумерации
+        </label>
+        <div class="actions"><button type="submit">Сохранить</button></div>
+      </form>
+
+      {% elif section == 'счётчики' %}
+      <p class="muted">Раздел переехал: <a href="/cabinet/settings/numbering">Нумерация</a>.</p>
 
       {% elif section == 'данные' %}
       <p class="muted">Полная выгрузка данных организации в архив <code>dok-export-v1</code>

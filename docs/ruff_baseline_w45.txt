@@ -113,7 +113,7 @@ web/app/routers/auth.py	I001	1
 web/app/routers/auth.py	PIE810	1
 web/app/routers/billing.py	B008	1
 web/app/routers/billing.py	BLE001	1
-web/app/routers/cabinet.py	B008	8
+web/app/routers/cabinet.py	B008	10
 web/app/routers/cabinet_billing.py	B008	10
 web/app/routers/cabinet_billing.py	I001	1
 web/app/routers/cabinet_help.py	B008	2
@@ -247,3 +247,4 @@ web/app/services/templates.py	I001	1
 web/app/static_assets.py	BLE001	1
 web/app/static_assets.py	FURB188	1
 web/app/yandex_oauth.py	I001	1
+web/app/routers/cp_import.py	B008	17

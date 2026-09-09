@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Сопоставление колонок — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "cabinet/_layout_start.html" %}
+<section class="panel">
+  <h1>Импорт — сопоставление колонок</h1>
+  <p class="muted">Шаг 2 из 3 · {{ row_count }} строк · источник: {{ source_kind }}</p>
+
+  <form method="post" action="/cabinet/counterparties/import/map" hx-boost="false">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="default_type">Тип, если в файле нет колонки «Тип»</label>
+    <select id="default_type" name="default_type">
+      <option value="auto">Авто по ИНН (10 → ЮЛ, 12 → ФЛ)</option>
+      <option value="ul">Все строки — ЮЛ</option>
+      <option value="fl">Все строки — ФЛ</option>
+      <option value="expert">Все строки — Эксперт</option>
+    </select>
+
+    <table class="table" style="margin-top:1rem">
+      <thead><tr><th>Поле карточки</th><th>Колонка файла</th></tr></thead>
+      <tbody>
+        {% for key in field_keys %}
+        <tr>
+          <td>{{ field_labels[key] }}</td>
+          <td>
+            <select name="map_{{ key }}">
+              <option value="skip">— пропустить —</option>
+              {% for h in headers %}
+              <option value="{{ loop.index0 }}" {% if mapping.get(key) == loop.index0 %}selected{% endif %}>{{ h or ('Колонка ' ~ loop.index) }}</option>
+              {% endfor %}
+            </select>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if sample %}
+    <h2 style="font-family:var(--font-display);font-size:1.1rem;margin:1.2rem 0 0.4rem">Пример строк</h2>
+    <div style="overflow:auto">
+      <table class="table">
+        <thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in sample %}
+          <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    <div class="actions" style="margin-top:1rem">
+      <button type="submit">Проверить строки</button>
+      <a class="btn secondary" href="/cabinet/counterparties/import">Назад</a>
+    </div>
+  </form>
+</section>
+{% include "cabinet/_layout_end.html" %}
+{% endblock %}
