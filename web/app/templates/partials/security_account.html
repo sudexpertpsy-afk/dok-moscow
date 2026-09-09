@@ -6,7 +6,7 @@
 <p class="muted">Вход через Яндекс без пароля на этом устройстве. Привязка — по желанию.</p>
 {% if yandex_linked %}
 <p><span class="badge ok">Привязан</span>{% if yandex_provider_email %} <span class="muted">{{ yandex_provider_email }}</span>{% endif %}</p>
-<form method="post" action="{{ base }}/yandex/unlink" style="max-width:22rem;margin-top:0.6rem">
+<form method="post" action="{{ base }}/yandex/unlink" style="max-width:22rem;margin-top:0.6rem" hx-boost="false">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   {% if yandex_can_unlink %}
   <div class="actions"><button type="submit" class="danger">Отвязать Яндекс ID</button></div>
@@ -16,7 +16,7 @@
   {% endif %}
 </form>
 {% elif yandex_available %}
-<form method="post" action="{{ base }}/yandex/link" style="max-width:22rem">
+<form method="post" action="{{ base }}/yandex/link" style="max-width:22rem" hx-boost="false">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label for="yandex_link_password">Текущий пароль</label>
   <input id="yandex_link_password" name="password" type="password" required autocomplete="current-password" {% if not has_password %}disabled{% endif %}>
@@ -31,7 +31,7 @@
 
 <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.6rem 0 0.4rem">Пароль</h2>
 <p class="muted">{% if has_password %}Смена пароля учётки.{% else %}Задайте пароль, чтобы можно было входить без Яндекс ID и отвязывать привязку.{% endif %} {{ password_hint }}</p>
-<form method="post" action="{{ base }}/password" style="max-width:22rem">
+<form method="post" action="{{ base }}/password" style="max-width:22rem" hx-boost="false">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   {% if has_password %}
   <label for="cur_password">Текущий пароль</label>
@@ -65,7 +65,7 @@
   </ul>
   <div class="actions">
     <a class="btn" href="{{ base }}/2fa/backup.txt">Скачать .txt</a>
-    <form method="post" action="{{ base }}/2fa/dismiss-backup" style="display:inline">
+    <form method="post" action="{{ base }}/2fa/dismiss-backup" style="display:inline" hx-boost="false">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="secondary">Готово</button>
     </form>
@@ -78,7 +78,7 @@
 {% endif %}
 <p class="muted">Секрет для ручного ввода:</p>
 <p class="mono" style="word-break:break-all">{{ totp_setup_secret }}</p>
-<form method="post" action="{{ base }}/2fa/confirm" style="max-width:22rem;margin-top:1rem">
+<form method="post" action="{{ base }}/2fa/confirm" style="max-width:22rem;margin-top:1rem" hx-boost="false">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label for="totp_confirm">Код из приложения</label>
   <input id="totp_confirm" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
@@ -86,7 +86,7 @@
 </form>
 {% elif totp_enabled %}
 <p><span class="badge ok">2FA включена</span></p>
-<form method="post" action="{{ base }}/2fa/disable" style="max-width:22rem;margin-top:0.8rem">
+<form method="post" action="{{ base }}/2fa/disable" style="max-width:22rem;margin-top:0.8rem" hx-boost="false">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label for="totp_off_password">Текущий пароль</label>
   <input id="totp_off_password" name="password" type="password" required autocomplete="current-password">
@@ -95,7 +95,7 @@
   <div class="actions"><button type="submit" class="danger">Отключить 2FA</button></div>
 </form>
 {% else %}
-<form method="post" action="{{ base }}/2fa/start" style="max-width:22rem">
+<form method="post" action="{{ base }}/2fa/start" style="max-width:22rem" hx-boost="false">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label for="totp_on_password">Текущий пароль</label>
   <input id="totp_on_password" name="password" type="password" required autocomplete="current-password">
@@ -106,7 +106,7 @@
 {% if show_retention %}
 <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.6rem 0 0.4rem">Хранение файлов</h2>
 <p class="muted">Документы старше указанного срока удаляются ночным заданием. 0 — не удалять. По умолчанию 1095 дней (≈3 года).</p>
-<form method="post" action="{{ base }}">
+<form method="post" action="{{ base }}" hx-boost="false">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label for="retention">Срок хранения файлов, дней</label>
   <input id="retention" name="срок_дней_файлов" type="number" min="0" max="36500" value="{{ retention_days }}" required>

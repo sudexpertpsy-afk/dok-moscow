@@ -26,12 +26,14 @@ from app.routers import (
     admin_legal,
     admin_security,
     admin_server,
+    admin_support,
     admin_templates,
     auth,
     billing,
     cabinet,
     cabinet_billing,
     cabinet_help,
+    cabinet_support,
     cabinet_templates,
     cabinet_zakon,
     calendar,
@@ -250,6 +252,7 @@ def create_app() -> FastAPI:
     app.include_router(cabinet.router)
     app.include_router(cabinet_billing.router)
     app.include_router(cabinet_help.router)
+    app.include_router(cabinet_support.router)
     app.include_router(cabinet_templates.router)
     app.include_router(cabinet_zakon.router)
     app.include_router(staff.router)
@@ -267,6 +270,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_cms.router)
     app.include_router(admin_legal.router)
     app.include_router(admin_security.router)
+    app.include_router(admin_support.router)
     app.include_router(admin_server.router)
     app.include_router(admin_templates.router)
 

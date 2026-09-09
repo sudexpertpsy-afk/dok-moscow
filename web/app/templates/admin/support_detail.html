@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Обращение #{{ ticket.id }} — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+<section class="panel">
+  <p class="muted"><a href="/admin/support/">← Обращения</a></p>
+  <h1>#{{ ticket.id }} · {{ ticket.subject }}</h1>
+  {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+  {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+
+  <p>
+    <strong>{{ kind_labels.get(ticket.kind.value, ticket.kind.value) }}</strong>
+    · {{ status_labels.get(ticket.status.value, ticket.status.value) }}
+    · {{ ticket.created_at.strftime('%d.%m.%Y %H:%M') if ticket.created_at else '' }}
+  </p>
+  <p class="muted">
+    Организация:
+    {% if ticket.organization %}
+    <a href="/admin/organizations/{{ ticket.org_id }}">{{ ticket.organization.name }}</a>
+    {% else %}#{{ ticket.org_id }}{% endif %}
+    · Автор: {{ ticket.user.email if ticket.user else '—' }}
+    · Версия: {{ ticket.app_version or '—' }}
+  </p>
+  {% if ticket.page_url %}<p class="muted">Страница: <code>{{ ticket.page_url }}</code></p>{% endif %}
+  {% if ticket.user_agent %}<p class="muted" style="font-size:0.85rem">UA: {{ ticket.user_agent }}</p>{% endif %}
+
+  <h2 style="font-family:var(--font-display);font-size:1.1rem">Текст</h2>
+  <pre style="white-space:pre-wrap;font-family:inherit">{{ ticket.body }}</pre>
+  {% if ticket.attachment_path %}
+  <p><a href="/admin/support/{{ ticket.id }}/attachment" hx-boost="false">Вложение</a></p>
+  {% endif %}
+
+  <form method="post" action="/admin/support/{{ ticket.id }}" hx-boost="false" class="stack" style="margin-top:1.5rem;max-width:36rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="status">Статус</label>
+    <select id="status" name="status">
+      {% for val, label in status_filters %}
+        {% if val %}
+        <option value="{{ val }}" {% if ticket.status.value == val %}selected{% endif %}>{{ label }}</option>
+        {% endif %}
+      {% endfor %}
+    </select>
+    <label for="admin_reply">Ответ пользователю (виден в кабинете и в письме)</label>
+    <textarea id="admin_reply" name="admin_reply" rows="5">{{ ticket.admin_reply or '' }}</textarea>
+    <label for="admin_note">Внутренняя заметка</label>
+    <textarea id="admin_note" name="admin_note" rows="3">{{ ticket.admin_note or '' }}</textarea>
+    <div class="actions"><button type="submit">Сохранить</button></div>
+  </form>
+</section>
+{% endblock %}

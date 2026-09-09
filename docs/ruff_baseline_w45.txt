@@ -83,7 +83,7 @@ web/app/deps.py	B008	6
 web/app/http_cache.py	PIE810	1
 web/app/main.py	BLE001	1
 web/app/models.py	C408	1
-web/app/models.py	UP037	10
+web/app/models.py	UP037	11
 web/app/ops_agent/actions.py	BLE001	10
 web/app/ops_agent/actions.py	PLW1510	1
 web/app/ops_agent/actions.py	S110	1
@@ -96,6 +96,7 @@ web/app/routers/admin.py	F841	1
 web/app/routers/admin.py	I001	2
 web/app/routers/admin.py	RUF059	1
 web/app/routers/admin_billing.py	B008	18
+web/app/routers/admin_billing.py	I001	1
 web/app/routers/admin_cms.py	B008	25
 web/app/routers/admin_cms.py	BLE001	2
 web/app/routers/admin_cms.py	I001	1
@@ -104,6 +105,7 @@ web/app/routers/admin_legal.py	DTZ007	1
 web/app/routers/admin_security.py	B008	16
 web/app/routers/admin_server.py	B008	19
 web/app/routers/admin_server.py	UP028	1
+web/app/routers/admin_support.py	B008	9
 web/app/routers/admin_templates.py	B008	16
 web/app/routers/admin_templates.py	RUF046	1
 web/app/routers/auth.py	B008	16
@@ -115,6 +117,7 @@ web/app/routers/cabinet.py	B008	8
 web/app/routers/cabinet_billing.py	B008	10
 web/app/routers/cabinet_billing.py	I001	1
 web/app/routers/cabinet_help.py	B008	2
+web/app/routers/cabinet_support.py	B008	12
 web/app/routers/cabinet_templates.py	B008	25
 web/app/routers/cabinet_templates.py	BLE001	1
 web/app/routers/cabinet_templates.py	I001	2
@@ -138,7 +141,7 @@ web/app/routers/global_search.py	B008	4
 web/app/routers/jobs.py	B008	4
 web/app/routers/journal.py	B008	6
 web/app/routers/journal.py	I001	1
-web/app/routers/landing.py	B008	8
+web/app/routers/landing.py	B008	13
 web/app/routers/landing.py	I001	2
 web/app/routers/obraztsy.py	B008	2
 web/app/routers/obraztsy.py	DTZ011	1
@@ -148,7 +151,7 @@ web/app/routers/package.py	F401	2
 web/app/routers/package.py	I001	2
 web/app/routers/party_check.py	B008	18
 web/app/routers/party_check.py	I001	1
-web/app/routers/praktika.py	B008	1
+web/app/routers/praktika.py	B008	2
 web/app/routers/settings.py	B008	53
 web/app/routers/settings.py	I001	3
 web/app/routers/settings.py	SIM118	1

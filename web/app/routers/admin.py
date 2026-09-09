@@ -41,23 +41,33 @@ _ADMIN_ACTIVE_KEYS = {
     "server": "admin_server",
     "admin_security": "admin_security",
     "security": "admin_security",
+    "admin_support": "admin_support",
+    "support": "admin_support",
 }
 
 
 def _ctx(request: Request, user: CurrentUser, active: str, **extra):
     from app.services.leads import count_new_leads
+    from app.services.support import count_new as count_new_support
 
     new_leads_count = extra.pop("new_leads_count", None)
+    new_support_count = extra.pop("new_support_count", None)
     db_for_count = extra.pop("db", None)
-    if new_leads_count is None:
+    if new_leads_count is None or new_support_count is None:
         if db_for_count is not None:
-            new_leads_count = count_new_leads(db_for_count)
+            if new_leads_count is None:
+                new_leads_count = count_new_leads(db_for_count)
+            if new_support_count is None:
+                new_support_count = count_new_support(db_for_count)
         else:
             from app.db import SessionLocal
 
             s = SessionLocal()
             try:
-                new_leads_count = count_new_leads(s)
+                if new_leads_count is None:
+                    new_leads_count = count_new_leads(s)
+                if new_support_count is None:
+                    new_support_count = count_new_support(s)
             finally:
                 s.close()
     data = {
@@ -71,6 +81,7 @@ def _ctx(request: Request, user: CurrentUser, active: str, **extra):
         "flash_ok": None,
         "last_invite_link": None,
         "new_leads_count": int(new_leads_count or 0),
+        "new_support_count": int(new_support_count or 0),
     }
     data.update(extra)
     return data

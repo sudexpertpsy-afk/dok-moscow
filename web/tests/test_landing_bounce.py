@@ -102,8 +102,47 @@ def test_praktika_page(app):
     client, _ = app
     r = client.get("/praktika/")
     assert r.status_code == 200
-    assert "Сделано практикой" in r.text
-    assert "/#apply" in r.text
+    # Есть markdown-статьи — индекс, иначе маркетинговая заглушка.
+    assert ("Практика" in r.text) and (
+        "rekvizity-zaklyucheniya" in r.text
+        or "Сделано практикой" in r.text
+        or "/praktika/" in r.text
+    )
+    assert "/obraztsy" in r.text or "/zakon/" in r.text
+
+
+def test_praktika_article_detail(app):
+    client, _ = app
+    r = client.get("/praktika/rekvizity-zaklyucheniya")
+    assert r.status_code == 200
+    assert "Практика" in r.text
+
+
+def test_w44_public_segment_pages(app):
+    client, _ = app
+    for path in (
+        "/dlya-ekspertov",
+        "/dlya-organizatsiy",
+        "/dlya-uchebnykh-tsentrov",
+        "/bezopasnost",
+        "/novoe",
+        "/obraztsy/",
+    ):
+        r = client.get(path)
+        assert r.status_code == 200, path
+
+
+def test_w44_public_surface_hosting():
+    from app.hosting import path_surface
+
+    for path in (
+        "/dlya-ekspertov",
+        "/dlya-organizatsiy",
+        "/dlya-uchebnykh-tsentrov",
+        "/bezopasnost",
+        "/novoe",
+    ):
+        assert path_surface(path) == "public", path
 
 
 def test_zakon_has_cross_cta(app):

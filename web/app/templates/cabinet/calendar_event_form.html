@@ -7,7 +7,7 @@
       <p class="muted">Свяжите событие с контрагентом и включите напоминание на e-mail организации.</p>
       {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
 
-      <form method="post" action="{% if event %}/cabinet/calendar/{{ event.id }}{% else %}/cabinet/calendar/new{% endif %}" style="margin-top:1rem">
+      <form method="post" action="{% if event %}/cabinet/calendar/{{ event.id }}{% else %}/cabinet/calendar/new{% endif %}" style="margin-top:1rem" hx-boost="false">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="title">Название</label>
         <input id="title" name="title" required maxlength="255"
@@ -66,7 +66,7 @@
 
       {% if event %}
       <form method="post" action="/cabinet/calendar/{{ event.id }}/delete" style="margin-top:1.5rem"
-            onsubmit="return confirm('Отменить это событие?');">
+            onsubmit="return confirm('Отменить это событие?');" hx-boost="false">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="danger">Отменить событие</button>
       </form>

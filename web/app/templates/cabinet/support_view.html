@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Обращение #{{ ticket.id }} — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "cabinet/_layout_start.html" %}
+<section class="panel">
+  <p class="muted"><a href="/cabinet/support/">← Поддержка</a></p>
+  <h1>{{ ticket.subject }}</h1>
+  {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+  <p class="muted">
+    {{ kind_labels.get(ticket.kind.value, ticket.kind.value) }}
+    · {{ status_labels.get(ticket.status.value, ticket.status.value) }}
+    · {{ ticket.created_at.strftime('%d.%m.%Y %H:%M') if ticket.created_at else '' }}
+  </p>
+  <div class="panel" style="margin:1rem 0;padding:1rem;background:var(--surface-2, #f6f6f4)">
+    <pre style="white-space:pre-wrap;margin:0;font-family:inherit">{{ ticket.body }}</pre>
+  </div>
+  {% if ticket.attachment_path %}
+  <p><a href="/cabinet/support/{{ ticket.id }}/attachment" hx-boost="false">Скачать вложение</a></p>
+  {% endif %}
+  {% if ticket.admin_reply %}
+  <h2 style="font-family:var(--font-display);font-size:1.15rem">Ответ поддержки</h2>
+  <div class="alert alert-ok" style="white-space:pre-wrap">{{ ticket.admin_reply }}</div>
+  {% endif %}
+  <p class="muted" style="margin-top:1.5rem">
+    <a href="/cabinet/support/improve">Предложить улучшение</a>
+  </p>
+</section>
+{% include "cabinet/_layout_end.html" %}
+{% endblock %}

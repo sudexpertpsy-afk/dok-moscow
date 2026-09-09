@@ -11,6 +11,9 @@
           {% if key == 'admin_leads' and new_leads_count %}
           <span class="nav-badge" title="Новые заявки">{{ new_leads_count }}</span>
           {% endif %}
+          {% if key == 'admin_support' and new_support_count|default(0) %}
+          <span class="nav-badge" title="Новые обращения">{{ new_support_count }}</span>
+          {% endif %}
         </a>
       </div>
       {% endfor %}
@@ -23,11 +26,9 @@
         <span class="gs-trigger-label">Поиск…</span>
         <kbd>Ctrl K</kbd>
       </button>
-      <span>{{ user.email }}</span>
-      <form method="post" action="/logout" hx-boost="false">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit">Выйти</button>
-      </form>
+      {% with menu_area='admin' %}
+      {% include "partials/user_menu.html" %}
+      {% endwith %}
     </div>
     {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
     {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}

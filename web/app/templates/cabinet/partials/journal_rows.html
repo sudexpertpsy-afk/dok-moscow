@@ -17,7 +17,7 @@
             hx-post="/cabinet/documents/{{ d.id }}/delete"
             hx-target="#journal-doc-{{ d.id }}"
             hx-swap="outerHTML"
-            hx-confirm="Удалить документ «{{ d.template }}»{% if d.number %} № {{ d.number }}{% endif %}? Файл будет удалён безвозвратно.">
+            hx-confirm="Удалить документ «{{ d.template }}»{% if d.number %} № {{ d.number }}{% endif %}? Файл будет удалён безвозвратно." hx-boost="false">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="link-danger">Удалить</button>
     </form>

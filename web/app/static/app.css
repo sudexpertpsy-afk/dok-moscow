@@ -324,6 +324,72 @@ button:hover, .btn:hover { filter: brightness(1.05); }
   padding: 0.45rem 0.9rem;
   font-size: 0.85rem;
   background: rgba(255,255,255,0.12);
+  font: inherit;
+  cursor: pointer;
+}
+.user-menu {
+  position: relative;
+  margin-left: auto;
+}
+.user-menu-trigger {
+  list-style: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+.user-menu-trigger::-webkit-details-marker { display: none; }
+.user-menu-trigger::after {
+  content: " ▾";
+  opacity: 0.6;
+  font-size: 0.85em;
+}
+.user-menu[open] .user-menu-trigger {
+  background: rgba(255,255,255,0.12);
+}
+.user-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  min-width: 14rem;
+  background: #fff;
+  color: #1a1a1a;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  padding: 0.35rem 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+}
+.user-menu-panel a,
+.user-menu-panel button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.85rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-decoration: none;
+  font: inherit;
+  cursor: pointer;
+}
+.user-menu-panel a:hover,
+.user-menu-panel button:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.user-menu-panel form {
+  display: block;
+  margin: 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding-top: 0.2rem;
+}
+/* Каталог документов: карточки групп → якорь к секции списка */
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  background: rgba(255,255,255,0.12);
 }
 /* Каталог документов: карточки групп → якорь к секции списка */
 .doc-group-cards {

@@ -20,7 +20,7 @@
       <div class="alert alert-ok" style="display:flex;gap:1rem;align-items:flex-start;justify-content:space-between;flex-wrap:wrap">
         <span>Можно добавлять печать и подпись автоматически —
           <a href="/cabinet/settings/branding">Настройки → Печать и подписи</a>.</span>
-        <form method="post" action="/cabinet/settings/branding/onboarding-dismiss" style="margin:0">
+        <form method="post" action="/cabinet/settings/branding/onboarding-dismiss" style="margin:0" hx-boost="false">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="secondary">Больше не показывать</button>
         </form>
@@ -36,7 +36,7 @@
         </form>
         {% endif %}
         {% if facsimile_can_toggle %}
-        <form method="post" action="/cabinet/documents/{{ doc.id }}/regenerate-facsimile" style="display:inline">
+        <form method="post" action="/cabinet/documents/{{ doc.id }}/regenerate-facsimile" style="display:inline" hx-boost="false">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="with_facsimile" value="{{ '0' if facsimile_on else '1' }}">
           <button type="submit" class="secondary">

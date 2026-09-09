@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Предложить улучшение — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "cabinet/_layout_start.html" %}
+<section class="panel">
+  <h1>Предложить улучшение</h1>
+  <p class="muted">Идея, неудобство или нехватка функции — без оформления «тикета поддержки».
+    <a href="/cabinet/support/">К списку обращений</a>.</p>
+  {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+  {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+
+  <form method="post" action="/cabinet/support/" enctype="multipart/form-data" hx-boost="false" class="stack" style="max-width:36rem;margin-top:1rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="kind" value="improvement">
+    <input type="hidden" name="page_url" value="{{ page_url_default or request.url.path }}">
+    <label for="subject">Кратко</label>
+    <input id="subject" name="subject" required maxlength="200" value="{{ form_subject or '' }}" placeholder="Например: фильтр в журнале по шаблону">
+    <label for="body">Подробнее</label>
+    <textarea id="body" name="body" rows="7" required maxlength="5000" placeholder="Что неудобно сейчас и как хотелось бы">{{ form_body or '' }}</textarea>
+    <label for="attachment">Скриншот (PNG/JPEG, до 2 МБ) — по желанию</label>
+    <input id="attachment" type="file" name="attachment" accept="image/png,image/jpeg">
+    <div class="actions">
+      <button type="submit">Отправить предложение</button>
+      <a class="btn secondary" href="/cabinet/support/">Отмена</a>
+    </div>
+  </form>
+</section>
+{% include "cabinet/_layout_end.html" %}
+{% endblock %}

@@ -16,7 +16,7 @@
     {% endif %}
 
     <h2 style="font-family:var(--font-display);font-size:1.2rem;margin:1.2rem 0 0.5rem">Пригласить</h2>
-    <form method="post" action="/cabinet/staff/invite" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end">
+    <form method="post" action="/cabinet/staff/invite" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end" hx-boost="false">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div style="flex:1;min-width:14rem">
         <label for="email">E-mail</label>
@@ -43,13 +43,13 @@
           <td>{% if u.is_active %}Активен{% else %}Выключен{% endif %}</td>
           <td style="display:flex;gap:0.35rem;flex-wrap:wrap">
             {% if u.is_active and u.id != user.id %}
-            <form method="post" action="/cabinet/staff/{{ u.id }}/deactivate" onsubmit="return confirm('Деактивировать сотрудника?');">
+            <form method="post" action="/cabinet/staff/{{ u.id }}/deactivate" onsubmit="return confirm('Деактивировать сотрудника?');" hx-boost="false">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit" class="btn-secondary">Деактивировать</button>
             </form>
             {% if not is_org_admin_fn(u) %}
             <form method="post" action="/cabinet/staff/{{ u.id }}/transfer-admin"
-                  onsubmit="return confirm('Передать роль администратора этому сотруднику? Вы станете обычным сотрудником.');">
+                  onsubmit="return confirm('Передать роль администратора этому сотруднику? Вы станете обычным сотрудником.');" hx-boost="false">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <input type="hidden" name="confirm" value="1">
               <button type="submit" class="btn-secondary">Сделать админом</button>

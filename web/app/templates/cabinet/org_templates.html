@@ -20,7 +20,7 @@
     <div class="grid-2" style="margin-top:1rem">
       <section class="panel">
         <h2>Загрузить шаблон</h2>
-        <form method="post" action="/cabinet/templates/upload" enctype="multipart/form-data">
+        <form method="post" action="/cabinet/templates/upload" enctype="multipart/form-data" hx-boost="false">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <label for="file">Файл .docx</label>
           <input id="file" name="file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
@@ -60,7 +60,7 @@
             <td>
               <strong>{{ t.title }}</strong>
               <div class="muted mono" style="font-size:0.8rem">{{ t.name }}</div>
-              <form method="post" action="/cabinet/templates/rename" style="margin-top:0.5rem; display:flex; gap:0.4rem; flex-wrap:wrap; align-items:end">
+              <form method="post" action="/cabinet/templates/rename" style="margin-top:0.5rem; display:flex; gap:0.4rem; flex-wrap:wrap; align-items:end" hx-boost="false">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="name" value="{{ t.name }}">
                 <label class="muted" for="nt_{{ loop.index }}" style="font-size:0.8rem">Новое название</label>
@@ -69,7 +69,7 @@
               </form>
             </td>
             <td>
-              <form method="post" action="/cabinet/templates/role" style="display:flex; gap:0.35rem; flex-wrap:wrap; align-items:center">
+              <form method="post" action="/cabinet/templates/role" style="display:flex; gap:0.35rem; flex-wrap:wrap; align-items:center" hx-boost="false">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="name" value="{{ t.name }}">
                 <select name="contract_type">
@@ -85,7 +85,7 @@
             <td>
               <a class="btn secondary" href="/cabinet/documents/new/{{ t.name }}">Заполнить</a>
               <form method="post" action="/cabinet/templates/delete" style="margin-top:0.4rem"
-                    onsubmit="return confirm('Удалить шаблон «{{ t.title }}»?');">
+                    onsubmit="return confirm('Удалить шаблон «{{ t.title }}»?');" hx-boost="false">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="name" value="{{ t.name }}">
                 <button type="submit" class="danger">Удалить</button>

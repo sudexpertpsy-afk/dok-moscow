@@ -61,7 +61,7 @@
               </div>
               <div class="cal-item-actions">
                 {% if ev.status.value == 'planned' %}
-                <form method="post" action="/cabinet/calendar/{{ ev.id }}/done">
+                <form method="post" action="/cabinet/calendar/{{ ev.id }}/done" hx-boost="false">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <button type="submit" class="secondary">Готово</button>
                 </form>

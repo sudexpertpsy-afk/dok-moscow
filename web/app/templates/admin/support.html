@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Обращения — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "admin/_layout_start.html" %}
+<section class="panel">
+  <h1>Обращения</h1>
+  <p class="muted">Тикеты поддержки и предложения улучшений из кабинетов.</p>
+  {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
+
+  <form method="get" action="/admin/support/" class="grid-2" style="margin:1rem 0;max-width:28rem">
+    <div>
+      <label>Тип</label>
+      <select name="kind">
+        {% for val, label in kind_filters %}
+        <option value="{{ val }}" {% if filter_kind == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Статус</label>
+      <select name="status">
+        {% for val, label in status_filters %}
+        <option value="{{ val }}" {% if filter_status == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="actions"><button type="submit" class="secondary">Фильтр</button></div>
+  </form>
+
+  {% if tickets %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Дата</th>
+        <th>Организация</th>
+        <th>Автор</th>
+        <th>Тип</th>
+        <th>Статус</th>
+        <th>Версия</th>
+        <th>Страница</th>
+        <th>Тема</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tickets %}
+      <tr>
+        <td class="muted">{{ t.created_at.strftime('%d.%m.%Y %H:%M') if t.created_at else '—' }}</td>
+        <td>
+          {% if t.organization %}
+          <a href="/admin/organizations/{{ t.org_id }}">{{ t.organization.name }}</a>
+          {% else %}#{{ t.org_id }}{% endif %}
+        </td>
+        <td>{{ t.user.email if t.user else '—' }}</td>
+        <td>{{ kind_labels.get(t.kind.value, t.kind.value) }}</td>
+        <td>{{ status_labels.get(t.status.value, t.status.value) }}</td>
+        <td class="muted">{{ t.app_version or '—' }}</td>
+        <td class="muted" style="max-width:10rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ t.page_url or '' }}">{{ t.page_url or '—' }}</td>
+        <td><a href="/admin/support/{{ t.id }}">{{ t.subject }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Нет обращений по фильтру.</p>
+  {% endif %}
+</section>
+{% endblock %}

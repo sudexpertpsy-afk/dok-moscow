@@ -26,7 +26,7 @@
 
 <section class="panel" style="margin-top:1.25rem">
   <h2>Логи</h2>
-  <form method="post" action="/admin/server/logs" class="stack" style="gap:0.5rem;max-width:36rem">
+  <form method="post" action="/admin/server/logs" class="stack" style="gap:0.5rem;max-width:36rem" hx-boost="false">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Сервис
       <select name="service">
@@ -48,7 +48,7 @@
   <h2>Перезапуск контейнера</h2>
   <p class="muted">Нужны 2FA и слово RESTART. Postgres недоступен.</p>
   <form method="post" action="/admin/server/restart" class="stack" style="gap:0.5rem;max-width:36rem"
-        id="restart-form">
+        id="restart-form" hx-boost="false">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Сервис
       <select name="service">
@@ -66,7 +66,7 @@
 
 <section class="panel" style="margin-top:1.25rem">
   <h2>Обновить сайт (redeploy)</h2>
-  <form method="post" action="/admin/server/redeploy" class="stack" style="gap:0.5rem;max-width:36rem">
+  <form method="post" action="/admin/server/redeploy" class="stack" style="gap:0.5rem;max-width:36rem" hx-boost="false">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Ветка / тег <input name="ref" value="{{ redeploy_ref or 'main' }}"></label>
     <label>Код 2FA <input name="totp_code" autocomplete="one-time-code"></label>
@@ -83,7 +83,7 @@
 
 <section class="panel" style="margin-top:1.25rem">
   <h2>Бэкап</h2>
-  <form method="post" action="/admin/server/backup" class="stack" style="gap:0.5rem;max-width:24rem">
+  <form method="post" action="/admin/server/backup" class="stack" style="gap:0.5rem;max-width:24rem" hx-boost="false">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Код 2FA <input name="totp_code" autocomplete="one-time-code"></label>
     <button type="submit" class="btn">Бэкап сейчас</button>
@@ -109,7 +109,7 @@
 
 <section class="panel" style="margin-top:1.25rem">
   <h2>Сертификат Caddy</h2>
-  <form method="post" action="/admin/server/cert-renew" class="stack" style="gap:0.5rem;max-width:24rem">
+  <form method="post" action="/admin/server/cert-renew" class="stack" style="gap:0.5rem;max-width:24rem" hx-boost="false">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Код 2FA <input name="totp_code" autocomplete="one-time-code"></label>
     <button type="submit" class="btn">Перевыпустить / reload</button>
@@ -119,7 +119,7 @@
 <section class="panel" style="margin-top:1.25rem">
   <h2>Hostland</h2>
   <p class="muted">Публичного API нет — ссылки и дата оплаты VDS. Напоминания за 14 и 3 дня.</p>
-  <form method="post" action="/admin/server/hostland" class="stack" style="gap:0.5rem;max-width:36rem">
+  <form method="post" action="/admin/server/hostland" class="stack" style="gap:0.5rem;max-width:36rem" hx-boost="false">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Панель <input name="panel_url" value="{{ hostland.panel_url or '' }}"></label>
     <label>Оплата VDS <input name="pay_url" value="{{ hostland.pay_url or '' }}"></label>

@@ -13,7 +13,7 @@
 
 <section class="panel" style="margin-top:1rem">
   <h2>Добавить / обновить поле</h2>
-  <form method="post" action="/admin/templates/fields/upsert" class="grid-2">
+  <form method="post" action="/admin/templates/fields/upsert" class="grid-2" hx-boost="false">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Имя<input name="name" required maxlength="64" class="mono" placeholder="сумма"></label>
     <label>Подпись<input name="label" required maxlength="255"></label>
@@ -46,7 +46,7 @@
         <td class="muted">{{ field_type_labels.get(f.type, f.type) }}</td>
         <td>
           <form method="post" action="/admin/templates/fields/delete" style="display:inline"
-                onsubmit="return confirm('Удалить «{{ f.name }}» из системного реестра?');">
+                onsubmit="return confirm('Удалить «{{ f.name }}» из системного реестра?');" hx-boost="false">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="name" value="{{ f.name }}">
             <button type="submit" class="danger">Удалить</button>

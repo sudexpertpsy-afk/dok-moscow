@@ -298,6 +298,51 @@ def contacts_page(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/dlya-ekspertov", response_class=HTMLResponse)
+def segment_ekspertov(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/segment_ekspertov.html",
+        context=_public_ctx(request, db),
+    )
+
+
+@router.get("/dlya-organizatsiy", response_class=HTMLResponse)
+def segment_organizatsiy(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/segment_organizatsiy.html",
+        context=_public_ctx(request, db),
+    )
+
+
+@router.get("/dlya-uchebnykh-tsentrov", response_class=HTMLResponse)
+def segment_uchebnykh(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/segment_uchebnykh.html",
+        context=_public_ctx(request, db),
+    )
+
+
+@router.get("/bezopasnost", response_class=HTMLResponse)
+def bezopasnost_page(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/bezopasnost.html",
+        context=_public_ctx(request, db),
+    )
+
+
+@router.get("/novoe", response_class=HTMLResponse)
+def novoe_page(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request=request,
+        name="landing/novoe.html",
+        context=_public_ctx(request, db),
+    )
+
+
 @router.get("/robots.txt", response_class=PlainTextResponse)
 def robots_txt(request: Request):
     from app.hosting import host_role, request_host
@@ -332,6 +377,7 @@ def sitemap_xml(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(redirect_url_for_path("/sitemap.xml"), status_code=301)
 
     base = get_settings().public_base_url.rstrip("/")
+    from app.services.praktika import all_praktika_paths
     from app.services.public_catalog import all_obraztsy_paths
 
     paths = [
@@ -343,8 +389,15 @@ def sitemap_xml(request: Request, db: Session = Depends(get_db)):
         "/contacts",
         "/zakon/",
         "/praktika/",
+        "/obraztsy/",
+        "/dlya-ekspertov",
+        "/dlya-organizatsiy",
+        "/dlya-uchebnykh-tsentrov",
+        "/bezopasnost",
+        "/novoe",
     ]
     paths.extend(all_obraztsy_paths())
+    paths.extend(p for p in all_praktika_paths() if p != "/praktika")
     body = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',

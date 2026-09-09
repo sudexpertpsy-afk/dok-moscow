@@ -18,16 +18,12 @@
         <span class="gs-trigger-label">Поиск…</span>
         <kbd>Ctrl K</kbd>
       </button>
-      <span>{{ user.email }}</span>
-      <form method="post" action="/logout" hx-boost="false">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit">Выйти</button>
-      </form>
+      {% include "partials/user_menu.html" %}
     </div>
     {% if user.email_verified is defined and not user.email_verified %}
     <div class="alert" role="status" style="background:#fff3cd;color:#664d03;border:1px solid #ffecb5;margin:0 0 1rem">
       Подтвердите e-mail — без этого недоступны сброс пароля и приглашение сотрудников. Оплата работает.
-      <form method="post" action="/cabinet/verify-email/resend" style="display:inline;margin-left:0.5rem">
+      <form method="post" action="/cabinet/verify-email/resend" style="display:inline;margin-left:0.5rem" hx-boost="false">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="btn secondary" style="padding:0.2rem 0.6rem">Отправить письмо ещё раз</button>
       </form>

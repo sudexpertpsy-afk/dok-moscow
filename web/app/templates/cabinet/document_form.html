@@ -7,7 +7,7 @@
       <h1>{{ template_name }}</h1>
       <p class="muted">Пустое поле номера — взять следующий из счётчика (подсказка в placeholder). Даты по умолчанию — сегодня.</p>
       {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
-      <form method="post" action="/cabinet/documents/new/{{ template_name }}" class="doc-form">
+      <form method="post" action="/cabinet/documents/new/{{ template_name }}" class="doc-form" hx-boost="false">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         {% set std = standard_vars if standard_vars is defined else variables %}
         {% set orgv = org_vars if org_vars is defined else [] %}

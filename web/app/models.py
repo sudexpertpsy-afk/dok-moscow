@@ -132,6 +132,18 @@ class CalendarEventStatus(str, enum.Enum):
     cancelled = "cancelled"
 
 
+class SupportTicketKind(str, enum.Enum):
+    support = "support"
+    improvement = "improvement"
+
+
+class SupportTicketStatus(str, enum.Enum):
+    new = "new"
+    in_progress = "in_progress"
+    done = "done"
+    rejected = "rejected"
+
+
 class LegalActCategory(str, enum.Enum):
     law = "law"  # профильный закон
     code = "code"  # процессуальный / отраслевой кодекс
@@ -200,6 +212,7 @@ class Organization(Base):
     payments: Mapped[list["Payment"]] = relationship(back_populates="organization")
     calendar_events: Mapped[list["CalendarEvent"]] = relationship(back_populates="organization")
     party_checks: Mapped[list["PartyCheck"]] = relationship(back_populates="organization")
+    support_tickets: Mapped[list["SupportTicket"]] = relationship(back_populates="organization")
     source_lead: Mapped["Lead | None"] = relationship(
         foreign_keys=[source_lead_id],
         post_update=True,
@@ -1100,6 +1113,55 @@ class CalendarEvent(Base):
     counterparty: Mapped[Counterparty | None] = relationship()
     document: Mapped[Document | None] = relationship()
     contract: Mapped[Contract | None] = relationship()
+
+
+class SupportTicket(Base):
+    """Обращение в поддержку или предложение улучшения."""
+
+    __tablename__ = "support_tickets"
+    __table_args__ = (
+        Index("ix_support_tickets_org_status", "org_id", "status"),
+        Index("ix_support_tickets_status_created", "status", "created_at"),
+        Index("ix_support_tickets_kind_status", "kind", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    kind: Mapped[SupportTicketKind] = mapped_column(
+        Enum(SupportTicketKind, name="support_ticket_kind", **_STR_ENUM),
+        nullable=False,
+        default=SupportTicketKind.support,
+    )
+    subject: Mapped[str] = mapped_column(String(200), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[SupportTicketStatus] = mapped_column(
+        Enum(SupportTicketStatus, name="support_ticket_status", **_STR_ENUM),
+        nullable=False,
+        default=SupportTicketStatus.new,
+    )
+    admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    admin_reply: Mapped[str | None] = mapped_column(Text, nullable=True)
+    page_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    app_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    attachment_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    organization: Mapped[Organization] = relationship(back_populates="support_tickets")
+    user: Mapped[User | None] = relationship()
 
 
 class LegalAct(Base):

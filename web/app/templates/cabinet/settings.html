@@ -177,7 +177,7 @@
       </script>
 
       {% elif section == 'подписанты' %}
-      <form method="post" action="/cabinet/settings/signatories">
+      <form method="post" action="/cabinet/settings/signatories" hx-boost="false">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         {% for block, fields in SIGNATORY_BLOCKS.items() %}
           <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1rem 0 0.35rem">{{ block }}</h2>
@@ -191,7 +191,7 @@
       </form>
 
       {% elif section == 'прайс' %}
-      <form method="post" action="/cabinet/settings/price">
+      <form method="post" action="/cabinet/settings/price" hx-boost="false">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         {% for f in PRICE_FIELDS %}
           <label for="p_{{ loop.index }}">{{ f }}</label>
@@ -219,7 +219,7 @@
       </table>
       <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.2rem 0 0.4rem">Корректировка</h2>
       <p class="muted">Укажите значение, которое уже использовано (следующий будет +1). Требуется подтверждение.</p>
-      <form method="post" action="/cabinet/settings/counters">
+      <form method="post" action="/cabinet/settings/counters" hx-boost="false">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label>Ключ</label>
         <input name="key" placeholder="dogovor" required>
@@ -242,5 +242,8 @@
       {% include "partials/security_account.html" %}
       {% endif %}
     </section>
+  <p class="muted" style="margin:0 0 1rem">
+    <a href="/cabinet/support/improve">Предложить улучшение</a>
+  </p>
   {% include "cabinet/_layout_end.html" %}
 {% endblock %}

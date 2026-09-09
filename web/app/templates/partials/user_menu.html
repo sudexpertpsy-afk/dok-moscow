@@ -1,0 +1,20 @@
+{# Меню пользователя в topbar. Параметр: menu_area = 'cabinet' | 'admin' #}
+{% set area = menu_area or 'cabinet' %}
+<details class="user-menu">
+  <summary class="user-menu-trigger" aria-label="Меню пользователя">{{ user.email }}</summary>
+  <div class="user-menu-panel" role="menu">
+    {% if area == 'admin' %}
+    <a href="/admin/support/" role="menuitem">Обращения</a>
+    <a href="/admin/security/" role="menuitem">Безопасность</a>
+    {% else %}
+    <a href="/cabinet/support/" role="menuitem">Поддержка</a>
+    <a href="/cabinet/support/improve" role="menuitem">Предложить улучшение</a>
+    <a href="/cabinet/settings/" role="menuitem">Настройки</a>
+    <a href="/cabinet/settings/security" role="menuitem">Безопасность</a>
+    {% endif %}
+    <form method="post" action="/logout" hx-boost="false" role="none">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" role="menuitem">Выйти</button>
+    </form>
+  </div>
+</details>

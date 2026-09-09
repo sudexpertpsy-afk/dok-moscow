@@ -13,7 +13,7 @@
 
 <section class="panel" style="margin-top:1rem">
   <h2>Добавить поле</h2>
-  <form method="post" action="/cabinet/templates/fields/create" class="grid-2">
+  <form method="post" action="/cabinet/templates/fields/create" class="grid-2" hx-boost="false">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Имя плейсхолдера
       <input name="name" required maxlength="64" pattern="[а-яёa-z][а-яёa-z0-9_]{1,63}" placeholder="срок_гарантии" class="mono">
@@ -47,7 +47,7 @@
 <section class="panel" style="margin-top:1rem">
   <h2>Словарь ({{ fields|length }})</h2>
   {% for f in fields %}
-  <form method="post" action="/cabinet/templates/fields/{{ f.id }}/update" class="panel" style="margin-top:0.75rem; padding:0.75rem 1rem">
+  <form method="post" action="/cabinet/templates/fields/{{ f.id }}/update" class="panel" style="margin-top:0.75rem; padding:0.75rem 1rem" hx-boost="false">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:baseline">
       <strong class="mono">{{ '{{ ' ~ f.name ~ ' }}' }}</strong>
@@ -79,7 +79,7 @@
     </div>
   </form>
   <form method="post" action="/cabinet/templates/fields/{{ f.id }}/delete"
-        onsubmit="return confirm('Удалить поле «{{ f.name }}»?');" style="margin:0.35rem 0 1rem">
+        onsubmit="return confirm('Удалить поле «{{ f.name }}»?');" style="margin:0.35rem 0 1rem" hx-boost="false">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button type="submit" class="danger" {% if f.used_in %}disabled title="Сначала уберите из шаблонов"{% endif %}>Удалить</button>
   </form>

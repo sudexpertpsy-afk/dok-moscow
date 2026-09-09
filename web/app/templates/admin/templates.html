@@ -19,7 +19,7 @@
 <div class="grid-2" style="margin-top:1rem">
   <section class="panel">
     <h2>Загрузить шаблон</h2>
-    <form method="post" action="/admin/templates/upload" enctype="multipart/form-data" {% if not writable %}aria-disabled="true"{% endif %}>
+    <form method="post" action="/admin/templates/upload" enctype="multipart/form-data" {% if not writable %}aria-disabled="true"{% endif %} hx-boost="false">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label for="file">Файл .docx</label>
       <input id="file" name="file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required {% if not writable %}disabled{% endif %}>
@@ -62,7 +62,7 @@
           {% if t.description and t.description != t.title %}
           <div class="muted" style="font-size:0.85rem">{{ t.description }}</div>
           {% endif %}
-          <form method="post" action="/admin/templates/rename" class="inline-form" style="margin-top:0.5rem; display:flex; gap:0.4rem; flex-wrap:wrap; align-items:end">
+          <form method="post" action="/admin/templates/rename" class="inline-form" style="margin-top:0.5rem; display:flex; gap:0.4rem; flex-wrap:wrap; align-items:end" hx-boost="false">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="name" value="{{ t.name }}">
             <label class="muted" for="new_title_{{ loop.index }}" style="font-size:0.8rem">Новое название</label>
@@ -73,7 +73,7 @@
         <td class="mono muted">{{ t.name }}</td>
         <td class="muted">{% if t.source == 'override' %}override{% else %}system{% endif %}</td>
         <td>
-          <form method="post" action="/admin/templates/role" style="display:flex; gap:0.35rem; align-items:center; flex-wrap:wrap">
+          <form method="post" action="/admin/templates/role" style="display:flex; gap:0.35rem; align-items:center; flex-wrap:wrap" hx-boost="false">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="name" value="{{ t.name }}">
             <select name="contract_type" aria-label="Роль в комплекте" {% if not writable %}disabled{% endif %}>
@@ -88,7 +88,7 @@
         <td class="muted">{{ t.size_kb }} КБ</td>
         <td class="muted">{{ t.mtime_label }}</td>
         <td>
-          <form method="post" action="/admin/templates/delete" onsubmit="return confirm('Удалить шаблон «{{ t.title }}»? Исторические документы в журнале останутся.');">
+          <form method="post" action="/admin/templates/delete" onsubmit="return confirm('Удалить шаблон «{{ t.title }}»? Исторические документы в журнале останутся.');" hx-boost="false">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="name" value="{{ t.name }}">
             <button type="submit" class="danger" {% if not writable %}disabled{% endif %}>Удалить</button>

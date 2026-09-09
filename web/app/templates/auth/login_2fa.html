@@ -8,7 +8,7 @@
     {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
     {% if flash_ok %}<div class="alert alert-ok">{{ flash_ok }}</div>{% endif %}
     <p class="muted">Введите код из Яндекс Ключ / Google Authenticator или одноразовый резервный код.</p>
-    <form method="post" action="/login/2fa">
+    <form method="post" action="/login/2fa" hx-boost="false">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label for="code">Код</label>
       <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required autofocus>
