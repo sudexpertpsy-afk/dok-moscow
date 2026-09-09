@@ -14,6 +14,7 @@ import pytest
 from app.defaults import empty_requisites
 from app.models import (
     Counterparty,
+    CounterpartySource,
     CounterpartyType,
     Event,
     Organization,
@@ -183,6 +184,59 @@ def test_validators_and_duplicates(app):
         db.commit()
         assert res2.skipped >= 1
         assert db.scalar(select(Counterparty).where(Counterparty.org_id == org_id)).name == "ООО Один"
+    finally:
+        db.close()
+
+
+def test_ul_duplicate_by_inn_ignores_kpp(app):
+    """uq_counterparties_org_inn_ul — один ИНН на org; разный КПП не должен давать 500."""
+    _, dbmod = app
+    org_id, _ = _seed(dbmod, "inn-kpp@example.com")
+    db = dbmod.SessionLocal()
+    try:
+        db.add(
+            Counterparty(
+                org_id=org_id,
+                type=CounterpartyType.ul,
+                source=CounterpartySource.manual,
+                name="Уже в базе",
+                inn="7727406020",
+                kpp="770801001",
+            )
+        )
+        db.commit()
+        table = parse_csv_bytes(
+            (
+                "Тип;Наименование;ИНН;КПП\n"
+                "ЮЛ;Казначейство А;7727406020;770801001\n"
+                "ЮЛ;Казначейство Б;7727406020;770901001\n"
+            ).encode("utf-8")
+        )
+        mapping = auto_map_columns(table.headers)
+        existing = list(db.scalars(select(Counterparty).where(Counterparty.org_id == org_id)))
+        rows = classify_rows(table, mapping, default_type=None, existing=existing)
+        assert len(rows) == 1
+        assert rows[0].duplicate == "есть в картотеке"
+        res = commit_rows(
+            db,
+            org_id,
+            rows,
+            mode=DuplicateMode.fill,
+            require_zero_errors=False,
+            user_id=None,
+            filename="treasury.csv",
+        )
+        db.commit()
+        assert res.created == 0
+        assert res.updated == 1
+        cps = list(
+            db.scalars(
+                select(Counterparty).where(
+                    Counterparty.org_id == org_id, Counterparty.inn == "7727406020"
+                )
+            ).all()
+        )
+        assert len(cps) == 1
     finally:
         db.close()
 

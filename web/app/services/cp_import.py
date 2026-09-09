@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -450,11 +451,12 @@ def _norm_fio(s: str | None) -> str:
 
 
 def duplicate_key(typ: CounterpartyType, fields: dict[str, str | None]) -> tuple | None:
+    """Ключ дубля. Для ЮЛ — только ИНН (как uq_counterparties_org_inn_ul в БД)."""
     if typ == CounterpartyType.ul:
         inn = _digits(fields.get("inn"))
         if not inn:
             return None
-        return ("ul", inn, _digits(fields.get("kpp")))
+        return ("ul", inn)
     if typ == CounterpartyType.expert:
         fio = _norm_fio(fields.get("fio"))
         inn = _digits(fields.get("inn"))
@@ -466,6 +468,10 @@ def duplicate_key(typ: CounterpartyType, fields: dict[str, str | None]) -> tuple
     num = _digits(fields.get("passport_number"))
     if fio and (ser or num):
         return ("fl", fio, ser, num)
+    # ФЛ без паспорта: ФИО+дата рождения в ТЗ — даты рождения в карточке нет;
+    # ФИО+ИНН (12 знаков) как запасной ключ, чтобы не плодить дубли.
+    if fio and len(_digits(fields.get("inn"))) == 12:
+        return ("fl", fio, _digits(fields.get("inn")))
     return None
 
 
@@ -641,14 +647,28 @@ def commit_rows(
             )
             apply_fields(cp, fields)
             db.add(cp)
-            db.flush()
+            try:
+                db.flush()
+            except IntegrityError as exc:
+                db.rollback()
+                raise ImportErrorMsg(
+                    "Конфликт уникальности в БД (часто один ИНН у ЮЛ с разным КПП). "
+                    "Проверьте дубликаты в файле и картотеке."
+                ) from exc
             result.created += 1
             new_key = _cp_key(cp)
             if new_key:
                 by_key[new_key] = cp
         batch += 1
         if batch % 200 == 0:
-            db.flush()
+            try:
+                db.flush()
+            except IntegrityError as exc:
+                db.rollback()
+                raise ImportErrorMsg(
+                    "Конфликт уникальности в БД (часто один ИНН у ЮЛ с разным КПП). "
+                    "Проверьте дубликаты в файле и картотеке."
+                ) from exc
 
     report_rel = None
     if error_lines:
@@ -669,7 +689,14 @@ def commit_rows(
         },
         commit=False,
     )
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise ImportErrorMsg(
+            "Конфликт уникальности в БД (часто один ИНН у ЮЛ с разным КПП). "
+            "Проверьте дубликаты в файле и картотеке."
+        ) from exc
     return result
 
 
