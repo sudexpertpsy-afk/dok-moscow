@@ -18,6 +18,7 @@ from app.rate_limit import LoginRateLimiter
 from app.security import check_csrf, get_csrf_token
 from app.services.counterparties import (
     apply_fields,
+    delete_counterparty,
     form_to_fields,
     parse_type,
     validate_counterparty_form,
@@ -71,14 +72,27 @@ def cp_list(
     request: Request,
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
+    q: str = "",
 ):
     org = get_org_for_user(db, user)
-    rows = list_counterparties(db, org.id)
+    needle = (q or "").strip()
+    rows = list_counterparties(db, org.id, q=needle or None)
     items = [counterparty_list_item(c) for c in rows]
+    flash_error = request.query_params.get("error")
+    flash_ok = request.query_params.get("ok")
     return templates.TemplateResponse(
         request=request,
         name="cabinet/counterparties_list.html",
-        context=_page(request, user, org, db, items=items),
+        context=_page(
+            request,
+            user,
+            org,
+            db,
+            items=items,
+            q=needle,
+            flash_error=flash_error,
+            flash_ok=flash_ok,
+        ),
     )
 
 
@@ -327,10 +341,20 @@ async def cp_delete(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    from urllib.parse import quote
+
     form = await request.form()
     if not check_csrf(request, form.get("csrf_token")):
         raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
-    cp = get_counterparty_for_org(db, require_org_id(user), cp_id)
-    db.delete(cp)
-    db.commit()
-    return RedirectResponse("/cabinet/counterparties/", status_code=303)
+    org_id = require_org_id(user)
+    cp = get_counterparty_for_org(db, org_id, cp_id)
+    try:
+        delete_counterparty(db, org_id, cp)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return RedirectResponse(
+            f"/cabinet/counterparties/?error={quote(str(exc))}",
+            status_code=303,
+        )
+    return RedirectResponse("/cabinet/counterparties/?ok=deleted", status_code=303)
