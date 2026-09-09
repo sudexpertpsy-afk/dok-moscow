@@ -1367,6 +1367,7 @@ class JobType(str, enum.Enum):
     document_pdf = "document_pdf"
     package_pdf = "package_pdf"
     package_zip = "package_zip"
+    counterparty_import = "counterparty_import"
 
 
 class Job(Base):

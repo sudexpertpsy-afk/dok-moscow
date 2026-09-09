@@ -121,7 +121,70 @@ def _execute(db: Session, job: Job) -> dict[str, Any]:
         return _run_package_pdf(db, job, payload)
     if job.type == JobType.package_zip:
         return _run_package_zip(db, job, payload)
+    if job.type == JobType.counterparty_import:
+        return _run_counterparty_import(db, job, payload)
     raise ValueError(f"unknown job type {job.type}")
+
+
+def _run_counterparty_import(db: Session, job: Job, payload: dict) -> dict[str, Any]:
+    from sqlalchemy import select
+
+    from app.models import Counterparty, CounterpartyType
+    from app.services.cp_import import (
+        DuplicateMode,
+        auto_map_columns,
+        classify_rows,
+        commit_rows,
+        load_meta,
+        load_table_snapshot,
+    )
+
+    token = str(payload.get("token") or "")
+    table, mapping = load_table_snapshot(job.org_id, token)
+    meta = load_meta(job.org_id, token)
+    mapping = mapping or auto_map_columns(table.headers)
+    default_raw = str(meta.get("default_type") or "auto")
+    default_type = (
+        CounterpartyType(default_raw) if default_raw in ("fl", "ul", "expert") else None
+    )
+    mode = DuplicateMode(str(meta.get("duplicate_mode") or DuplicateMode.fill))
+    enrich = bool(meta.get("enrich"))
+    require_zero = bool(meta.get("require_zero_errors"))
+    filename = str(meta.get("filename") or "import")
+    job.progress = 15
+    db.commit()
+    existing = list(
+        db.scalars(select(Counterparty).where(Counterparty.org_id == job.org_id)).all()
+    )
+    rows = classify_rows(table, mapping, default_type=default_type, existing=existing)
+    job.progress = 40
+    db.commit()
+    result = commit_rows(
+        db,
+        job.org_id,
+        rows,
+        mode=mode,
+        require_zero_errors=require_zero,
+        user_id=job.user_id,
+        filename=filename,
+        token=token,
+        enrich=enrich,
+    )
+    job.progress = 90
+    db.commit()
+    return {
+        "created": result.created,
+        "updated": result.updated,
+        "skipped": result.skipped,
+        "errors": result.errors,
+        "file_path": result.report_rel,
+        "download_url": f"/cabinet/jobs/{job.id}/download" if result.report_rel else None,
+        "view_url": "/cabinet/counterparties/?ok=imported",
+        "summary": (
+            f"Создано {result.created}, обновлено {result.updated}, "
+            f"пропущено {result.skipped}, ошибок {result.errors}"
+        ),
+    }
 
 
 def _run_document_pdf(db: Session, job: Job, payload: dict) -> dict[str, Any]:

@@ -38,6 +38,7 @@ from app.routers import (
     cabinet_zakon,
     calendar,
     counterparties,
+    cp_import,
     demo_api,
     documents,
     form_assist,
@@ -260,6 +261,7 @@ def create_app() -> FastAPI:
     app.include_router(documents.router)
     app.include_router(form_assist.router)
     app.include_router(package.router)
+    app.include_router(cp_import.router)
     app.include_router(counterparties.router)
     app.include_router(party_check.router)
     app.include_router(journal.router)

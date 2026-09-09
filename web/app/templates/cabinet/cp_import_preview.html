@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Проверка импорта — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "cabinet/_layout_start.html" %}
+<section class="panel">
+  <h1>Импорт — проверка</h1>
+  <p class="muted">Шаг 3 из 3</p>
+  {% if request.query_params.get('error') %}<div class="alert alert-error">{{ request.query_params.get('error') }}</div>{% endif %}
+
+  <div class="stat-row" style="margin:1rem 0">
+    <div class="stat"><div class="n">{{ preview.ready }}</div><div class="l">Готово</div></div>
+    <div class="stat"><div class="n">{{ preview.warnings }}</div><div class="l">Предупреждения</div></div>
+    <div class="stat"><div class="n">{{ preview.errors }}</div><div class="l">Ошибки</div></div>
+  </div>
+  {% if async_job %}
+  <p class="muted">Больше 500 строк — импорт пойдёт фоновой задачей с прогрессом.</p>
+  {% endif %}
+
+  <form method="post" action="/cabinet/counterparties/import/run" hx-boost="false" class="stack" style="max-width:40rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="duplicate_mode">Дубликаты с картотекой</label>
+    <select id="duplicate_mode" name="duplicate_mode">
+      <option value="fill" selected>Обновить пустые поля</option>
+      <option value="skip">Пропустить</option>
+      <option value="overwrite">Перезаписать</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem">
+      <input type="checkbox" name="enrich" value="1">
+      Обогатить ЮЛ из ЕГРЮЛ (DaData), если есть только ИНН
+      <span class="muted">— потребуется ≈ {{ preview.enrich_needed }} запросов
+        (сегодня {{ preview.dadata_used }} / {{ preview.dadata_limit }})</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:0.5rem">
+      <input type="checkbox" name="require_zero_errors" value="1">
+      Импортировать только если ошибок 0
+    </label>
+    <div class="actions">
+      <button type="submit">Импортировать</button>
+      <a class="btn secondary" href="/cabinet/counterparties/import/map">К колонкам</a>
+    </div>
+  </form>
+
+  <h2 style="font-family:var(--font-display);font-size:1.1rem;margin:1.5rem 0 0.4rem">Строки</h2>
+  <p class="muted">Показаны первые {{ preview_rows|length }} из {{ preview.rows|length }}.</p>
+  <table class="table">
+    <thead><tr><th>#</th><th>Статус</th><th>Тип</th><th>Наименование / ФИО</th><th>ИНН</th><th>Комментарий</th></tr></thead>
+    <tbody>
+      {% for r in preview_rows %}
+      <tr>
+        <td>{{ r.index }}</td>
+        <td>{% if r.status.value == 'ok' %}✓{% elif r.status.value == 'warn' %}⚠{% else %}✗{% endif %}</td>
+        <td>{% if r.typ.value == 'ul' %}ЮЛ{% elif r.typ.value == 'expert' %}Эксперт{% else %}ФЛ{% endif %}</td>
+        <td>{{ r.fields.name or r.fields.fio or '—' }}</td>
+        <td class="mono">{{ r.fields.inn or '—' }}</td>
+        <td class="muted">
+          {% if r.duplicate %}{{ r.duplicate }}; {% endif %}
+          {{ r.messages|join('; ') }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% include "cabinet/_layout_end.html" %}
+{% endblock %}
