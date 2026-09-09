@@ -34,7 +34,7 @@
             <td>
               <form method="post" action="/cabinet/counterparties/{{ i.id }}/delete" style="display:inline"
                     hx-boost="false"
-                    onsubmit="return confirm('Удалить этого контрагента?');">
+                    onsubmit="return confirm('Удалить этого контрагента вместе со связанными договорами?');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <button type="submit" class="danger">Удалить</button>
               </form>

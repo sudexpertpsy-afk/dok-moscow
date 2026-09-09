@@ -25,7 +25,7 @@
         <a class="btn secondary" href="/cabinet/counterparties/">К списку</a>
         <form method="post" action="/cabinet/counterparties/{{ cp.id }}/delete" style="display:inline"
               hx-boost="false"
-              onsubmit="return confirm('Удалить контрагента?');">
+              onsubmit="return confirm('Удалить контрагента вместе со связанными договорами?');">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="danger">Удалить</button>
         </form>
