@@ -4,20 +4,63 @@ from __future__ import annotations
 
 import threading
 from contextlib import nullcontext
+from datetime import date, datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Counter
+from app.services.numbering import render_number, template_has_year
 
 # RLock: тест параллельной выдачи держит lock через allocate+commit.
 _sqlite_lock = threading.RLock()
 
 
-def _format_number(counter: Counter, num: int, width: int) -> str:
-    body = str(num).zfill(width) if width > 0 else str(num)
-    return f"{counter.prefix}{body}{counter.suffix}"
+def _calendar_day(on: date | None) -> date:
+    return on or datetime.now(timezone.utc).date()
+
+
+def _format_number(
+    counter: Counter,
+    num: int,
+    width: int,
+    *,
+    on: date | None = None,
+    call_suffix: str = "",
+) -> str:
+    """Собрать номер: шаблон W-49 или legacy prefix+n+suffix.
+
+    call_suffix — суффикс с вызова (например «/26» из counter_year_suffix).
+    Если в шаблоне уже есть {гг}/{гггг}, call_suffix не дублируем.
+    """
+    tmpl = counter.number_template
+    pref = counter.prefix or ""
+    stored_suf = counter.suffix or ""
+    if tmpl and template_has_year(tmpl):
+        suf = stored_suf
+    else:
+        suf = call_suffix if call_suffix else stored_suf
+    return render_number(
+        tmpl,
+        n=num,
+        prefix=pref,
+        suffix=suf,
+        width=width,
+        on=on,
+    )
+
+
+def _maybe_yearly_reset(counter: Counter, *, on: date | None = None) -> None:
+    if not counter.reset_yearly:
+        return
+    year = _calendar_day(on).year
+    if counter.cycle_year is None:
+        counter.cycle_year = year
+        return
+    if int(counter.cycle_year) < year:
+        counter.value = 0
+        counter.cycle_year = year
 
 
 def _allocate_in_session(
@@ -29,6 +72,7 @@ def _allocate_in_session(
     suffix: str,
     width: int,
     for_update: bool,
+    on: date | None = None,
 ) -> tuple[int, str]:
     stmt = select(Counter).where(Counter.org_id == org_id, Counter.key == key)
     if for_update:
@@ -44,6 +88,9 @@ def _allocate_in_session(
                     prefix=prefix,
                     value=0,
                     suffix=suffix,
+                    number_template=None,
+                    reset_yearly=False,
+                    cycle_year=_calendar_day(on).year,
                 )
                 db.add(counter)
                 db.flush()
@@ -62,13 +109,21 @@ def _allocate_in_session(
     assert counter is not None
     if prefix and not counter.prefix:
         counter.prefix = prefix
-    if suffix and not counter.suffix:
+    if (
+        suffix
+        and not counter.suffix
+        and not (counter.number_template and template_has_year(counter.number_template))
+    ):
         counter.suffix = suffix
+
+    _maybe_yearly_reset(counter, on=on)
+    if counter.cycle_year is None:
+        counter.cycle_year = _calendar_day(on).year
 
     counter.value = int(counter.value) + 1
     db.flush()
     num = counter.value
-    return num, _format_number(counter, num, width)
+    return num, _format_number(counter, num, width, on=on, call_suffix=suffix)
 
 
 def allocation_section(db: Session):
@@ -88,20 +143,28 @@ def peek_number(
     prefix: str = "",
     suffix: str = "",
     width: int = 0,
+    on: date | None = None,
 ) -> str:
     """Следующий номер без инкремента (для placeholder в форме, T8)."""
     counter = db.scalar(
         select(Counter).where(Counter.org_id == org_id, Counter.key == key)
     )
+    day = _calendar_day(on)
     if counter is None:
         nxt = 1
         pref, suf = prefix, suffix
-    else:
-        nxt = int(counter.value) + 1
-        pref = counter.prefix or prefix
-        suf = counter.suffix or suffix
-    body = str(nxt).zfill(width) if width > 0 else str(nxt)
-    return f"{pref}{body}{suf}"
+        tmpl = None
+        # синтетический Counter для форматтера не нужен
+        from app.services.numbering import render_number
+
+        return render_number(tmpl, n=nxt, prefix=pref, suffix=suf, width=width, on=day)
+
+    # Учесть годовой сброс без записи
+    value = int(counter.value)
+    if counter.reset_yearly and counter.cycle_year is not None and int(counter.cycle_year) < day.year:
+        value = 0
+    nxt = value + 1
+    return _format_number(counter, nxt, width, on=day, call_suffix=suffix)
 
 
 def allocate_number(
@@ -112,6 +175,7 @@ def allocate_number(
     prefix: str = "",
     suffix: str = "",
     width: int = 0,
+    on: date | None = None,
 ) -> tuple[int, str]:
     """Атомарно увеличить счётчик и вернуть (value, formatted).
 
@@ -131,4 +195,5 @@ def allocate_number(
             suffix=suffix,
             width=width,
             for_update=for_update,
+            on=on,
         )

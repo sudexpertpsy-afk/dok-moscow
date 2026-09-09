@@ -6,10 +6,12 @@
       <h1>Контрагенты</h1>
       {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
       {% if flash_ok == 'deleted' %}<div class="alert alert-ok">Контрагент удалён.</div>{% endif %}
+      {% if flash_ok == 'imported' %}<div class="alert alert-ok">Импорт контрагентов завершён.</div>{% endif %}
       <div class="actions">
         <a class="btn" href="/cabinet/counterparties/new?type=ul">Юрлицо</a>
         <a class="btn secondary" href="/cabinet/counterparties/new?type=fl">Физлицо</a>
         <a class="btn secondary" href="/cabinet/counterparties/new?type=expert">Эксперт</a>
+        <a class="btn secondary" href="/cabinet/counterparties/import">Импорт</a>
       </div>
       <form method="get" action="/cabinet/counterparties/" class="grid-2" style="margin:1rem 0;align-items:end">
         <div>

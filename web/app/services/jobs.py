@@ -18,9 +18,13 @@ from app.models import (
     JobType,
     utcnow,
 )
-from app.services.gotenberg import GotenbergError, convert_docx_to_pdf
+from app.services.gotenberg import convert_docx_to_pdf
 from app.services.limits import needs_watermark
-from app.services.package_generate import build_merged_pdf, build_zip, package_export_dir
+from app.services.package_generate import (
+    build_merged_pdf,
+    build_zip,
+    package_export_dir,
+)
 from app.services.templates import absolute_file
 from app.services.watermark import apply_guest_watermark
 
@@ -121,7 +125,90 @@ def _execute(db: Session, job: Job) -> dict[str, Any]:
         return _run_package_pdf(db, job, payload)
     if job.type == JobType.package_zip:
         return _run_package_zip(db, job, payload)
+    if job.type == JobType.counterparty_import:
+        return _run_counterparty_import(db, job, payload)
+    if job.type == JobType.org_export:
+        return _run_org_export(db, job, payload)
     raise ValueError(f"unknown job type {job.type}")
+
+
+def _run_org_export(db: Session, job: Job, payload: dict) -> dict[str, Any]:
+    from app.services.org_export import build_org_export_zip
+
+    def progress_cb(n: int) -> None:
+        job.progress = max(5, min(95, int(n)))
+        db.commit()
+
+    result = build_org_export_zip(
+        db,
+        job.org_id,
+        user_id=job.user_id,
+        progress_cb=progress_cb,
+    )
+    result["download_url"] = f"/cabinet/jobs/{job.id}/download"
+    result["view_url"] = "/cabinet/settings/data?ok=exported"
+    return result
+
+
+def _run_counterparty_import(db: Session, job: Job, payload: dict) -> dict[str, Any]:
+    from sqlalchemy import select
+
+    from app.models import Counterparty, CounterpartyType
+    from app.services.cp_import import (
+        DuplicateMode,
+        auto_map_columns,
+        classify_rows,
+        commit_rows,
+        load_meta,
+        load_table_snapshot,
+    )
+
+    token = str(payload.get("token") or "")
+    table, mapping = load_table_snapshot(job.org_id, token)
+    meta = load_meta(job.org_id, token)
+    mapping = mapping or auto_map_columns(table.headers)
+    default_raw = str(meta.get("default_type") or "auto")
+    default_type = (
+        CounterpartyType(default_raw) if default_raw in ("fl", "ul", "expert") else None
+    )
+    mode = DuplicateMode(str(meta.get("duplicate_mode") or DuplicateMode.fill))
+    enrich = bool(meta.get("enrich"))
+    require_zero = bool(meta.get("require_zero_errors"))
+    filename = str(meta.get("filename") or "import")
+    job.progress = 15
+    db.commit()
+    existing = list(
+        db.scalars(select(Counterparty).where(Counterparty.org_id == job.org_id)).all()
+    )
+    rows = classify_rows(table, mapping, default_type=default_type, existing=existing)
+    job.progress = 40
+    db.commit()
+    result = commit_rows(
+        db,
+        job.org_id,
+        rows,
+        mode=mode,
+        require_zero_errors=require_zero,
+        user_id=job.user_id,
+        filename=filename,
+        token=token,
+        enrich=enrich,
+    )
+    job.progress = 90
+    db.commit()
+    return {
+        "created": result.created,
+        "updated": result.updated,
+        "skipped": result.skipped,
+        "errors": result.errors,
+        "file_path": result.report_rel,
+        "download_url": f"/cabinet/jobs/{job.id}/download" if result.report_rel else None,
+        "view_url": "/cabinet/counterparties/?ok=imported",
+        "summary": (
+            f"Создано {result.created}, обновлено {result.updated}, "
+            f"пропущено {result.skipped}, ошибок {result.errors}"
+        ),
+    }
 
 
 def _run_document_pdf(db: Session, job: Job, payload: dict) -> dict[str, Any]:
