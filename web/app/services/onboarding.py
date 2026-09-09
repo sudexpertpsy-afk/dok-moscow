@@ -178,6 +178,9 @@ class OnboardingStep:
     url: str
     done: bool
     hint: str = ""
+    primary_label: str | None = None
+    alt_url: str | None = None
+    alt_label: str | None = None
 
 
 @dataclass
@@ -242,9 +245,12 @@ def build_onboarding_checklist(
         OnboardingStep(
             key="counterparties",
             title="Контрагенты",
-            url="/cabinet/counterparties/",
+            url="/cabinet/counterparties/import",
             done=cp_n >= 1,
-            hint="Добавить или импортировать",
+            hint="из Excel или вручную",
+            primary_label="Импортировать из Excel",
+            alt_url="/cabinet/counterparties/new?type=ul",
+            alt_label="Добавить вручную",
         ),
         OnboardingStep(
             key="first_doc",

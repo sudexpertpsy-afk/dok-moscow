@@ -122,6 +122,17 @@ class ImportErrorMsg(ValueError):
     """Понятная ошибка импорта для UI."""
 
 
+class ImportRejectedXls(ImportErrorMsg):
+    """Отказ от legacy .xls — фиксируем в events как import.rejected_xls."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Файл в старом формате .xls. Откройте его в Excel → Сохранить как → "
+            "Книга Excel (.xlsx) и загрузите снова. Шаблон колонок — кнопка "
+            "«Скачать шаблон Excel» на этой странице."
+        )
+
+
 class DuplicateMode(StrEnum):
     skip = "skip"
     fill = "fill"
@@ -388,7 +399,7 @@ def parse_journal_bytes(raw: bytes) -> ParsedTable:
 def parse_upload(filename: str, raw: bytes) -> ParsedTable:
     name = (filename or "").lower()
     if name.endswith(".xls") and not name.endswith(".xlsx"):
-        raise ImportErrorMsg("Формат .xls не поддерживается. Сохраните файл как .xlsx или CSV.")
+        raise ImportRejectedXls()
     if name.endswith(".jsonl"):
         return parse_journal_bytes(raw)
     if name.endswith(".xlsx"):

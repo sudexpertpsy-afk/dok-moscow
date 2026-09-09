@@ -16,7 +16,9 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label for="file">Файл CSV / XLSX / .journal.jsonl (Шаблонер)</label>
     <input id="file" type="file" name="file" accept=".csv,.xlsx,.txt,.jsonl,.journal.jsonl" required>
-    <p class="muted">CSV: UTF-8 или Windows-1251; разделитель ; , или табуляция. Старый .xls — сохраните как .xlsx.</p>
+    <p class="muted">CSV: UTF-8 или Windows-1251; разделитель ; , или табуляция.
+      Старый формат <code>.xls</code> не принимается: в Excel «Сохранить как → Книга Excel (.xlsx)»
+      и загрузите снова (шаблон колонок — кнопка выше).</p>
     <div class="actions"><button type="submit">Загрузить и сопоставить колонки</button></div>
   </form>
 </section>

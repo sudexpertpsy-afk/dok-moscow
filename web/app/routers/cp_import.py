@@ -23,6 +23,7 @@ from app.services.cp_import import (
     SYNC_MAX_ROWS,
     DuplicateMode,
     ImportErrorMsg,
+    ImportRejectedXls,
     auto_map_columns,
     build_template_xlsx,
     check_import_rate,
@@ -39,6 +40,7 @@ from app.services.cp_import import (
     summarize,
     token_dir,
 )
+from app.services.audit import record_event
 from app.services.dadata import usage_today
 from app.services.jobs import enqueue_job
 from app.services.safe_paths import resolve_under_org
@@ -158,6 +160,17 @@ async def import_upload(
         mapping = auto_map_columns(table.headers)
         save_table_snapshot(org.id, token, table, mapping)
         request.session["cp_import_token"] = token
+    except ImportRejectedXls as exc:
+        record_event(
+            db,
+            type="import.rejected_xls",
+            org_id=org.id,
+            user_id=user.id,
+            details={"filename": str(filename or "")[:180]},
+            commit=True,
+        )
+        q = quote(str(exc))
+        return RedirectResponse(f"/cabinet/counterparties/import?error={q}", status_code=303)
     except ImportErrorMsg as exc:
         q = quote(str(exc))
         return RedirectResponse(f"/cabinet/counterparties/import?error={q}", status_code=303)
