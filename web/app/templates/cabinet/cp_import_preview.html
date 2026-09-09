@@ -3,17 +3,22 @@
 {% block body %}
 {% include "cabinet/_layout_start.html" %}
 <section class="panel">
-  <h1>Импорт — проверка</h1>
-  <p class="muted">Шаг 3 из 3</p>
+  <h1>Импорт — предпросмотр</h1>
+  <p class="muted">Шаг 3 из 3 · <strong>в картотеку ещё ничего не записано</strong></p>
   {% if request.query_params.get('error') %}<div class="alert alert-error">{{ request.query_params.get('error') }}</div>{% endif %}
 
+  <div class="alert" style="background:#fff3cd;color:#664d03;border:1px solid #ffecb5;margin:1rem 0">
+    Это проверка файла. Чтобы контрагенты появились в списке, нажмите
+    <strong>«Записать в картотеку»</strong> ниже.
+  </div>
+
   <div class="stat-row" style="margin:1rem 0">
-    <div class="stat"><div class="n">{{ preview.ready }}</div><div class="l">Готово</div></div>
+    <div class="stat"><div class="n">{{ preview.ready }}</div><div class="l">К записи</div></div>
     <div class="stat"><div class="n">{{ preview.warnings }}</div><div class="l">Предупреждения</div></div>
-    <div class="stat"><div class="n">{{ preview.errors }}</div><div class="l">Ошибки</div></div>
+    <div class="stat"><div class="n">{{ preview.errors }}</div><div class="l">Ошибки (не запишутся)</div></div>
   </div>
   {% if async_job %}
-  <p class="muted">Больше 500 строк — импорт пойдёт фоновой задачей с прогрессом.</p>
+  <p class="muted">Больше 500 строк — запись пойдёт фоновой задачей с прогрессом.</p>
   {% endif %}
 
   <form method="post" action="/cabinet/counterparties/import/run" hx-boost="false" class="stack" style="max-width:40rem">
@@ -32,16 +37,16 @@
     </label>
     <label style="display:flex;align-items:center;gap:0.5rem">
       <input type="checkbox" name="require_zero_errors" value="1">
-      Импортировать только если ошибок 0
+      Записывать только если ошибок 0
     </label>
     <div class="actions">
-      <button type="submit">Импортировать</button>
+      <button type="submit">Записать в картотеку{% if preview.ready %} · {{ preview.ready }}{% endif %}</button>
       <a class="btn secondary" href="/cabinet/counterparties/import/map">К колонкам</a>
     </div>
   </form>
 
-  <h2 style="font-family:var(--font-display);font-size:1.1rem;margin:1.5rem 0 0.4rem">Строки</h2>
-  <p class="muted">Показаны первые {{ preview_rows|length }} из {{ preview.rows|length }}.</p>
+  <h2 style="font-family:var(--font-display);font-size:1.1rem;margin:1.5rem 0 0.4rem">Строки файла</h2>
+  <p class="muted">Показаны первые {{ preview_rows|length }} из {{ preview.rows|length }}. Статус ✓ — пройдёт запись; ✗ — будет пропущена.</p>
   <table class="table">
     <thead><tr><th>#</th><th>Статус</th><th>Тип</th><th>Наименование / ФИО</th><th>ИНН</th><th>Комментарий</th></tr></thead>
     <tbody>
