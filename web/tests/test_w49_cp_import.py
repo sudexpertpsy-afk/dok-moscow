@@ -274,7 +274,8 @@ def test_wizard_http_and_idor(app):
 
     r = client.get("/cabinet/counterparties/import/preview")
     assert r.status_code == 200
-    assert "Готово" in r.text or "готово" in r.text.lower()
+    assert "Записать в картотеку" in r.text
+    assert "ещё ничего не записано" in r.text.lower() or "ещё не записано" in r.text.lower()
 
     csrf = csrf_from(client, "/cabinet/counterparties/import/preview")
     r = client.post(
