@@ -38,6 +38,8 @@ def test_cabinet_home_is_dashboard(app):
     assert r.status_code == 200
     assert "Требуют внимания" in r.text
     assert "Новый комплект" in r.text
+    assert "Как пользоваться" in r.text
+    assert 'href="/cabinet/help/"' in r.text
     assert "С чего начать" in r.text or "документов за месяц" in r.text
 
 
