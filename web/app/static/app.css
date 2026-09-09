@@ -325,6 +325,44 @@ button:hover, .btn:hover { filter: brightness(1.05); }
   font-size: 0.85rem;
   background: rgba(255,255,255,0.12);
 }
+/* Каталог документов: карточки групп → якорь к секции списка */
+.doc-group-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: 0.75rem;
+  margin: 1.15rem 0 0.35rem;
+}
+a.doc-group-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+a.doc-group-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 8px 22px rgba(15, 122, 102, 0.14);
+  text-decoration: none;
+}
+.doc-group-card__title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+.doc-group-card__meta {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.doc-group-heading {
+  scroll-margin-top: 1.25rem;
+}
+
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;

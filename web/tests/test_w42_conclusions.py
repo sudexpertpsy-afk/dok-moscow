@@ -76,6 +76,10 @@ def test_catalog_has_conclusions_group(app):
     assert r.status_code == 200
     assert "Заключения эксперта" in r.text
     assert TPL in r.text
+    assert 'class="doc-group-cards"' in r.text
+    assert 'href="#doc-group-' in r.text
+    assert 'id="doc-group-' in r.text
+    assert "Заполнить" in r.text
 
 
 def test_form_manifest_defaults_and_textarea(app):
