@@ -30,7 +30,8 @@
         </select>
 
         <h2 style="font-family:var(--font-display);font-size:1.2rem;margin:1.2rem 0 0.4rem">Данные</h2>
-        {% set values = values or prefill or wizard.core_values or {} %}
+        {# values уже из enrich(core_values); wizard — запасной источник #}
+        {% set values = values if values is mapping else (prefill or wizard.core_values or {}) %}
         {% for f in core_fields %}
           {{ field_input(f, values, field_meta, number_peeks, 'cf') }}
         {% endfor %}

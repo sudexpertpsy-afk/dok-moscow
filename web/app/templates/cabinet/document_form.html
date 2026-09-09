@@ -9,6 +9,18 @@
       {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
       <form method="post" action="/cabinet/documents/new/{{ template_name }}" class="doc-form" hx-boost="false">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if counterparties is defined %}
+        <label for="counterparty_id">Из картотеки{% if counterparty_type_label %} <span class="muted">({{ counterparty_type_label }})</span>{% endif %}</label>
+        <select id="counterparty_id" name="counterparty_id"
+                onchange="var u='/cabinet/documents/new/{{ template_name }}'; if(this.value){u+='?counterparty_id='+encodeURIComponent(this.value);} location.href=u;">
+          <option value="">— Ввести вручную —</option>
+          {% for c in counterparties %}
+            <option value="{{ c.id }}" {% if selected_counterparty_id == c.id %}selected{% endif %}>
+              {{ c.name or c.fio or ('#' ~ c.id) }}{% if c.inn %} · {{ c.inn }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+        {% endif %}
         {% set std = standard_vars if standard_vars is defined else variables %}
         {% set orgv = org_vars if org_vars is defined else [] %}
         {% for var in std %}
