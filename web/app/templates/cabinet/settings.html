@@ -265,6 +265,26 @@
       {% elif section == 'счётчики' %}
       <p class="muted">Раздел переехал: <a href="/cabinet/settings/numbering">Нумерация</a>.</p>
 
+      {% elif section == 'данные' %}
+      <p class="muted">Полная выгрузка данных организации в архив <code>dok-export-v1</code>
+        (реквизиты, сотрудники без паролей, контрагенты, договоры, документы с файлами,
+        шаблоны, нумерация, календарь, платежи, журнал). Архив живёт 24 часа; лимит — 2 в сутки.</p>
+      {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+      <form method="post" action="/cabinet/settings/data/export" hx-boost="false" class="stack" style="max-width:28rem;margin-top:1rem">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if totp_enabled %}
+        <label for="export_code">Код 2FA (обязателен — в архиве ПДн)</label>
+        <input id="export_code" name="code" inputmode="numeric" autocomplete="one-time-code" required placeholder="6 цифр или резервный код">
+        {% else %}
+        <div class="alert alert-error" style="margin:0 0 0.75rem">
+          2FA не включена: подтвердите паролем. Всем администраторам организации уйдёт уведомление о выгрузке.
+        </div>
+        <label for="export_password">Пароль</label>
+        <input id="export_password" type="password" name="password" required autocomplete="current-password">
+        {% endif %}
+        <div class="actions"><button type="submit">Выгрузить всё (архив)</button></div>
+      </form>
+
       {% elif section == 'безопасность' %}
       {% set security_base = '/cabinet/settings/security' %}
       {% set show_retention = true %}

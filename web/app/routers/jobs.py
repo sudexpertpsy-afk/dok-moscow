@@ -82,13 +82,23 @@ def job_download(
     job = _get_job(db, user, job_id)
     if job.status != JobStatus.succeeded:
         raise HTTPException(status_code=409, detail="Файл ещё не готов")
-    # document_pdf — редирект на документ
+    path = job_download_path(job)
+    if path is not None:
+        from app.services.audit import record_event
+
+        if job.type.value == "org_export":
+            record_event(
+                db,
+                type="org.export.downloaded",
+                org_id=job.org_id,
+                user_id=user.id,
+                details={"job_id": job.id},
+            )
+        media = "application/pdf" if path.suffix.lower() == ".pdf" else "application/zip"
+        return FileResponse(path, filename=path.name, media_type=media)
+    # document_pdf — редирект на карточку документа
     if job.result and job.result.get("view_url"):
         from fastapi.responses import RedirectResponse
 
         return RedirectResponse(job.result["view_url"], status_code=303)
-    path = job_download_path(job)
-    if path is None:
-        raise HTTPException(status_code=404, detail="Файл не найден")
-    media = "application/pdf" if path.suffix.lower() == ".pdf" else "application/zip"
-    return FileResponse(path, filename=path.name, media_type=media)
+    raise HTTPException(status_code=404, detail="Файл не найден")

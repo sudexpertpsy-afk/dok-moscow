@@ -166,7 +166,9 @@ def admin_home(
     org_ids = list(db.scalars(select(Organization.id)).all())
     branding_orgs = count_orgs_with_branding(org_ids)
     from app.services.onboarding import onboarding_admin_metrics
+    from app.services.org_export import export_stats
 
+    exports = export_stats(db)
     onboarding = onboarding_admin_metrics(db)
     return templates.TemplateResponse(
         request=request,
@@ -184,6 +186,7 @@ def admin_home(
                 "funnel_leads": funnel_leads,
                 "funnel_signed": funnel_signed,
                 "funnel_paid": funnel_paid,
+                "exports_total": exports["exports_total"],
             },
             recent_leads=recent_leads,
             recent_orgs=recent_orgs,

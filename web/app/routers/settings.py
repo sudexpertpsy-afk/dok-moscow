@@ -10,8 +10,8 @@ from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, client_ip, forbidden_org_admin_page, require_org_user
 from app.models import User
-from app.org_scope import get_org_for_user, list_events, require_org_id
 from app.nav_context import cabinet_nav
+from app.org_scope import get_org_for_user, list_events, require_org_id
 from app.passwords import password_policy_hint, validate_password
 from app.security import check_csrf, get_csrf_token, hash_password, verify_password
 from app.services.audit import record_event
@@ -83,6 +83,7 @@ def _sections_for(user: CurrentUser) -> list[tuple[str, str, str]]:
             ("печать", "Печать и подписи", "/cabinet/settings/branding"),
             ("прайс", "Прайс", "/cabinet/settings/price"),
             ("нумерация", "Нумерация", "/cabinet/settings/numbering"),
+            ("данные", "Данные организации", "/cabinet/settings/data"),
             ("безопасность", "Безопасность", "/cabinet/settings/security"),
         ]
     return [
@@ -399,7 +400,7 @@ async def settings_branding_upload(
         return denied
     from urllib.parse import quote
 
-    from app.services.branding import BrandingError, SLOTS, process_and_save
+    from app.services.branding import SLOTS, BrandingError, process_and_save
     from app.services.branding_access import assert_can_manage_branding
 
     org = get_org_for_user(db, user)
@@ -511,8 +512,8 @@ async def settings_branding_check(
     if denied is not None:
         return denied
     from app.services.branding import (
-        BrandingError,
         SLOTS,
+        BrandingError,
         VerdictLevel,
         evaluate_image,
         preview_pair_uris,
@@ -803,6 +804,133 @@ async def settings_counters_save(
     except NumberingError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return RedirectResponse("/cabinet/settings/numbering?ok=1", status_code=303)
+
+
+@router.get("/data", response_class=HTMLResponse)
+def settings_data(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
+    org = get_org_for_user(db, user)
+    db_user = db.get(User, user.id)
+    flash_ok = None
+    if request.query_params.get("ok") == "exported":
+        flash_ok = "Выгрузка готова. Архив можно скачать по ссылке задачи (24 часа)."
+    return templates.TemplateResponse(
+        request=request,
+        name="cabinet/settings.html",
+        context=_page(
+            request,
+            user,
+            org,
+            db,
+            "данные",
+            totp_enabled=bool(db_user and db_user.totp_enabled),
+            flash_ok=flash_ok,
+            flash_error=request.query_params.get("error"),
+        ),
+    )
+
+
+@router.post("/data/export", response_class=HTMLResponse)
+async def settings_data_export(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
+    org = get_org_for_user(db, user)
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+
+    from urllib.parse import quote
+
+    from app.models import JobType
+    from app.services.jobs import enqueue_job
+    from app.services.org_export import (
+        ExportError,
+        check_export_rate,
+        consume_export_rate,
+        list_org_admins,
+        notify_export_created,
+    )
+    from app.totp_2fa import verify_user_totp_or_backup
+
+    db_user = db.get(User, user.id)
+    assert db_user is not None
+    password = str(form.get("password") or "")
+    code = str(form.get("code") or "")
+
+    def _err(msg: str, status: int = 400):
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/settings.html",
+            context=_page(
+                request,
+                user,
+                org,
+                db,
+                "данные",
+                totp_enabled=bool(db_user.totp_enabled),
+                flash_error=msg,
+            ),
+            status_code=status,
+        )
+
+    try:
+        check_export_rate(db, org.id)
+    except ExportError as exc:
+        return _err(str(exc))
+
+    if db_user.totp_enabled:
+        method = verify_user_totp_or_backup(db_user, code)
+        if method is None:
+            record_event(
+                db,
+                type="totp_verify_failure",
+                org_id=user.org_id,
+                user_id=user.id,
+                details={"ip": client_ip(request), "phase": "org_export"},
+            )
+            return _err("Неверный код 2FA.", 401)
+    else:
+        if not verify_password(password, db_user.password_hash):
+            return _err("Неверный пароль.", 401)
+
+    try:
+        consume_export_rate(db, org.id)
+        job = enqueue_job(
+            db,
+            org_id=org.id,
+            user_id=user.id,
+            job_type=JobType.org_export,
+            payload={},
+        )
+        if not db_user.totp_enabled:
+            admins = list_org_admins(db, org.id)
+            notify_export_created(org=org, initiator_email=user.email, admins=admins)
+        record_event(
+            db,
+            type="org.export.requested",
+            org_id=org.id,
+            user_id=user.id,
+            details={"job_id": job.id, "via": "totp" if db_user.totp_enabled else "password"},
+            commit=False,
+        )
+        db.commit()
+    except ExportError as exc:
+        db.rollback()
+        return RedirectResponse(
+            f"/cabinet/settings/data?error={quote(str(exc))}", status_code=303
+        )
+    return RedirectResponse(f"/cabinet/jobs/{job.id}", status_code=303)
 
 
 def _security_ctx(request: Request, user: CurrentUser, org, db: Session, **extra):

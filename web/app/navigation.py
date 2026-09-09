@@ -568,6 +568,8 @@ ROUTE_EXCEPTION_NOTES: dict[str, str] = {
     "/cabinet/settings/price": "вкладка настроек",
     "/cabinet/settings/numbering": "W-49 нумерация",
     "/cabinet/settings/counters": "редирект на numbering",
+    "/cabinet/settings/data": "W-49 C выгрузка данных",
+    "/cabinet/settings/data/export": "POST выгрузка ZIP",
     "/cabinet/onboarding/dismiss": "POST скрыть чеклист",
     "/cabinet/settings/security": "вкладка безопасности",
     "/cabinet/settings/security/2fa/start": "2FA",
