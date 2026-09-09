@@ -24,11 +24,9 @@ from app.services.settings_svc import (
     ORG_FIELDS,
     PRICE_FIELDS,
     SIGNATORY_BLOCKS,
-    adjust_counter,
     bank_from_form,
     bank_is_complete,
     ensure_requisites,
-    list_counters,
     update_section,
 )
 from app.templating import templates
@@ -84,7 +82,7 @@ def _sections_for(user: CurrentUser) -> list[tuple[str, str, str]]:
             ("подписанты", "Подписанты", "/cabinet/settings/signatories"),
             ("печать", "Печать и подписи", "/cabinet/settings/branding"),
             ("прайс", "Прайс", "/cabinet/settings/price"),
-            ("счётчики", "Счётчики", "/cabinet/settings/counters"),
+            ("нумерация", "Нумерация", "/cabinet/settings/numbering"),
             ("безопасность", "Безопасность", "/cabinet/settings/security"),
         ]
     return [
@@ -636,8 +634,8 @@ async def settings_price_save(
     )
 
 
-@router.get("/counters", response_class=HTMLResponse)
-def settings_counters(
+@router.get("/numbering", response_class=HTMLResponse)
+def settings_numbering(
     request: Request,
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
@@ -646,16 +644,36 @@ def settings_counters(
     if denied is not None:
         return denied
     org = get_org_for_user(db, user)
-    counters = list_counters(db, require_org_id(user))
+    from app.services.numbering import DEFAULT_TEMPLATE
+    from app.services.onboarding import list_counter_views
+
     return templates.TemplateResponse(
         request=request,
         name="cabinet/settings.html",
-        context=_page(request, user, org, db, "счётчики", counters=counters),
+        context=_page(
+            request,
+            user,
+            org,
+            db,
+            "нумерация",
+            counter_views=list_counter_views(db, require_org_id(user)),
+            default_template=DEFAULT_TEMPLATE,
+            ok=request.query_params.get("ok"),
+            flash_ok=(
+                "Нумерация сохранена."
+                if request.query_params.get("ok") == "1"
+                else (
+                    "Текущая нумерация подтверждена."
+                    if request.query_params.get("ok") == "confirmed"
+                    else None
+                )
+            ),
+        ),
     )
 
 
-@router.post("/counters", response_class=HTMLResponse)
-async def settings_counters_save(
+@router.post("/numbering", response_class=HTMLResponse)
+async def settings_numbering_save(
     request: Request,
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
@@ -667,43 +685,124 @@ async def settings_counters_save(
     form = await request.form()
     if not check_csrf(request, form.get("csrf_token")):
         raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+
+    from app.services.numbering import DEFAULT_TEMPLATE, NumberingError
+    from app.services.onboarding import (
+        confirm_numbering_defaults,
+        list_counter_views,
+        update_counter_numbering,
+    )
+
+    if str(form.get("action") or "") == "confirm_defaults":
+        confirm_numbering_defaults(db, org, user.id)
+        db.commit()
+        return RedirectResponse(
+            "/cabinet/settings/numbering?ok=confirmed",
+            status_code=303,
+        )
+
     confirm = str(form.get("confirm") or "") == "1"
     key = str(form.get("key") or "").strip()
     if not key or not confirm:
-        counters = list_counters(db, require_org_id(user))
         return templates.TemplateResponse(
             request=request,
             name="cabinet/settings.html",
-            context=_page(request, user, org, db, "счётчики",
-                counters=counters,
+            context=_page(
+                request,
+                user,
+                org,
+                db,
+                "нумерация",
+                counter_views=list_counter_views(db, require_org_id(user)),
+                default_template=DEFAULT_TEMPLATE,
                 flash_error="Нужны ключ счётчика и подтверждение.",
             ),
             status_code=400,
         )
     try:
+        start_from = int(str(form.get("start_from") or "1"))
+    except ValueError:
+        start_from = 1
+    try:
+        update_counter_numbering(
+            db,
+            require_org_id(user),
+            key,
+            prefix=str(form.get("prefix") or ""),
+            suffix=str(form.get("suffix") or ""),
+            start_from=start_from,
+            template=str(form.get("template") or DEFAULT_TEMPLATE),
+            reset_yearly=str(form.get("reset_yearly") or "") == "1",
+            user_id=user.id,
+        )
+        # изменение счётчика = шаг онбординга выполнен
+        confirm_numbering_defaults(db, org, user.id)
+        db.commit()
+    except NumberingError as exc:
+        return templates.TemplateResponse(
+            request=request,
+            name="cabinet/settings.html",
+            context=_page(
+                request,
+                user,
+                org,
+                db,
+                "нумерация",
+                counter_views=list_counter_views(db, require_org_id(user)),
+                default_template=DEFAULT_TEMPLATE,
+                flash_error=str(exc),
+            ),
+            status_code=400,
+        )
+    return RedirectResponse("/cabinet/settings/numbering?ok=1", status_code=303)
+
+
+@router.get("/counters", response_class=HTMLResponse)
+def settings_counters(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    # Совместимость со старыми ссылками «Счётчики».
+    return RedirectResponse("/cabinet/settings/numbering", status_code=301)
+
+
+@router.post("/counters", response_class=HTMLResponse)
+async def settings_counters_save(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+    db: Session = Depends(get_db),
+):
+    """Legacy-форма корректировки — делегируем в numbering."""
+    denied = _require_org_settings_admin(request, user, db)
+    if denied is not None:
+        return denied
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+    from app.services.numbering import DEFAULT_TEMPLATE, NumberingError
+    from app.services.onboarding import update_counter_numbering
+
+    try:
         value = int(str(form.get("value") or "0"))
     except ValueError:
         value = 0
-    prefix = str(form.get("prefix") or "")
-    suffix = str(form.get("suffix") or "")
-    adjust_counter(
-        db,
-        require_org_id(user),
-        key,
-        value=value,
-        prefix=prefix,
-        suffix=suffix,
-    )
-    db.commit()
-    counters = list_counters(db, require_org_id(user))
-    return templates.TemplateResponse(
-        request=request,
-        name="cabinet/settings.html",
-        context=_page(request, user, org, db, "счётчики",
-            counters=counters,
-            flash_ok=f"Счётчик «{key}» обновлён. Следующий номер: {prefix}{value + 1}{suffix}",
-        ),
-    )
+    try:
+        update_counter_numbering(
+            db,
+            require_org_id(user),
+            str(form.get("key") or "").strip(),
+            prefix=str(form.get("prefix") or ""),
+            suffix=str(form.get("suffix") or ""),
+            start_from=value + 1,
+            template=DEFAULT_TEMPLATE,
+            reset_yearly=False,
+            user_id=user.id,
+        )
+        db.commit()
+    except NumberingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RedirectResponse("/cabinet/settings/numbering?ok=1", status_code=303)
 
 
 def _security_ctx(request: Request, user: CurrentUser, org, db: Session, **extra):
