@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Импорт контрагентов — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "cabinet/_layout_start.html" %}
+<section class="panel">
+  <h1>Импорт контрагентов</h1>
+  <p class="muted">Шаг 1 из 3 — загрузка файла. Лимит на тарифе: {{ row_limit }} строк, файл до 5&nbsp;МБ.</p>
+  {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+
+  <div class="actions" style="margin:1rem 0">
+    <a class="btn secondary" href="/cabinet/counterparties/import/template.xlsx">Скачать шаблон Excel</a>
+    <a class="btn secondary" href="/cabinet/counterparties/">К списку</a>
+  </div>
+
+  <form method="post" action="/cabinet/counterparties/import/upload" enctype="multipart/form-data" hx-boost="false" class="stack" style="max-width:36rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="file">Файл CSV / XLSX / .journal.jsonl (Шаблонер)</label>
+    <input id="file" type="file" name="file" accept=".csv,.xlsx,.txt,.jsonl,.journal.jsonl" required>
+    <p class="muted">CSV: UTF-8 или Windows-1251; разделитель ; , или табуляция. Старый .xls — сохраните как .xlsx.</p>
+    <div class="actions"><button type="submit">Загрузить и сопоставить колонки</button></div>
+  </form>
+</section>
+{% include "cabinet/_layout_end.html" %}
+{% endblock %}

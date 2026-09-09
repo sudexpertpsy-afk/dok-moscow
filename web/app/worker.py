@@ -21,6 +21,7 @@ log = logging.getLogger("dok.worker")
 
 async def jobs_loop(stop: asyncio.Event) -> None:
     await asyncio.sleep(1)
+    ticks = 0
     while not stop.is_set():
         try:
             db = dbmod.SessionLocal()
@@ -28,6 +29,13 @@ async def jobs_loop(stop: asyncio.Event) -> None:
                 n = await asyncio.to_thread(process_pending_batch, db, limit=5)
                 if n:
                     log.info("Processed %s job(s)", n)
+                ticks += 1
+                if ticks % 1800 == 0:  # ~раз в час при timeout=2
+                    from app.services.cp_import import cleanup_stale_imports
+
+                    cleaned = await asyncio.to_thread(cleanup_stale_imports)
+                    if cleaned:
+                        log.info("Removed %s stale import dirs", cleaned)
             finally:
                 db.close()
         except Exception:

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Импорт завершён — {{ app_name }}{% endblock %}
+{% block body %}
+{% include "cabinet/_layout_start.html" %}
+<section class="panel">
+  <h1>Импорт завершён</h1>
+  <div class="stat-row" style="margin:1rem 0">
+    <div class="stat"><div class="n">{{ result.created or 0 }}</div><div class="l">Создано</div></div>
+    <div class="stat"><div class="n">{{ result.updated or 0 }}</div><div class="l">Обновлено</div></div>
+    <div class="stat"><div class="n">{{ result.skipped or 0 }}</div><div class="l">Пропущено</div></div>
+    <div class="stat"><div class="n">{{ result.errors or 0 }}</div><div class="l">Ошибок</div></div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/cabinet/counterparties/">К картотеке</a>
+    {% if result.report_rel %}
+    <a class="btn secondary" href="/cabinet/counterparties/import/report">Скачать отчёт об ошибках</a>
+    {% endif %}
+    <a class="btn secondary" href="/cabinet/counterparties/import">Ещё файл</a>
+  </div>
+</section>
+{% include "cabinet/_layout_end.html" %}
+{% endblock %}

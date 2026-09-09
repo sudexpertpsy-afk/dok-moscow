@@ -184,7 +184,7 @@ web/app/services/jobs.py	F401	1
 web/app/services/jobs.py	I001	1
 web/app/services/jobs.py	SIM115	1
 web/app/services/journal.py	DTZ007	1
-web/app/services/landing_demo.py	BLE001	2
+web/app/services/landing_demo.py	BLE001	1
 web/app/services/landing_demo.py	I001	1
 web/app/services/leads.py	F401	1
 web/app/services/leads.py	I001	1
@@ -247,3 +247,4 @@ web/app/services/templates.py	I001	1
 web/app/static_assets.py	BLE001	1
 web/app/static_assets.py	FURB188	1
 web/app/yandex_oauth.py	I001	1
+web/app/routers/cp_import.py	B008	17
