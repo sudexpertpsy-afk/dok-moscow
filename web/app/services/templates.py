@@ -267,6 +267,7 @@ def generate_docx(
     context: dict,
     number: str | None = None,
     with_facsimile: bool = False,
+    counterparty_id: int | None = None,
 ) -> Document:
     """Сгенерировать DOCX, сохранить файл и запись documents.
 
@@ -313,7 +314,7 @@ def generate_docx(
     doc = Document(
         org_id=org.id,
         contract_id=None,
-        counterparty_id=None,
+        counterparty_id=counterparty_id,
         template=template_name,
         number=number or str(context.get("номер_договора") or "") or None,
         file_path=rel,

@@ -9,13 +9,19 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.deps import CurrentUser, require_csrf, require_org_user
-from app.models import Document, DocumentFormat, JobType
-from app.org_scope import get_document_for_org, get_org_for_user, require_org_id
+from app.models import Counterparty, Document, DocumentFormat, JobType
+from app.org_scope import get_document_for_org, get_org_for_user, list_counterparties, require_org_id
 from app.security import check_csrf, get_csrf_token
 from app.services.counters import allocate_number
 from app.services.jobs import enqueue_job
 from app.services.journal import delete_org_document
 from app.services.limits import assert_can_generate
+from app.services.package_master import (
+    CP_TO_TYPE,
+    TYPE_TO_CP,
+    core_from_counterparty,
+    infer_type,
+)
 from app.services.templates import (
     absolute_file,
     generate_docx,
@@ -57,6 +63,57 @@ def _page(request: Request, user: CurrentUser, org, db, **extra):
     }
     ctx.update(extra)
     return ctx
+
+
+def _resolve_counterparty(
+    db: Session, org_id: int, raw_id: str | None
+) -> Counterparty | None:
+    if not raw_id or not str(raw_id).strip().isdigit():
+        return None
+    cp = db.get(Counterparty, int(raw_id))
+    if cp is None or cp.org_id != org_id:
+        return None
+    return cp
+
+
+def _catalog_for_template(db: Session, org_id: int, template_name: str) -> list[Counterparty]:
+    тип = infer_type(template_name)
+    want = TYPE_TO_CP.get(тип)
+    cps = list_counterparties(db, org_id)
+    if want is None:
+        return cps
+    return [c for c in cps if c.type == want]
+
+
+def _prefill_from_card(
+    template_name: str, cp: Counterparty | None, base: dict[str, str] | None = None
+) -> dict[str, str]:
+    """Слить карточку в значения формы: непустое с формы/base побеждает, пустое — из карточки."""
+    out = {k: str(v or "") for k, v in (base or {}).items()}
+    if cp is None:
+        return out
+    тип = CP_TO_TYPE.get(cp.type) or infer_type(template_name)
+    for k, v in core_from_counterparty(тип, cp).items():
+        if not str(out.get(k) or "").strip() and v:
+            out[k] = v
+    return out
+
+
+def _document_form_extras(
+    db: Session,
+    org,
+    template_name: str,
+    *,
+    values: dict,
+    counterparty_id: int | None,
+):
+    cps = _catalog_for_template(db, org.id, template_name)
+    return {
+        "counterparties": cps,
+        "selected_counterparty_id": counterparty_id,
+        "counterparty_type_label": infer_type(template_name),
+        "values": values,
+    }
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -108,7 +165,16 @@ def document_form(
     from app.services.form_assist import enrich_form_context
     from app.services.settings_svc import bank_is_complete, ensure_requisites, is_bill_template
 
-    assist = enrich_form_context(db, org.id, variables, {}, template_name=template_name)
+    cp = _resolve_counterparty(
+        db, org.id, request.query_params.get("counterparty_id")
+    )
+    prefill = _prefill_from_card(template_name, cp)
+    assist = enrich_form_context(
+        db, org.id, variables, prefill, template_name=template_name
+    )
+    catalog = _document_form_extras(
+        db, org, template_name, values=assist["values"], counterparty_id=cp.id if cp else None
+    )
     flash_error = None
     if is_bill_template(template_name) and not bank_is_complete(ensure_requisites(org)):
         flash_error = (
@@ -133,7 +199,6 @@ def document_form(
             db,
             template_name=template_name,
             variables=variables,
-            values=assist["values"],
             field_meta=assist["field_meta"],
             number_peeks=assist["number_peeks"],
             standard_vars=assist["standard_vars"],
@@ -144,6 +209,7 @@ def document_form(
             facsimile_checked=fax_checked,
             facsimile_embed_docx=bool(prefs.get("embed_docx")),
             facsimile_has_images=org_has_any_branding(org.id),
+            **catalog,
         ),
     )
 
@@ -175,9 +241,19 @@ async def document_generate(
     org_map = org_field_map(db, org.id)
     assist_meta = enrich_form_context(db, org.id, variables, {}, template_name=template_name)
     field_meta = assist_meta["field_meta"]
+    cp = _resolve_counterparty(db, org.id, str(form.get("counterparty_id") or ""))
 
-    if is_bill_template(template_name) and not bank_is_complete(ensure_requisites(org)):
-        assist = enrich_form_context(db, org.id, variables, {}, template_name=template_name)
+    def _error_page(flash_error: str, values: dict, status_code: int = 400):
+        assist = enrich_form_context(
+            db, org.id, variables, values, template_name=template_name
+        )
+        catalog = _document_form_extras(
+            db,
+            org,
+            template_name,
+            values=assist["values"],
+            counterparty_id=cp.id if cp else None,
+        )
         return templates.TemplateResponse(
             request=request,
             name="cabinet/document_form.html",
@@ -188,17 +264,21 @@ async def document_generate(
                 db,
                 template_name=template_name,
                 variables=variables,
-                values=assist["values"],
                 field_meta=assist["field_meta"],
                 number_peeks=assist["number_peeks"],
                 standard_vars=assist["standard_vars"],
                 org_vars=assist["org_vars"],
-                flash_error=(
-                    "Сначала заполните банковские реквизиты в «Настройки → Банк» "
-                    "(расчётный счёт, банк, БИК, корр. счёт) — иначе в счёте они будут пустыми."
-                ),
+                flash_error=flash_error,
+                **catalog,
             ),
-            status_code=400,
+            status_code=status_code,
+        )
+
+    if is_bill_template(template_name) and not bank_is_complete(ensure_requisites(org)):
+        return _error_page(
+            "Сначала заполните банковские реквизиты в «Настройки → Банк» "
+            "(расчётный счёт, банк, БИК, корр. счёт) — иначе в счёте они будут пустыми.",
+            {},
         )
 
     context: dict = {}
@@ -208,28 +288,13 @@ async def document_generate(
             context[var] = "да" if form.get(var) else ""
         else:
             context[var] = str(form.get(var) or "").strip()
+    # пустые поля добрать из картотеки (если выбрана карточка)
+    context = _prefill_from_card(template_name, cp, context)
+
+    for var in variables:
         of = org_map.get(var)
-        if of is not None and of.required and not str(context[var] or "").strip():
-            assist = enrich_form_context(db, org.id, variables, context, template_name=template_name)
-            return templates.TemplateResponse(
-                request=request,
-                name="cabinet/document_form.html",
-                context=_page(
-                    request,
-                    user,
-                    org,
-                    db,
-                    template_name=template_name,
-                    variables=variables,
-                    values=assist["values"],
-                    field_meta=assist["field_meta"],
-                    number_peeks=assist["number_peeks"],
-                    standard_vars=assist["standard_vars"],
-                    org_vars=assist["org_vars"],
-                    flash_error=f"Заполните обязательное поле «{of.label}»",
-                ),
-                status_code=400,
-            )
+        if of is not None and of.required and not str(context.get(var) or "").strip():
+            return _error_page(f"Заполните обязательное поле «{of.label}»", context)
 
     number = None
     for field, key in _NUMBER_FIELDS.items():
@@ -299,28 +364,10 @@ async def document_generate(
             context=context,
             number=number,
             with_facsimile=bool(context.get("_facsimile_docx")),
+            counterparty_id=cp.id if cp else None,
         )
     except Exception as exc:
-        assist = enrich_form_context(db, org.id, variables, context, template_name=template_name)
-        return templates.TemplateResponse(
-            request=request,
-            name="cabinet/document_form.html",
-            context=_page(
-                request,
-                user,
-                org,
-                db,
-                template_name=template_name,
-                variables=variables,
-                values=assist["values"],
-                field_meta=assist["field_meta"],
-                number_peeks=assist["number_peeks"],
-                standard_vars=assist["standard_vars"],
-                org_vars=assist["org_vars"],
-                flash_error=f"Ошибка генерации: {exc}",
-            ),
-            status_code=400,
-        )
+        return _error_page(f"Ошибка генерации: {exc}", context)
 
     return RedirectResponse(
         f"/cabinet/documents/{doc.id}",
