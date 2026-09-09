@@ -7,6 +7,7 @@ from datetime import timedelta
 from pathlib import Path
 from zipfile import ZipFile
 
+import pytest
 from PIL import Image
 from sqlalchemy import select
 
@@ -143,7 +144,11 @@ def test_reserved_facsimile_names_w41():
 
 
 def test_templates_have_placeholders_allowed_not_forbidden():
-    root = Path("/workspace/core/Шаблоны")
+    root = Path(__file__).resolve().parents[2] / "core" / "Шаблоны"
+    if not root.is_dir():
+        root = Path("/workspace/core/Шаблоны")
+    if not root.is_dir():
+        pytest.skip("нет core/Шаблоны")
     for name in ("Счёт_на_оплату.docx", "Сопроводительное_письмо.docx"):
         xml = ZipFile(root / name).read("word/document.xml").decode("utf-8", errors="ignore")
         assert "факсимиле_директор" in xml, name

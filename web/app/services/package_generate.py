@@ -7,8 +7,8 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
 from app.models import Counterparty, CounterpartySource, Document, DocumentFormat, Organization
+from app.services.audit import record_event
 from app.services.calendar_svc import upsert_contract_from_package
 from app.services.counters import allocate_number
 from app.services.gotenberg import GotenbergError, convert_docx_to_pdf, merge_pdfs
@@ -52,35 +52,63 @@ def upsert_counterparty(
     тип: str,
     core_values: dict,
     existing_id: int | None,
+    *,
+    user_id: int | None = None,
 ) -> Counterparty:
+    """Создать/обновить карточку из контекста комплекта.
+
+    Непустое значение из формы побеждает карточку; пустое поле карточку не трогает.
+    """
     fields = counterparty_from_core(тип, core_values)
     if existing_id:
         cp = db.get(Counterparty, existing_id)
         if cp is None or cp.org_id != org_id:
             raise ValueError("Контрагент не найден")
+        changed: list[str] = []
         for k, v in fields.items():
             if k == "type":
                 continue
-            if v:
-                setattr(cp, k, v)
+            if isinstance(v, str):
+                v = v.strip()
+            if not v:
+                continue
+            old = getattr(cp, k, None)
+            old_s = (str(old).strip() if old is not None else "") or ""
+            new_s = str(v).strip()
+            if old_s == new_s:
+                continue
+            setattr(cp, k, new_s)
+            changed.append(k)
+        if changed:
+            record_event(
+                db,
+                type="counterparty.updated_on_generate",
+                org_id=org_id,
+                user_id=user_id,
+                details={"counterparty_id": cp.id, "fields": changed},
+                commit=False,
+            )
         db.flush()
         return cp
 
-    cp = Counterparty(
-        org_id=org_id,
-        type=fields["type"],
-        name=fields.get("name") or None,
-        fio=fields.get("fio") or None,
-        inn=fields.get("inn") or None,
-        kpp=fields.get("kpp") or None,
-        ogrn=fields.get("ogrn") or None,
-        address=fields.get("address") or None,
-        phone=fields.get("phone") or None,
-        email=fields.get("email") or None,
-        source=CounterpartySource.manual,
-    )
+    cp = Counterparty(org_id=org_id, type=fields["type"], source=CounterpartySource.manual)
+    for k, v in fields.items():
+        if k == "type":
+            continue
+        if isinstance(v, str):
+            v = v.strip() or None
+        if v:
+            setattr(cp, k, v)
     db.add(cp)
     db.flush()
+    record_event(
+        db,
+        type="counterparty.created_on_generate",
+        org_id=org_id,
+        user_id=user_id,
+        details={"counterparty_id": cp.id},
+        commit=False,
+    )
     return cp
 
 
@@ -115,7 +143,10 @@ def generate_package(
     additional_values = {k: merged.get(k, v) for k, v in additional_values.items()}
     additional_values.update({k: v for k, v in merged.items() if k not in core_values})
 
-    cp = upsert_counterparty(db, org.id, тип, core_values, counterparty_id)
+    # банк/паспорт часто в additional — передаём весь merged в карточку
+    cp = upsert_counterparty(
+        db, org.id, тип, merged, counterparty_id, user_id=user_id
+    )
     contexts = build_contexts(selected, core_values, additional_values, org_id=org.id)
     fax_map = facsimile_by_template or {}
 
