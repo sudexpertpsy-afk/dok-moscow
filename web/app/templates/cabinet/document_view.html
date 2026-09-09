@@ -30,7 +30,7 @@
       <div class="actions">
         <a class="btn" href="/cabinet/documents/{{ doc.id }}/download" hx-boost="false">Скачать</a>
         {% if doc.format.value == 'docx' %}
-        <form method="post" action="/cabinet/documents/{{ doc.id }}/pdf" style="display:inline">
+        <form method="post" action="/cabinet/documents/{{ doc.id }}/pdf" style="display:inline" hx-boost="false">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="secondary">В PDF (Gotenberg)</button>
         </form>

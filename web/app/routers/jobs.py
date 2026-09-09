@@ -26,6 +26,16 @@ def _get_job(db: Session, user: CurrentUser, job_id: int) -> Job:
     return job
 
 
+def _wants_job_fragment(request: Request) -> bool:
+    """Фрагмент только для поллинга панели (#job-body).
+
+    hx-boost после 303 на /cabinet/jobs/N тоже шлёт HX-Request — если отдать
+    fragment без hx-trigger, страница «Подготовка файла» зависает навсегда.
+    """
+    target = (request.headers.get("hx-target") or "").lstrip("#").strip()
+    return target == "job-body"
+
+
 @router.get("/{job_id}", response_class=HTMLResponse)
 def job_status_page(
     job_id: int,
@@ -35,9 +45,9 @@ def job_status_page(
 ):
     job = _get_job(db, user, job_id)
     org = get_org_for_user(db, user)
-    hx = request.headers.get("hx-request")
-    template = "cabinet/job_progress_fragment.html" if hx else "cabinet/job_progress.html"
-    return templates.TemplateResponse(
+    use_fragment = _wants_job_fragment(request)
+    template = "cabinet/job_progress_fragment.html" if use_fragment else "cabinet/job_progress.html"
+    response = templates.TemplateResponse(
         request=request,
         name=template,
         context={
@@ -52,6 +62,15 @@ def job_status_page(
             "JobStatus": JobStatus,
         },
     )
+    # Поллинг: после успеха уводим на карточку PDF (не оставляем «Готово» в фрагменте)
+    if (
+        use_fragment
+        and job.status == JobStatus.succeeded
+        and isinstance(job.result, dict)
+        and job.result.get("view_url")
+    ):
+        response.headers["HX-Redirect"] = str(job.result["view_url"])
+    return response
 
 
 @router.get("/{job_id}/download")

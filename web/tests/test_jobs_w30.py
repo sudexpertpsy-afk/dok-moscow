@@ -97,6 +97,82 @@ def test_document_pdf_http_enqueues(app):
     r2 = client.get(f"/cabinet/jobs/{job_id}")
     assert r2.status_code == 200
     assert "Готово" in r2.text or "Подготовка" in r2.text
+    assert 'id="job-panel"' in r2.text
+    assert 'hx-trigger="every 2s"' in r2.text
+
+
+def test_job_page_boost_gets_full_page_not_orphan_fragment(app):
+    """hx-boost после 303 шлёт HX-Request без HX-Target=job-body — нужна полная страница с поллингом."""
+    client, dbmod = app
+    org_id, user_id, doc_id, _ = _seed_doc(dbmod)
+    assert login(client, "jobs30@example.com", "Passw0rd!").status_code == 303
+    db = dbmod.SessionLocal()
+    try:
+        job = Job(
+            org_id=org_id,
+            user_id=user_id,
+            type=JobType.document_pdf,
+            status=JobStatus.pending,
+            payload={"document_id": doc_id},
+            progress=10,
+        )
+        db.add(job)
+        db.commit()
+        jid = job.id
+    finally:
+        db.close()
+
+    # Как hx-boost: HX-Request есть, но целевой элемент — не job-body
+    r = client.get(
+        f"/cabinet/jobs/{jid}",
+        headers={"HX-Request": "true", "HX-Target": "main"},
+    )
+    assert r.status_code == 200
+    assert 'id="job-panel"' in r.text
+    assert 'hx-trigger="every 2s"' in r.text
+    assert "Подготовка файла" in r.text
+
+    # Как поллинг панели
+    r_frag = client.get(
+        f"/cabinet/jobs/{jid}",
+        headers={"HX-Request": "true", "HX-Target": "job-body"},
+    )
+    assert r_frag.status_code == 200
+    assert 'id="job-panel"' not in r_frag.text
+    assert 'id="job-body"' in r_frag.text
+
+
+def test_job_poll_redirects_when_succeeded(app):
+    client, dbmod = app
+    org_id, user_id, doc_id, _ = _seed_doc(dbmod)
+    assert login(client, "jobs30@example.com", "Passw0rd!").status_code == 303
+    db = dbmod.SessionLocal()
+    try:
+        job = Job(
+            org_id=org_id,
+            user_id=user_id,
+            type=JobType.document_pdf,
+            status=JobStatus.succeeded,
+            payload={"document_id": doc_id},
+            progress=100,
+            result={
+                "document_id": doc_id,
+                "view_url": f"/cabinet/documents/{doc_id}",
+                "download_url": f"/cabinet/documents/{doc_id}/download",
+            },
+        )
+        db.add(job)
+        db.commit()
+        jid = job.id
+    finally:
+        db.close()
+
+    r = client.get(
+        f"/cabinet/jobs/{jid}",
+        headers={"HX-Request": "true", "HX-Target": "job-body"},
+    )
+    assert r.status_code == 200
+    assert r.headers.get("HX-Redirect") == f"/cabinet/documents/{doc_id}"
 
 
 def test_failed_job_stores_error(app):
