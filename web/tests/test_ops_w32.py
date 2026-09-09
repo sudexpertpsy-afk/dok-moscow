@@ -35,7 +35,9 @@ def _admin(dbmod):
         db.close()
 
 
-def test_cache_headers_cabinet_and_landing(app):
+def test_cache_headers_cabinet_and_landing(app, monkeypatch):
+    # сброс «недавнего purge», иначе max-age=0 вместо 300
+    monkeypatch.setattr("app.http_cache._PUBLIC_CACHE_PURGED_AT", 0.0)
     client, _ = app
     r = client.get("/")
     assert r.status_code == 200
@@ -136,6 +138,12 @@ def test_webhook_operational_no_email_security_alerts(app, monkeypatch):
         return True
 
     monkeypatch.setattr(ops_mod, "send_email", _fake_send)
+    # локальный диск может быть >75% — не смешивать с проверкой вебхука
+    monkeypatch.setattr(
+        ops_mod,
+        "disk_usage",
+        lambda: {"ok": True, "used_pct": 10, "path": "/", "free_gb": 100},
+    )
 
     _, dbmod = app
     d = ops_dir()

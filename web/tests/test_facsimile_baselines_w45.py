@@ -12,7 +12,10 @@ import pytest
 from app.services.templates import ensure_core_on_path, resolve_template_path
 
 BASELINES = Path(__file__).resolve().parent / "baselines" / "facsimile_clean.json"
-TEMPLATES_ROOT = Path("/workspace/core/Шаблоны")
+_REPO = Path(__file__).resolve().parents[2]
+TEMPLATES_ROOT = _REPO / "core" / "Шаблоны"
+if not TEMPLATES_ROOT.is_dir():
+    TEMPLATES_ROOT = Path("/workspace/core/Шаблоны")
 
 
 def _doc_xml_sha256(docx_path: Path) -> str:

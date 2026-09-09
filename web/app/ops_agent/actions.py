@@ -27,6 +27,16 @@ DEPLOY_LOG = OPS_STATE / "redeploy.log"
 DEPLOY_STATE = OPS_STATE / "redeploy_state.json"
 
 
+def _cpu_load() -> tuple[float, float, float] | None:
+    if not hasattr(os, "getloadavg"):
+        return None
+    try:
+        return os.getloadavg()
+    except OSError:
+        # macOS/sandbox иногда: Load averages are unobtainable
+        return None
+
+
 def _docker_client():
     try:
         import docker  # type: ignore
@@ -82,7 +92,7 @@ def collect_status() -> dict[str, Any]:
         "ts": datetime.now(timezone.utc).isoformat(),
         "hostname": platform.node(),
         "uptime_sec": _uptime_sec(),
-        "cpu_load": os.getloadavg() if hasattr(os, "getloadavg") else None,
+        "cpu_load": _cpu_load(),
         "memory": mem,
         "disk": disk,
         "python": platform.python_version(),

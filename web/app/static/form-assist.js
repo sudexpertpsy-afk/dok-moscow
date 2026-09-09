@@ -133,6 +133,7 @@
       ["кпп_заказчика", data.kpp],
       ["огрн_заказчика", data.ogrn],
       ["юр_адрес_заказчика", data.address],
+      ["адрес_заказчика", data.address],
       ["фио_подписанта", data.manager || data.fio],
     ];
     map.forEach(function (pair) {
@@ -146,21 +147,23 @@
   }
 
   function applyBankFields(form, data, el) {
+    var bik = data.bank_bik || data.bic;
+    var name = data.bank_name || data.value;
+    var corr = data.bank_corr_account || data.correspondent_account;
     var map = [
-      ["бик_заказчика", data.bank_bik || data.bic],
-      ["банк_заказчика", data.bank_name || data.value],
-      ["к_с_заказчика", data.bank_corr_account || data.correspondent_account],
+      ["бик_заказчика", bik],
+      ["банк_заказчика", name],
+      ["к_с_заказчика", corr],
+      ["бик", bik],
+      ["банк", name],
+      ["к_счёт", corr],
     ];
     map.forEach(function (pair) {
       var f = fieldByName(pair[0], form);
       if (f && pair[1]) f.value = pair[1];
     });
-    if (el.name === "бик_заказчика" && (data.bank_bik || data.bic)) {
-      el.value = data.bank_bik || data.bic;
-    }
-    if (el.name === "банк_заказчика" && (data.bank_name || data.value)) {
-      el.value = data.bank_name || data.value;
-    }
+    if ((el.name === "бик_заказчика" || el.name === "бик") && bik) el.value = bik;
+    if ((el.name === "банк_заказчика" || el.name === "банк") && name) el.value = name;
   }
 
   function bindSuggestFetch(el, box, urlBuilder, onPick) {

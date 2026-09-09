@@ -29,6 +29,7 @@ from app.services.package_master import (
     extra_options,
     field_defaults,
     infer_type,
+    merge_step3_values,
     selected_templates,
 )
 from app.services.package_wizard_store import clear_wizard, load_wizard, save_wizard
@@ -370,8 +371,20 @@ async def package_step3_post(
         return RedirectResponse("/cabinet/package/step2", status_code=303)
 
     core_names, additional = collect_fields(selected, data["тип"], org.id)
-    core_values = {f: str(form.get(f) or "").strip() for f in core_names}
-    additional_values = {f: str(form.get(f) or "").strip() for f in additional}
+    form_core = {f: str(form.get(f) or "").strip() for f in core_names}
+    form_additional = {f: str(form.get(f) or "").strip() for f in additional}
+    card_values: dict[str, str] = {}
+    if data.get("counterparty_id"):
+        cp = db.get(Counterparty, int(data["counterparty_id"]))
+        if cp is not None and cp.org_id == org.id:
+            card_values = core_from_counterparty(data["тип"], cp)
+    core_values, additional_values = merge_step3_values(
+        form_core=form_core,
+        form_additional=form_additional,
+        wizard_core=data.get("core_values") or {},
+        wizard_additional=data.get("additional_values") or {},
+        card_values=card_values,
+    )
     data["core_values"] = core_values
     data["additional_values"] = additional_values
     _save(request, data)

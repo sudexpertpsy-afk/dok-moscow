@@ -16,6 +16,7 @@ from app.models import Counterparty, CounterpartyType, JobType
 from app.nav_context import cabinet_nav
 from app.org_scope import get_org_for_user, require_org_id
 from app.security import check_csrf, get_csrf_token
+from app.services.audit import record_event
 from app.services.cp_import import (
     FIELD_KEYS,
     FIELD_LABELS,
@@ -40,7 +41,6 @@ from app.services.cp_import import (
     summarize,
     token_dir,
 )
-from app.services.audit import record_event
 from app.services.dadata import usage_today
 from app.services.jobs import enqueue_job
 from app.services.safe_paths import resolve_under_org

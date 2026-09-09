@@ -258,7 +258,7 @@ def display_name(template_name: str) -> str:
 
 
 def counterparty_from_core(тип: str, core: dict[str, Any]) -> dict[str, Any]:
-    """Поля Counterparty из ядра мастера."""
+    """Поля Counterparty из ядра мастера (паритет с desktop party_from_context)."""
     if тип == "Юрлицо":
         return {
             "type": CounterpartyType.ul,
@@ -267,51 +267,144 @@ def counterparty_from_core(тип: str, core: dict[str, Any]) -> dict[str, Any]:
             "inn": core.get("инн_заказчика") or "",
             "kpp": core.get("кпп_заказчика") or "",
             "ogrn": core.get("огрн_заказчика") or "",
-            "address": core.get("юр_адрес_заказчика") or "",
-            "phone": core.get("телефон_клиента") or "",
-            "email": core.get("email_клиента") or "",
+            "address": core.get("юр_адрес_заказчика")
+            or core.get("адрес_заказчика")
+            or "",
+            "phone": core.get("телефон_клиента") or core.get("телефон_заказчика") or "",
+            "email": core.get("email_клиента") or core.get("email_заказчика") or "",
+            "bank_name": core.get("банк_заказчика") or core.get("банк") or "",
+            "bank_bik": core.get("бик_заказчика") or core.get("бик") or "",
+            "bank_account": core.get("р_с_заказчика")
+            or core.get("р_счёт")
+            or core.get("расчётный_счёт")
+            or "",
+            "bank_corr_account": core.get("к_с_заказчика") or core.get("к_счёт") or "",
         }
     if тип == "Эксперт (ГПД)":
         return {
             "type": CounterpartyType.expert,
             "name": None,
             "fio": core.get("фио_эксперта") or "",
-            "phone": core.get("телефон") or "",
-            "email": core.get("email") or "",
-            "address": core.get("адрес_эксперта") or "",
+            "inn": core.get("инн") or core.get("инн_эксперта") or "",
+            "snils": core.get("снилс") or "",
+            "phone": core.get("телефон") or core.get("телефон_клиента") or "",
+            "email": core.get("email") or core.get("email_клиента") or "",
+            "address": core.get("адрес_эксперта") or core.get("адрес_клиента") or "",
+            "passport_series": core.get("паспорт_серия") or "",
+            "passport_number": core.get("паспорт_номер") or "",
+            "passport_issuer": core.get("паспорт_кем_выдан") or "",
+            "passport_date": core.get("паспорт_дата") or "",
         }
     return {
         "type": CounterpartyType.fl,
         "name": None,
         "fio": core.get("фио_клиента") or "",
+        "inn": core.get("инн") or core.get("инн_клиента") or "",
         "address": core.get("адрес_клиента") or "",
         "phone": core.get("телефон_клиента") or "",
         "email": core.get("email_клиента") or "",
+        "passport_series": core.get("паспорт_серия") or "",
+        "passport_number": core.get("паспорт_номер") or "",
+        "passport_issuer": core.get("паспорт_кем_выдан") or "",
+        "passport_date": core.get("паспорт_дата") or "",
+        "snils": core.get("снилс") or "",
+        "bank_name": core.get("банк") or "",
+        "bank_bik": core.get("бик") or "",
+        "bank_account": core.get("р_счёт") or core.get("расчётный_счёт") or "",
+        "bank_corr_account": core.get("к_счёт") or "",
     }
 
 
+def merge_step3_values(
+    *,
+    form_core: dict[str, str],
+    form_additional: dict[str, str],
+    wizard_core: dict[str, str] | None = None,
+    wizard_additional: dict[str, str] | None = None,
+    card_values: dict[str, str] | None = None,
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Порядок слияния шага 3: форма > мастер (wizard) > карточка.
+
+    Поля, пришедшие с формы (в т.ч. пустые), побеждают.
+    Ключи, которых нет на форме, подтягиваются с сервера из сессии мастера,
+    затем из карточки (только непустые) — без скрытых HTML-полей.
+    """
+    form_keys = set(form_core) | set(form_additional)
+    core = {k: str(v or "").strip() for k, v in form_core.items()}
+    additional = {k: str(v or "").strip() for k, v in form_additional.items()}
+
+    def _fill_missing(bag: dict[str, str] | None, *, into_additional: bool = False) -> None:
+        target = additional if into_additional else core
+        for k, v in (bag or {}).items():
+            if k in form_keys:
+                continue
+            val = str(v or "").strip()
+            if not val:
+                continue
+            if k in core or k in additional:
+                continue
+            target[k] = val
+
+    _fill_missing(wizard_core)
+    _fill_missing(wizard_additional, into_additional=True)
+    _fill_missing(card_values)
+    return core, additional
+
+
 def core_from_counterparty(тип: str, cp) -> dict[str, str]:
+    """Prefill wizard/документов из карточки (включая банк и паспорт для доп. полей шаблонов)."""
     if тип == "Юрлицо":
-        return {
+        out = {
             "название_заказчика": cp.name or "",
             "инн_заказчика": cp.inn or "",
             "кпп_заказчика": cp.kpp or "",
             "огрн_заказчика": cp.ogrn or "",
             "юр_адрес_заказчика": cp.address or "",
+            "адрес_заказчика": cp.address or "",
             "фио_подписанта": cp.fio or "",
             "телефон_клиента": cp.phone or "",
             "email_клиента": cp.email or "",
+            "банк_заказчика": cp.bank_name or "",
+            "бик_заказчика": cp.bank_bik or "",
+            "р_с_заказчика": cp.bank_account or "",
+            "к_с_заказчика": cp.bank_corr_account or "",
+            "банк": cp.bank_name or "",
+            "бик": cp.bank_bik or "",
+            "р_счёт": cp.bank_account or "",
+            "к_счёт": cp.bank_corr_account or "",
         }
+        return {k: v for k, v in out.items() if v}
     if тип == "Эксперт (ГПД)":
-        return {
+        out = {
             "фио_эксперта": cp.fio or "",
+            "инн": cp.inn or "",
+            "снилс": cp.snils or "",
             "адрес_эксперта": cp.address or "",
+            "адрес_клиента": cp.address or "",
             "телефон": cp.phone or "",
+            "телефон_клиента": cp.phone or "",
             "email": cp.email or "",
+            "email_клиента": cp.email or "",
+            "паспорт_серия": cp.passport_series or "",
+            "паспорт_номер": cp.passport_number or "",
+            "паспорт_кем_выдан": cp.passport_issuer or "",
+            "паспорт_дата": cp.passport_date or "",
         }
-    return {
+        return {k: v for k, v in out.items() if v}
+    out = {
         "фио_клиента": cp.fio or "",
+        "инн": cp.inn or "",
         "адрес_клиента": cp.address or "",
         "телефон_клиента": cp.phone or "",
         "email_клиента": cp.email or "",
+        "паспорт_серия": cp.passport_series or "",
+        "паспорт_номер": cp.passport_number or "",
+        "паспорт_кем_выдан": cp.passport_issuer or "",
+        "паспорт_дата": cp.passport_date or "",
+        "снилс": cp.snils or "",
+        "банк": cp.bank_name or "",
+        "бик": cp.bank_bik or "",
+        "р_счёт": cp.bank_account or "",
+        "к_счёт": cp.bank_corr_account or "",
     }
+    return {k: v for k, v in out.items() if v}

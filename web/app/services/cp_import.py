@@ -99,23 +99,72 @@ _SYNONYMS: dict[str, tuple[str, ...]] = {
         "фамилия имя отчество",
         "фио_клиента",
         "фио_эксперта",
+        "фио_подписанта",
     ),
-    "inn": ("инн", "inn", "инн_заказчика"),
+    "inn": ("инн", "inn", "инн_заказчика", "инн_клиента", "инн_эксперта"),
     "kpp": ("кпп", "kpp", "кпп_заказчика"),
     "ogrn": ("огрн", "огрнип", "ogrn", "огрн_заказчика"),
     "snils": ("снилс", "snils"),
     "passport_series": ("паспорт серия", "серия паспорта", "паспорт_серия", "серия"),
-    "passport_number": ("паспорт номер", "номер паспорта", "паспорт_номер", "номер"),
-    "passport_issuer": ("кем выдан", "паспорт_выдан", "выдан"),
-    "passport_date": ("дата выдачи", "паспорт_дата"),
-    "address": ("адрес", "юр_адрес", "адрес_клиента", "адрес регистрации"),
-    "phone": ("телефон", "тел.", "тел", "phone", "телефон_клиента"),
-    "email": ("email", "e-mail", "почта", "эл. почта", "email_клиента"),
-    "bank_name": ("банк", "название банка"),
-    "bank_bik": ("бик", "bik"),
-    "bank_account": ("расчётный счёт", "расчетный счет", "счёт", "счет", "р/с"),
-    "bank_corr_account": ("корр. счёт", "корр счет", "к/с", "коррсчёт"),
-    "notes": ("примечание", "заметки", "комментарий"),
+    "passport_number": (
+        "паспорт номер",
+        "номер паспорта",
+        "паспорт_номер",
+    ),
+    "passport_issuer": (
+        "кем выдан",
+        "паспорт_выдан",
+        "паспорт_кем_выдан",
+        "выдан",
+    ),
+    "passport_date": ("дата выдачи", "паспорт_дата", "дата выдачи паспорта"),
+    "address": (
+        "адрес",
+        "юр_адрес",
+        "юр_адрес_заказчика",
+        "адрес_заказчика",
+        "адрес_клиента",
+        "адрес_эксперта",
+        "адрес регистрации",
+        "юридический адрес",
+    ),
+    "phone": (
+        "телефон",
+        "тел.",
+        "тел",
+        "phone",
+        "телефон_клиента",
+        "телефон_заказчика",
+    ),
+    "email": (
+        "email",
+        "e-mail",
+        "почта",
+        "эл. почта",
+        "email_клиента",
+        "email_заказчика",
+    ),
+    "bank_name": ("банк", "название банка", "банк_заказчика"),
+    "bank_bik": ("бик", "bik", "бик_заказчика"),
+    "bank_account": (
+        "расчётный счёт",
+        "расчетный счет",
+        "р/с",
+        "р_с",
+        "р_счёт",
+        "р_с_заказчика",
+        "расчётный_счёт",
+        "расчетный_счет",
+    ),
+    "bank_corr_account": (
+        "корр. счёт",
+        "корр счет",
+        "к/с",
+        "коррсчёт",
+        "к_счёт",
+        "к_с_заказчика",
+    ),
+    "notes": ("примечание", "заметки", "комментарий", "статус"),
 }
 
 
@@ -338,30 +387,65 @@ def _journal_fields_from_context(ctx: dict) -> tuple[CounterpartyType, dict[str,
         typ = CounterpartyType.ul
         fields = {
             "name": name or None,
+            "fio": cell_str(ctx.get("фио_подписанта")) or None,
             "inn": inn or None,
             "kpp": cell_str(ctx.get("кпп_заказчика") or ctx.get("кпп")) or None,
             "ogrn": cell_str(ctx.get("огрн_заказчика") or ctx.get("огрн")) or None,
-            "address": cell_str(ctx.get("адрес_заказчика") or ctx.get("юр_адрес")) or None,
-            "phone": cell_str(ctx.get("телефон_заказчика") or ctx.get("телефон")) or None,
-            "email": cell_str(ctx.get("email_заказчика") or ctx.get("email")) or None,
+            "address": cell_str(
+                ctx.get("юр_адрес_заказчика")
+                or ctx.get("адрес_заказчика")
+                or ctx.get("юр_адрес")
+            )
+            or None,
+            "phone": cell_str(ctx.get("телефон_заказчика") or ctx.get("телефон_клиента") or ctx.get("телефон"))
+            or None,
+            "email": cell_str(ctx.get("email_заказчика") or ctx.get("email_клиента") or ctx.get("email"))
+            or None,
+            "bank_name": cell_str(ctx.get("банк_заказчика") or ctx.get("банк")) or None,
+            "bank_bik": cell_str(ctx.get("бик_заказчика") or ctx.get("бик")) or None,
+            "bank_account": cell_str(
+                ctx.get("р_с_заказчика") or ctx.get("р_счёт") or ctx.get("расчётный_счёт")
+            )
+            or None,
+            "bank_corr_account": cell_str(ctx.get("к_с_заказчика") or ctx.get("к_счёт")) or None,
         }
         return typ, fields
     if expert:
         return CounterpartyType.expert, {
             "fio": expert,
-            "inn": inn or None,
-            "address": cell_str(ctx.get("адрес_эксперта") or ctx.get("адрес")) or None,
+            "inn": inn or cell_str(ctx.get("инн_эксперта")) or None,
+            "snils": cell_str(ctx.get("снилс")) or None,
+            "address": cell_str(ctx.get("адрес_эксперта") or ctx.get("адрес_клиента") or ctx.get("адрес"))
+            or None,
+            "phone": cell_str(ctx.get("телефон") or ctx.get("телефон_клиента")) or None,
+            "email": cell_str(ctx.get("email") or ctx.get("email_клиента")) or None,
+            "passport_series": cell_str(ctx.get("паспорт_серия")) or None,
+            "passport_number": cell_str(ctx.get("паспорт_номер")) or None,
+            "passport_issuer": cell_str(
+                ctx.get("паспорт_кем_выдан") or ctx.get("паспорт_выдан")
+            )
+            or None,
+            "passport_date": cell_str(ctx.get("паспорт_дата")) or None,
         }
     if fio:
         return CounterpartyType.fl, {
             "fio": fio,
-            "inn": inn or None,
+            "inn": inn or cell_str(ctx.get("инн_клиента")) or None,
+            "snils": cell_str(ctx.get("снилс")) or None,
             "passport_series": cell_str(ctx.get("паспорт_серия")) or None,
             "passport_number": cell_str(ctx.get("паспорт_номер")) or None,
-            "passport_issuer": cell_str(ctx.get("паспорт_выдан")) or None,
+            "passport_issuer": cell_str(
+                ctx.get("паспорт_кем_выдан") or ctx.get("паспорт_выдан")
+            )
+            or None,
+            "passport_date": cell_str(ctx.get("паспорт_дата")) or None,
             "address": cell_str(ctx.get("адрес_клиента") or ctx.get("адрес")) or None,
             "phone": cell_str(ctx.get("телефон_клиента") or ctx.get("телефон")) or None,
             "email": cell_str(ctx.get("email_клиента") or ctx.get("email")) or None,
+            "bank_name": cell_str(ctx.get("банк")) or None,
+            "bank_bik": cell_str(ctx.get("бик")) or None,
+            "bank_account": cell_str(ctx.get("р_счёт") or ctx.get("расчётный_счёт")) or None,
+            "bank_corr_account": cell_str(ctx.get("к_счёт")) or None,
         }
     return None
 

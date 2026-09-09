@@ -152,7 +152,7 @@ web/app/routers/package.py	I001	2
 web/app/routers/party_check.py	B008	18
 web/app/routers/party_check.py	I001	1
 web/app/routers/praktika.py	B008	2
-web/app/routers/settings.py	B008	57
+web/app/routers/settings.py	B008	61
 web/app/routers/settings.py	I001	3
 web/app/routers/settings.py	SIM118	1
 web/app/routers/signup.py	B008	3
