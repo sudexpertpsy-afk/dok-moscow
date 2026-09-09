@@ -231,6 +231,13 @@ def test_wizard_http_and_idor(app):
     tpl = client.get("/cabinet/counterparties/import/template.xlsx")
     assert tpl.status_code == 200
     assert tpl.content[:2] == b"PK"
+    cd = tpl.headers.get("content-disposition", "")
+    assert "attachment" in cd
+    assert "filename=" in cd
+    r = client.get("/cabinet/counterparties/import")
+    assert r.status_code == 200
+    assert 'hx-boost="false"' in r.text
+    assert "template.xlsx" in r.text
 
     csrf = csrf_from(client, "/cabinet/counterparties/import")
     csv_body = "Тип;Наименование;ИНН\nЮЛ;ООО ИмпортТест;7707083893\n".encode("utf-8")

@@ -8,7 +8,8 @@
   {% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
 
   <div class="actions" style="margin:1rem 0">
-    <a class="btn secondary" href="/cabinet/counterparties/import/template.xlsx">Скачать шаблон Excel</a>
+    <a class="btn secondary" href="/cabinet/counterparties/import/template.xlsx"
+       hx-boost="false" download="Шаблон_импорта_контрагентов.xlsx">Скачать шаблон Excel</a>
     <a class="btn secondary" href="/cabinet/counterparties/">К списку</a>
   </div>
 

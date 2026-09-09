@@ -13,7 +13,8 @@
   <div class="actions">
     <a class="btn" href="/cabinet/counterparties/">К картотеке</a>
     {% if result.report_rel %}
-    <a class="btn secondary" href="/cabinet/counterparties/import/report">Скачать отчёт об ошибках</a>
+    <a class="btn secondary" href="/cabinet/counterparties/import/report"
+       hx-boost="false" download="import-errors.xlsx">Скачать отчёт об ошибках</a>
     {% endif %}
     <a class="btn secondary" href="/cabinet/counterparties/import">Ещё файл</a>
   </div>

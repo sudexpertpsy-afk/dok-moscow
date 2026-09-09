@@ -12,9 +12,9 @@
     <div class="alert alert-ok">Готово.</div>
     {% if job.result and job.result.view_url %}
       <p><a href="{{ job.result.view_url }}">Открыть документ</a>
-         · <a href="{{ job.result.download_url }}">Скачать</a></p>
+         · <a href="{{ job.result.download_url }}" hx-boost="false">Скачать</a></p>
     {% elif job.result and job.result.download_url %}
-      <p><a href="{{ job.result.download_url }}">Скачать файл</a></p>
+      <p><a href="{{ job.result.download_url }}" hx-boost="false">Скачать файл</a></p>
     {% endif %}
     <script>document.getElementById('job-panel')?.removeAttribute('hx-trigger');</script>
   {% else %}

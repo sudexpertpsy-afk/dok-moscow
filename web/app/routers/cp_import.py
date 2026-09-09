@@ -91,14 +91,18 @@ def _parse_mapping(form) -> dict[str, int | None]:
 @router.get("/import/template.xlsx")
 def import_template(user: CurrentUser = Depends(require_org_user)):
     data = build_template_xlsx()
+    fname = "Шаблон_импорта_контрагентов.xlsx"
+    # ASCII filename= — fallback для Safari; filename* — кириллица (RFC 5987).
+    # Ссылки на скачивание должны быть с hx-boost="false" (иначе HTMX вставит XLSX в #main).
     return Response(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
             "Content-Disposition": (
-                "attachment; filename*=UTF-8''"
-                + quote("Шаблон_импорта_контрагентов.xlsx")
-            )
+                'attachment; filename="import-counterparties.xlsx"; '
+                f"filename*=UTF-8''{quote(fname)}"
+            ),
+            "X-Content-Type-Options": "nosniff",
         },
     )
 
