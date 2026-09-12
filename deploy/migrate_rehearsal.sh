@@ -147,8 +147,8 @@ run_alembic() {
     log "→ alembic via web/.venv: ${args[*]}"
     (
       cd "$ROOT/web"
-      DATABASE_URL="$DATABASE_URL" DB_URL="$DATABASE_URL" \
-        PYTHONPATH=. .venv/bin/alembic "${args[@]}"
+      export DATABASE_URL DB_URL="$DATABASE_URL"
+      PYTHONPATH=. .venv/bin/alembic "${args[@]}"
     )
     return $?
   fi
