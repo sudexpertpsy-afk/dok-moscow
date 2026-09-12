@@ -1337,3 +1337,76 @@ def admin_status(
             ops=snap,
         ),
     )
+
+
+@router.post("/status/mail-test", response_class=RedirectResponse)
+def admin_status_mail_test(
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    """W-50 A.6: тестовое письмо для проверки SPF/DKIM/DMARC в «Показать оригинал»."""
+    from app.services.mail import send_email
+
+    settings = get_settings()
+    to_addr = (user.email or settings.admin_notify_email or "").strip()
+    if not to_addr:
+        return RedirectResponse(
+            "/admin/status?err=Нет+e-mail+получателя",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    body = (
+        "Тест доставляемости Док.Москва (W-50).\n\n"
+        "Откройте письмо → «Показать оригинал» и проверьте:\n"
+        "  SPF: PASS\n  DKIM: PASS\n  DMARC: PASS\n\n"
+        "Если все три PASS — нажмите «Подтвердить SPF/DKIM/DMARC» на /admin/status.\n"
+    )
+    ok = send_email(
+        settings,
+        to_addr=to_addr,
+        subject=f"[{settings.app_name}] Тест доставляемости",
+        body=body,
+    )
+    record_event(
+        db,
+        type="ops.mail_test_sent",
+        org_id=None,
+        user_id=user.id,
+        details={"ok": bool(ok)},
+        commit=True,
+    )
+    if ok:
+        return RedirectResponse(
+            "/admin/status?ok=Тестовое+письмо+отправлено.+Проверьте+«Показать+оригинал».",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    return RedirectResponse(
+        "/admin/status?err=Не+удалось+отправить.+Проверьте+SMTP.",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/status/mail-confirm", response_class=RedirectResponse)
+def admin_status_mail_confirm(
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(require_csrf),
+):
+    """W-50 A.6: владелец подтвердил PASS в оригинале письма."""
+    from app.ops.mail_auth import write_mail_auth_ok
+
+    write_mail_auth_ok(checked_by=user.email or f"user:{user.id}")
+    record_event(
+        db,
+        type="ops.mail_auth_confirmed",
+        org_id=None,
+        user_id=user.id,
+        details={},
+        commit=True,
+    )
+    return RedirectResponse(
+        "/admin/status?ok=Маркер+mail_auth_ok+записан.",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )

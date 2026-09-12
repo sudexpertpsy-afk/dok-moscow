@@ -327,6 +327,12 @@ def _run_daily_jobs() -> None:
             calendar_reminders=n_cal,
             self_serve_cleanup=cleanup,
         )
+        try:
+            from app.ops.daily import run_ops_daily
+
+            run_ops_daily(db)
+        except Exception:
+            log.exception("ops_daily failed")
     finally:
         db.close()
 

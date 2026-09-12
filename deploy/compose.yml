@@ -51,8 +51,8 @@ services:
       # W-46: host-путь == контейнер (вместо named volume dok_files)
       - /srv/dok/data/files:/srv/dok/data/files
       - /srv/dok/data/templates:/srv/dok/data/templates
-      # маркер deploy.sh → /admin/status дрейф APP_VERSION
-      - /srv/dok/data/ops:/srv/dok/data/ops:ro
+      # маркер deploy.sh → /admin/status; W-50 mail_auth_ok / restore_drill
+      - /srv/dok/data/ops:/srv/dok/data/ops
     depends_on:
       postgres:
         condition: service_healthy
@@ -112,6 +112,8 @@ services:
     volumes:
       - /srv/dok/data/files:/srv/dok/data/files
       - /srv/dok/data/templates:/srv/dok/data/templates
+      # W-50: маркеры data/ops (restore_drill, mail_auth_ok, deployed_version)
+      - /srv/dok/data/ops:/srv/dok/data/ops
     depends_on:
       postgres:
         condition: service_healthy

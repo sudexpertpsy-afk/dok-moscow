@@ -323,7 +323,11 @@ def test_route_exception_notes_cover_set():
 
 
 def test_disk_alert_threshold_w46():
-    """W-46 §3: алерт диска с 75%, не 85%."""
-    from app.services.ops import DISK_ALERT_PCT
+    """W-50: красный порог диска 60% (цель ≤35%, жёлтый до 60%)."""
+    from app.ops.thresholds import DISK_ALERT_PCT, DISK_OK_PCT, DISK_WARN_PCT
+    from app.services.ops import DISK_ALERT_PCT as OPS_DISK
 
-    assert DISK_ALERT_PCT == 75.0
+    assert DISK_ALERT_PCT == 60.0
+    assert DISK_WARN_PCT == 60.0
+    assert DISK_OK_PCT == 35.0
+    assert OPS_DISK == 60.0

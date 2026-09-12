@@ -46,7 +46,7 @@ fi
 
 echo "→ подъём postgres (если ещё не запущен)"
 docker compose --env-file .env up -d postgres
-for i in $(seq 1 30); do
+for _ in $(seq 1 30); do
   if docker compose --env-file .env exec -T postgres pg_isready -U dok -d dok >/dev/null 2>&1; then
     break
   fi
