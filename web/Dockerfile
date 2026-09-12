@@ -33,6 +33,7 @@ COPY web/app ./app
 COPY web/alembic.ini ./alembic.ini
 COPY web/alembic ./alembic
 COPY web/scripts ./scripts
+COPY web/manage.py ./manage.py
 COPY web/docker-entrypoint.sh /docker-entrypoint.sh
 # W-46: ядро и seed-шаблоны в образе (без bind ../core на проде)
 COPY core ./core
