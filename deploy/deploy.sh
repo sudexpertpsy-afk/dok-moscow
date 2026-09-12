@@ -53,17 +53,75 @@ while [[ $# -gt 0 ]]; do
 done
 
 mkdir -p "$OPS_DIR"
+# Контейнеры (root) и хост (deploy) пишут в data/ops — группа+sticky.
+chmod 2775 "$OPS_DIR" 2>/dev/null || chmod 775 "$OPS_DIR" 2>/dev/null || true
 log() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $*" | tee -a "$LOG"; }
+
+# W-50 A.1: каноническая строка результата деплоя.
+# Формат: <ISO> tag=<tag> sha=<sha> status=ok|fail df=<pcent>
+log_deploy_result() {
+  local status="$1"
+  local tag_v="${TAG:-${APP_VERSION:-none}}"
+  local sha_v
+  sha_v="$(docker image inspect "${DOK_IMAGE:-}" --format '{{.Id}}' 2>/dev/null | sed 's/^sha256://; s/^\(.\{12}\).*/\1/' || true)"
+  sha_v="${sha_v:-unknown}"
+  local df_v
+  df_v="$(df --output=pcent / 2>/dev/null | tail -1 | tr -d ' ' || echo n/a)"
+  log "tag=${tag_v} sha=${sha_v} status=${status} df=${df_v}"
+}
+
+previous_ok_tag_from_log() {
+  # Предпоследний status=ok; fallback на legacy «deploy done tag=».
+  # При одной записи возвращаем пусто — иначе PREV==текущий и prune снимет rollback-тег.
+  if [[ ! -f "$LOG" ]]; then
+    echo ""
+    return 0
+  fi
+  local tags
+  tags="$(grep -E 'status=ok' "$LOG" | sed -n 's/.*tag=\([^ ]*\).*/\1/p' || true)"
+  if [[ -z "$tags" ]]; then
+    tags="$(grep -E 'deploy done tag=' "$LOG" | sed -n 's/.*tag=\([^ ]*\).*/\1/p' || true)"
+  fi
+  if [[ -z "$tags" ]]; then
+    echo ""
+    return 0
+  fi
+  local n
+  n="$(echo "$tags" | grep -c . || true)"
+  if [[ "${n:-0}" -lt 2 ]]; then
+    echo ""
+    return 0
+  fi
+  echo "$tags" | tail -n 2 | head -n 1
+}
+
+# Тег образа работающего app (до compose up — для PREV_TAG fallback).
+running_app_image_tag() {
+  local img
+  img="$(docker compose --env-file .env ps --format '{{.Image}}' app 2>/dev/null | head -n1 || true)"
+  if [[ -z "$img" ]]; then
+    img="$(docker inspect dok-app-1 --format '{{.Config.Image}}' 2>/dev/null || true)"
+  fi
+  if [[ -z "$img" ]]; then
+    echo ""
+    return 0
+  fi
+  # ghcr.io/.../dok-app:v1.2.2 → v1.2.2
+  if [[ "$img" == *:* ]]; then
+    echo "${img##*:}"
+  else
+    echo ""
+  fi
+}
 
 if [[ "$ROLLBACK" -eq 1 ]]; then
   if [[ ! -f "$LOG" ]]; then
     echo "✗ Нет $LOG — откатывать нечего"
     exit 1
   fi
-  # Предпоследний успешный tag= из лога
-  TAG="$(grep -E 'deploy done tag=' "$LOG" | tail -n 2 | head -n 1 | sed -n 's/.*tag=\([^ ]*\).*/\1/p' || true)"
+  TAG="$(previous_ok_tag_from_log)"
   if [[ -z "$TAG" ]]; then
-    echo "✗ В логе нет предыдущего tag= для rollback"
+    echo "✗ В логе нет предыдущего status=ok tag= для rollback"
     exit 1
   fi
   echo "→ rollback на tag=$TAG"
@@ -153,9 +211,46 @@ smoke() {
   if [[ "$ok" -ne 1 ]]; then
     echo "✗ smoke /healthz не прошёл"
     docker compose --env-file .env logs app --tail 40 || true
+    log_deploy_result fail
     exit 1
   fi
   docker compose --env-file .env exec -T app curl -sf http://127.0.0.1:8000/healthz || true
+}
+
+# W-50 A.1: оставить текущий и предыдущий успешный тег dok-app (для --rollback).
+# PREV: предпоследний status=ok; если пуст/равен текущему — тег app ДО compose up.
+prune_old_dok_app_tags() {
+  local image="${GHCR_IMAGE:-$GHCR_IMAGE_DEFAULT}"
+  local keep_tag="${TAG:-${APP_VERSION:-}}"
+  local prev_tag
+  prev_tag="$(previous_ok_tag_from_log)"
+  if [[ -z "$prev_tag" || "$prev_tag" == "$keep_tag" ]]; then
+    prev_tag="${PRE_DEPLOY_TAG:-}"
+  fi
+  if [[ -z "$prev_tag" || "$prev_tag" == "$keep_tag" ]]; then
+    prev_tag="$(running_app_image_tag)"
+  fi
+  if [[ "$prev_tag" == "$keep_tag" ]]; then
+    prev_tag=""
+  fi
+  echo "→ prune dok-app: keep=${keep_tag:-none},${prev_tag:-none}"
+  if [[ -z "$keep_tag" ]]; then
+    echo "⚠ prune: нет текущего тега — пропуск"
+    return 0
+  fi
+  local tag
+  while IFS= read -r tag; do
+    [[ -z "$tag" || "$tag" == "<none>" ]] && continue
+    if [[ "$tag" == "$keep_tag" || ( -n "$prev_tag" && "$tag" == "$prev_tag" ) ]]; then
+      continue
+    fi
+    echo "  rm ${image}:${tag}"
+    docker image rm -f "${image}:${tag}" >/dev/null 2>&1 || true
+  done < <(docker images "$image" --format '{{.Tag}}' 2>/dev/null || true)
+  docker image prune -f >/dev/null 2>&1 || true
+  local df_v
+  df_v="$(df --output=pcent / 2>/dev/null | tail -1 | tr -d ' ' || echo n/a)"
+  log "prune done: keep=${keep_tag},${prev_tag:-none} df=${df_v}"
 }
 
 # Только pull по тегу / DOK_IMAGE из .env (без compose build на сервере)
@@ -206,14 +301,17 @@ else
 fi
 
 echo "→ docker compose up -d"
+# Снимок тега ДО смены контейнера — fallback PREV для prune (пустой deploy.log).
+PRE_DEPLOY_TAG="$(running_app_image_tag)"
+echo "→ pre-deploy running tag=${PRE_DEPLOY_TAG:-none}"
 docker compose --env-file .env up -d --remove-orphans
 
 smoke
 
-echo "→ docker image prune (старше 168h)"
-docker image prune -af --filter "until=168h" >/dev/null || true
+# Сначала status=ok в лог — затем PREV = предпоследний ok (текущий уже последний).
+log_deploy_result ok
+prune_old_dok_app_tags
 
 docker compose --env-file .env ps
-log "deploy done tag=${TAG:-${APP_VERSION:-none}} image=${DOK_IMAGE:-dok-app:local}"
 
 echo "✓ Обновление завершено. Проверьте https://app.dok.moscow/login"

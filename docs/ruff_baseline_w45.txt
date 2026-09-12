@@ -90,7 +90,7 @@ web/app/ops_agent/actions.py	S110	1
 web/app/ops_agent/actions.py	SIM102	1
 web/app/ops_agent/actions.py	SIM115	1
 web/app/ops_agent/app.py	I001	1
-web/app/routers/admin.py	B008	56
+web/app/routers/admin.py	B008	60
 web/app/routers/admin.py	F401	1
 web/app/routers/admin.py	F841	1
 web/app/routers/admin.py	I001	2

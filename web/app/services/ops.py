@@ -20,12 +20,10 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import Document, Event, Organization, Payment, PaymentStatus, User, utcnow
+from app.ops.thresholds import DISK_ALERT_PCT, tone_disk_pct
 from app.services.mail import send_email
 
 log = logging.getLogger("dok.ops")
-
-# W-46 §3: порог алерта диска (было 85%).
-DISK_ALERT_PCT = 75.0
 
 _RING_MAX = 2000
 _lock = threading.Lock()
@@ -135,16 +133,25 @@ def disk_usage() -> dict[str, Any]:
     try:
         usage = shutil.disk_usage(root)
         pct = round(100.0 * usage.used / usage.total, 1) if usage.total else 0.0
+        tone = tone_disk_pct(pct)
         return {
             "path": str(root),
             "total_gb": round(usage.total / (1024**3), 2),
             "used_gb": round(usage.used / (1024**3), 2),
             "free_gb": round(usage.free / (1024**3), 2),
             "used_pct": pct,
-            "ok": pct < DISK_ALERT_PCT,
+            "tone": tone,
+            # ok = не красный (алерт только на danger); жёлтый 35–60% — предупреждение в UI
+            "ok": tone != "danger",
         }
     except Exception as exc:
-        return {"path": str(root), "error": str(exc), "ok": False, "used_pct": 100.0}
+        return {
+            "path": str(root),
+            "error": str(exc),
+            "ok": False,
+            "used_pct": 100.0,
+            "tone": "danger",
+        }
 
 
 def db_size_bytes(db: Session) -> int | None:
@@ -281,6 +288,135 @@ def status_snapshot(db: Session) -> dict[str, Any]:
     # прод не должен светить cursor/* как версию
     on_cursor_branch = app_version.startswith("cursor/")
 
+    from app.ops.certs import host_from_url
+    from app.ops.mail_auth import (
+        mail_auth_age_days,
+        read_mail_auth_ok,
+        read_restore_drill,
+        restore_drill_age_days,
+        smtp_from_ok,
+    )
+    from app.ops.metrics import disk_trend_gb_per_week
+    from app.ops.thresholds import (
+        ThresholdResult,
+        tone_backup_hours,
+        tone_disk_trend,
+        tone_mail_auth,
+        tone_restore_days,
+        tone_tls_days,
+        tone_worker_sec,
+    )
+
+    hosts: list[str] = []
+    for url in (settings.public_base_url, settings.app_base_url):
+        h = host_from_url(url)
+        if h and h not in hosts:
+            hosts.append(h)
+
+    # TLS только из маркера ops_daily (live-probe — в worker, не на каждый GET /admin/status).
+    ops_daily = read_marker("ops_daily") or {}
+    tls_cached = ops_daily.get("tls") if isinstance(ops_daily.get("tls"), dict) else {}
+    tls_rows: list[dict[str, Any]] = []
+    for h in hosts:
+        days = tls_cached.get(h)
+        days_i = int(days) if isinstance(days, (int, float)) else None
+        tls_rows.append(
+            {
+                "host": h,
+                "days_left": days_i,
+                "tone": tone_tls_days(days_i),
+            }
+        )
+
+    trend = disk_trend_gb_per_week()
+    backup_age_h = (backup_age / 3600.0) if backup_age is not None else None
+    restore_age_d = restore_drill_age_days(settings)
+    restore_detail = read_restore_drill(settings)
+    from_ok, from_detail = smtp_from_ok(settings)
+    mail_age_d = mail_auth_age_days(settings)
+    mail_marker = read_mail_auth_ok(settings)
+
+    checklist: list[ThresholdResult] = [
+        ThresholdResult(
+            key="disk",
+            label="Диск /",
+            fact=f"{disk.get('used_pct')}% · свободно {disk.get('free_gb')} ГБ",
+            tone=disk.get("tone") or tone_disk_pct(
+                float(disk["used_pct"]) if isinstance(disk.get("used_pct"), (int, float)) else None
+            ),
+            how_to="prune",
+        ),
+        ThresholdResult(
+            key="disk_trend",
+            label="Тренд диска",
+            fact=(f"{trend} ГБ/нед" if trend is not None else "н/д (мало точек)"),
+            tone=tone_disk_trend(trend),
+            how_to="prune",
+        ),
+    ]
+    for row in tls_rows:
+        days = row["days_left"]
+        checklist.append(
+            ThresholdResult(
+                key=f"tls_{row['host']}",
+                label=f"TLS {row['host']}",
+                fact=(f"{days} дн. до notAfter" if days is not None else "н/д"),
+                tone=row["tone"],
+                how_to="tls",
+            )
+        )
+    checklist.extend(
+        [
+            ThresholdResult(
+                key="backup",
+                label="Бэкап (маркер)",
+                fact=_fmt_age(backup_age),
+                tone=tone_backup_hours(backup_age_h),
+                how_to="бэкапы",
+            ),
+            ThresholdResult(
+                key="restore_drill",
+                label="Restore drill",
+                fact=(
+                    f"{restore_age_d:.0f} дн. назад · {restore_detail.get('backup')}"
+                    if restore_age_d is not None and restore_detail
+                    else "нет маркера data/ops/restore_drill.json"
+                ),
+                tone=tone_restore_days(restore_age_d),
+                how_to="restore-drill",
+            ),
+            ThresholdResult(
+                key="worker",
+                label="Worker heartbeat",
+                fact=_fmt_age(worker_age),
+                tone=tone_worker_sec(worker_age),
+                how_to="аварии",
+            ),
+            ThresholdResult(
+                key="mail",
+                label="Почта (From / SPF)",
+                fact=(
+                    f"{from_detail}; маркер "
+                    + (
+                        f"{mail_age_d:.0f} дн."
+                        if mail_age_d is not None
+                        else "нет mail_auth_ok"
+                    )
+                ),
+                tone=tone_mail_auth(from_ok=from_ok, marker_age_days=mail_age_d),
+                how_to="почта",
+            ),
+            ThresholdResult(
+                key="version",
+                label="Прод = тег деплоя",
+                fact=f"{app_version}"
+                + (f" · ожидается {expected}" if expected else ""),
+                tone="ok" if (version_ok and not on_cursor_branch) else "danger",
+                how_to="обновление",
+            ),
+        ]
+    )
+
     return {
         "latency": latency_stats(),
         "disk": disk,
@@ -308,6 +444,22 @@ def status_snapshot(db: Session) -> dict[str, Any]:
             "quiet_hours": float(alert_cfg["quiet_hours"]),
         },
         "backup_detail": backup,
+        "checklist": [
+            {
+                "key": c.key,
+                "label": c.label,
+                "fact": c.fact,
+                "tone": c.tone,
+                "how_to": c.how_to,
+            }
+            for c in checklist
+        ],
+        "tls": tls_rows,
+        "mail_from_ok": from_ok,
+        "mail_from_detail": from_detail,
+        "mail_auth": mail_marker,
+        "restore_drill": restore_detail,
+        "disk_trend_gb_week": trend,
     }
 
 

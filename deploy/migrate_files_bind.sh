@@ -59,7 +59,7 @@ echo "→ compose up (ожидается обновлённый compose.yml с b
 docker compose --env-file .env up -d --remove-orphans
 
 echo "→ wait app"
-for i in $(seq 1 40); do
+for _ in $(seq 1 40); do
   if docker compose --env-file .env exec -T app true 2>/dev/null; then
     break
   fi

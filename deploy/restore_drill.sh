@@ -45,7 +45,7 @@ fi
 
 echo "→ подъём postgres (если нужно)"
 docker compose --env-file .env up -d postgres
-for i in $(seq 1 30); do
+for _ in $(seq 1 30); do
   if docker compose --env-file .env exec -T postgres pg_isready -U dok -d dok >/dev/null 2>/dev/null; then
     break
   fi
@@ -129,4 +129,15 @@ if [[ "$FAIL" -ne 0 ]]; then
   echo "✗ Restore drill завершён с расхождениями"
   exit 1
 fi
+
+# W-50 A.2: маркер для /admin/status (порог 90 дней)
+OPS_DIR="${OPS_DIR:-/srv/dok/data/ops}"
+mkdir -p "$OPS_DIR"
+ARCHIVE_NAME="$(basename "$ARCHIVE")"
+CHECKED_BY="${SUDO_USER:-${USER:-deploy}}"
+cat > "$OPS_DIR/restore_drill.json" <<EOF
+{"date":"$(date -u +%Y-%m-%d)","backup":"${ARCHIVE_NAME}","pg_ok":true,"files_ok":true,"checked_by":"${CHECKED_BY}"}
+EOF
+echo "→ маркер $OPS_DIR/restore_drill.json"
+
 echo "✓ Restore drill OK (прод не изменялся)"

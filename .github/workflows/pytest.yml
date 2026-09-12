@@ -9,6 +9,19 @@ permissions:
   contents: read
 
 jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: ShellCheck deploy scripts
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: deploy
+          severity: warning
+        env:
+          SHELLCHECK_OPTS: --shell=bash
+
   test:
     runs-on: ubuntu-latest
     defaults:

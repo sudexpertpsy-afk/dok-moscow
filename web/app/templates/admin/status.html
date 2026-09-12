@@ -3,6 +3,13 @@
 {% block body %}
 {% include "admin/_layout_start.html" %}
 
+{% if request.query_params.get('ok') %}
+<p class="flash ok">{{ request.query_params.get('ok') }}</p>
+{% endif %}
+{% if request.query_params.get('err') %}
+<p class="flash err">{{ request.query_params.get('err') }}</p>
+{% endif %}
+
 <section class="panel">
   <h1>Статус конфигурации</h1>
   <p class="muted">Проверка окружения без секретов в открытом виде.</p>
@@ -14,6 +21,38 @@
     </li>
     {% endfor %}
   </ul>
+</section>
+
+<section class="panel" style="margin-top:1.25rem">
+  <h2>Чек-лист по порогам (W-50)</h2>
+  <p class="muted">Красный — алерт; жёлтый — внимание; зелёный — в пороге.
+    Подробности: <a href="/docs">docs/эксплуатация.md</a> (якоря prune / tls / почта / restore-drill).</p>
+  <ul class="status-list" style="margin-top:1rem">
+    {% for row in ops.checklist or [] %}
+    <li>
+      <span><strong>{{ row.label }}</strong> — <span class="muted">{{ row.fact }}</span>
+        · <a class="muted" href="#{{ row.how_to }}">что делать</a></span>
+      {% if row.tone == 'ok' %}<span class="badge ok">ok</span>
+      {% elif row.tone == 'warn' %}<span class="badge warn">внимание</span>
+      {% elif row.tone == 'danger' %}<span class="badge warn">порог</span>
+      {% else %}<span class="badge ok">info</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  <div style="margin-top:1rem; display:flex; gap:0.75rem; flex-wrap:wrap">
+    <form method="post" action="/admin/status/mail-test">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn">Тест доставляемости</button>
+    </form>
+    <form method="post" action="/admin/status/mail-confirm"
+          onsubmit="return confirm('В оригинале письма SPF/DKIM/DMARC = PASS?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-secondary">Подтвердить SPF/DKIM/DMARC</button>
+    </form>
+  </div>
+  <p class="muted" style="margin-top:0.5rem;font-size:0.9rem">
+    From: {{ ops.mail_from_detail }}{% if ops.mail_auth %} · маркер {{ ops.mail_auth.date }}{% endif %}
+  </p>
 </section>
 
 <section class="panel" style="margin-top:1.25rem">
@@ -35,8 +74,10 @@
       {% if ops.webhook.ok %}<span class="badge ok">ok</span>{% else %}<span class="badge warn">проверить</span>{% endif %}
     </li>
     <li>
-      <span><strong>Диск (FILES_ROOT)</strong> — <span class="muted">{{ ops.disk.used_pct }}% · свободно {{ ops.disk.free_gb }} ГБ из {{ ops.disk.total_gb }} ГБ</span></span>
-      {% if ops.disk.ok %}<span class="badge ok">ok</span>{% else %}<span class="badge warn">проверить</span>{% endif %}
+      <span><strong>Диск (FILES_ROOT)</strong> — <span class="muted">{{ ops.disk.used_pct }}% · свободно {{ ops.disk.free_gb }} ГБ из {{ ops.disk.total_gb }} ГБ{% if ops.disk_trend_gb_week is not none %} · тренд {{ ops.disk_trend_gb_week }} ГБ/нед{% endif %}</span></span>
+      {% if ops.disk.tone == 'ok' %}<span class="badge ok">ok</span>
+      {% elif ops.disk.tone == 'warn' %}<span class="badge warn">внимание</span>
+      {% else %}<span class="badge warn">порог</span>{% endif %}
     </li>
     <li>
       <span><strong>Размер БД</strong> — <span class="muted">{% if ops.db_size_mb is not none %}{{ ops.db_size_mb }} МБ{% else %}н/д{% endif %}</span></span>
