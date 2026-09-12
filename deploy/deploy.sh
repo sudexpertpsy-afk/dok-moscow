@@ -354,7 +354,30 @@ docker pull "$DOK_IMAGE"
 
 if [[ "$REHEARSE" -eq 1 ]]; then
   echo "→ migrate_rehearsal.sh (образ уже pull, до compose up)"
-  if ! DOK_IMAGE="$DOK_IMAGE" OPS_DIR="$OPS_DIR" "$ROOT/deploy/migrate_rehearsal.sh"; then
+  # Бэкапы и backup.key на VDS часто root-only — поднимаем права при необходимости
+  _rehearse_cmd=(env "DOK_IMAGE=$DOK_IMAGE" "OPS_DIR=$OPS_DIR" "$ROOT/deploy/migrate_rehearsal.sh")
+  _backup_dir="${BACKUP_DIR:-$(_env_get BACKUP_DIR)}"
+  _backup_dir="${_backup_dir:-/var/backups/dok}"
+  _age_key="${AGE_IDENTITY:-$(_env_get AGE_IDENTITY)}"
+  _age_key="${_age_key:-$DEPLOY/backup.key}"
+  if [[ ! -r "$_backup_dir/daily" || ! -r "$_age_key" ]]; then
+    if command -v sudo >/dev/null 2>&1; then
+      echo "→ rehearsal через sudo (нет чтения $_backup_dir/daily или ключа)"
+      # -E на VDS часто запрещён — передаём env явно
+      _rehearse_cmd=(
+        sudo env
+        "DOK_IMAGE=$DOK_IMAGE"
+        "OPS_DIR=$OPS_DIR"
+        "BACKUP_DIR=$_backup_dir"
+        "AGE_IDENTITY=$_age_key"
+        "$ROOT/deploy/migrate_rehearsal.sh"
+      )
+    else
+      echo "✗ Нет чтения бэкапов ($_backup_dir) и нет sudo"
+      exit 1
+    fi
+  fi
+  if ! "${_rehearse_cmd[@]}"; then
     log "✗ migrate_rehearsal failed — деплой прерван, прод не обновлён"
     exit 1
   fi
