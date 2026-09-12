@@ -54,9 +54,17 @@
     <label style="display:flex;gap:0.5rem;align-items:center;margin-top:0.9rem">
       <input type="checkbox" name="require_2fa_for_org_admins" value="1" style="width:auto"
         {% if settings_row and settings_row.require_2fa_for_org_admins %}checked{% endif %}>
-      Требовать 2FA для администраторов организаций
+      Жёстко требовать 2FA для администраторов организаций
     </label>
     <p class="muted">По умолчанию выключено. При включении пользователи организаций без 2FA проходят мастер включения после входа.</p>
+
+    <label style="display:flex;gap:0.5rem;align-items:center;margin-top:0.9rem">
+      <input type="checkbox" name="two_fa_policy_enabled" value="1" style="width:auto"
+        {% if not settings_row or settings_row.two_fa_policy_enabled %}checked{% endif %}>
+      Мягкая политика 2FA (W-50)
+    </label>
+    <p class="muted">По умолчанию включено. Org_admin платных тарифов: 7 дней на включение TOTP (баннер), затем блок выгрузки/сотрудников/нумерации/оплаты. Дата включения политики:
+      {% if settings_row and settings_row.two_fa_policy_enabled_at %}{{ settings_row.two_fa_policy_enabled_at }}{% else %}—{% endif %}.</p>
 
     <label style="display:flex;gap:0.5rem;align-items:center;margin-top:0.9rem">
       <input type="checkbox" name="yandex_login_enabled" value="1" style="width:auto"

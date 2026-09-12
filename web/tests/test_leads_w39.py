@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 from unittest.mock import patch
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.models import (
     Event,
@@ -75,25 +75,27 @@ def test_full_funnel_create_org_invite_accept(app):
         lead = db.get(Lead, 1)
         assert lead is not None
         assert lead.status == LeadStatus.invited
-        assert lead.org_id is not None
-        org = db.get(Organization, lead.org_id)
-        assert org is not None
-        assert org.source_lead_id == lead.id
-        sub = db.scalar(
-            select(Subscription)
-            .where(Subscription.org_id == org.id)
-            .order_by(Subscription.id.desc())
+        assert lead.org_id is None  # W-50 B.2: org только при accept
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(Organization)
+                .where(Organization.source_lead_id == lead.id)
+            )
+            == 0
         )
-        assert sub is not None
-        assert sub.is_beta is True
-        assert sub.status == SubscriptionStatus.active
         invite = db.get(Invite, lead.invite_id)
         assert invite is not None
+        assert invite.org_id is None
         assert invite.lead_id == lead.id
+        assert invite.pending_org_name == "Организация funnel@example.com"
+        assert invite.pending_tariff_code == "organization"
+        assert invite.pending_months == 3
         assert invite.used_at is None
         inv_token = invite.token
         ev = db.scalar(select(Event).where(Event.type == "lead_invited"))
         assert ev is not None
+        assert (ev.details or {}).get("mode") == "pending_org"
     finally:
         db.close()
 
@@ -118,9 +120,26 @@ def test_full_funnel_create_org_invite_accept(app):
     try:
         lead = db.get(Lead, 1)
         assert lead.status == LeadStatus.registered
+        assert lead.org_id is not None
+        org = db.get(Organization, lead.org_id)
+        assert org is not None
+        assert org.source_lead_id == lead.id
+        assert org.name == "Организация funnel@example.com"
+        sub = db.scalar(
+            select(Subscription)
+            .where(Subscription.org_id == org.id)
+            .order_by(Subscription.id.desc())
+        )
+        assert sub is not None
+        assert sub.is_beta is True
+        assert sub.status == SubscriptionStatus.active
         user = db.scalar(select(User).where(User.email == "funnel@example.com"))
         assert user is not None
         assert user.org_id == lead.org_id
+        invite = db.get(Invite, lead.invite_id)
+        assert invite is not None
+        assert invite.org_id == org.id
+        assert invite.used_at is not None
         ev = db.scalar(select(Event).where(Event.type == "lead_registered"))
         assert ev is not None
     finally:
@@ -283,15 +302,25 @@ def test_resend_kills_old_token(app):
 
     db = dbmod.SessionLocal()
     try:
-        old = db.get(Invite, old_id)
-        assert old.is_expired()
+        # W-50: тот же инвайт, ротация токена (не вторая org / не второй ряд)
         lead = db.get(Lead, 1)
+        assert lead.invite_id == old_id
         new_inv = db.get(Invite, lead.invite_id)
         assert new_inv is not None
+        assert new_inv.id == old_id
         assert new_inv.token != old_token
         assert not new_inv.is_expired()
-        # старый токен не принимается
+        assert new_inv.org_id is None
+        assert new_inv.pending_org_name == "Орг resend"
         assert find_open_invite(db, "resend@example.com").id == new_inv.id
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(Organization)
+                .where(Organization.name == "Орг resend")
+            )
+            == 0
+        )
     finally:
         db.close()
 
@@ -399,9 +428,30 @@ def test_org_detail_shows_source_lead(app):
         )
     db = dbmod.SessionLocal()
     try:
-        org_id = db.get(Lead, 1).org_id
+        inv_token = db.get(Invite, db.get(Lead, 1).invite_id).token
     finally:
         db.close()
+    client.post("/logout", data={"csrf_token": csrf_from(client, "/admin/")})
+    csrf = csrf_from(client, f"/invite/{inv_token}")
+    assert (
+        client.post(
+            f"/invite/{inv_token}",
+            data={
+                "csrf_token": csrf,
+                "password": "UserPass123!",
+                "password2": "UserPass123!",
+            },
+            follow_redirects=False,
+        ).status_code
+        == 303
+    )
+    db = dbmod.SessionLocal()
+    try:
+        org_id = db.get(Lead, 1).org_id
+        assert org_id is not None
+    finally:
+        db.close()
+    _admin(client)
     r = client.get(f"/admin/organizations/{org_id}")
     assert r.status_code == 200
     assert "Из заявки" in r.text
@@ -474,7 +524,7 @@ def test_edit_reopen_and_delete_lead(app):
     finally:
         db.close()
 
-    # создаём орг из заявки, затем удаляем заявку — source_lead обнуляется
+    # создаём инвайт, принимаем → org, затем удаляем заявку — source_lead обнуляется
     token = csrf_from(client, "/admin/leads")
     with patch("app.services.leads.send_email", return_value=True):
         client.post(
@@ -490,11 +540,32 @@ def test_edit_reopen_and_delete_lead(app):
         )
     db = dbmod.SessionLocal()
     try:
+        inv_token = db.get(Invite, db.get(Lead, 1).invite_id).token
+        assert db.get(Lead, 1).org_id is None
+    finally:
+        db.close()
+    client.post("/logout", data={"csrf_token": csrf_from(client, "/admin/")})
+    csrf = csrf_from(client, f"/invite/{inv_token}")
+    assert (
+        client.post(
+            f"/invite/{inv_token}",
+            data={
+                "csrf_token": csrf,
+                "password": "UserPass123!",
+                "password2": "UserPass123!",
+            },
+            follow_redirects=False,
+        ).status_code
+        == 303
+    )
+    db = dbmod.SessionLocal()
+    try:
         org_id = db.get(Lead, 1).org_id
         assert org_id is not None
     finally:
         db.close()
 
+    _admin(client)
     token = csrf_from(client, "/admin/leads")
     r = client.post(
         "/admin/leads/1/delete",

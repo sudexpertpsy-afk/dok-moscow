@@ -129,6 +129,12 @@ def _require_org_settings_admin(request: Request, user: CurrentUser, db: Session
     return forbidden_org_admin_page(request, user, db)
 
 
+def _soft_2fa_gate(request: Request, user: CurrentUser, db: Session):
+    from app.services.two_fa_policy import enforce_soft_2fa
+
+    return enforce_soft_2fa(request, user, db)
+
+
 @router.get("/", response_class=HTMLResponse)
 def settings_org(
     request: Request,
@@ -641,6 +647,9 @@ def settings_numbering(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    blocked = _soft_2fa_gate(request, user, db)
+    if blocked is not None:
+        return blocked
     denied = _require_org_settings_admin(request, user, db)
     if denied is not None:
         return denied
@@ -679,6 +688,9 @@ async def settings_numbering_save(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    blocked = _soft_2fa_gate(request, user, db)
+    if blocked is not None:
+        return blocked
     denied = _require_org_settings_admin(request, user, db)
     if denied is not None:
         return denied
@@ -812,6 +824,9 @@ def settings_data(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    blocked = _soft_2fa_gate(request, user, db)
+    if blocked is not None:
+        return blocked
     denied = _require_org_settings_admin(request, user, db)
     if denied is not None:
         return denied
@@ -842,6 +857,9 @@ async def settings_data_export(
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    blocked = _soft_2fa_gate(request, user, db)
+    if blocked is not None:
+        return blocked
     denied = _require_org_settings_admin(request, user, db)
     if denied is not None:
         return denied

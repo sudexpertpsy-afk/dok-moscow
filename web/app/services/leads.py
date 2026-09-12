@@ -17,6 +17,7 @@ from app.models import (
     LeadStatus,
     OrgRole,
     Organization,
+    Signup,
     Subscription,
     SubscriptionPeriod,
     SubscriptionStatus,
@@ -27,7 +28,6 @@ from app.models import (
     utcnow,
 )
 from app.security import new_invite_token
-from app.services.admin_subscription import AdminSubscriptionError, apply_admin_subscription
 from app.services.audit import record_event
 from app.services.billing import ensure_payment_settings, ensure_tariffs
 from app.services.mail import send_email
@@ -92,7 +92,7 @@ class LeadView:
 @dataclass
 class CreateOrgInviteResult:
     lead: Lead
-    org: Organization
+    org: Organization | None
     invite: Invite
     invite_link: str
     email_sent: bool
@@ -100,13 +100,18 @@ class CreateOrgInviteResult:
 
 @dataclass
 class SelfServeSignupResult:
-    lead: Lead
-    org: Organization
-    user: User
+    """POST /signup — только Signup; после confirm — org/user/lead."""
+
     tariff_code: str
     period: str
+    signup: Signup | None = None
+    lead: Lead | None = None
+    org: Organization | None = None
+    user: User | None = None
+    resent: bool = False
 
 
+SIGNUP_TTL_HOURS = 72
 PAID_TARIFF_CODES = frozenset({TariffCode.specialist.value, TariffCode.organization.value})
 SIGNUP_PERIODS = frozenset({"month", "year", "years_2"})
 
@@ -282,6 +287,7 @@ def find_open_invite(db: Session, email: str) -> Invite | None:
         .options(joinedload(Invite.organization))
         .where(
             Invite.email == email_n,
+            Invite.is_active.is_(True),
             Invite.used_at.is_(None),
             Invite.expires_at > now,
         )
@@ -329,15 +335,25 @@ def _invite_link(settings: Settings, token: str) -> str:
 
 
 def _send_invite_email(
-    settings: Settings, *, org: Organization, email: str, token: str
+    settings: Settings,
+    *,
+    org: Organization | None,
+    email: str,
+    token: str,
+    org_name: str | None = None,
 ) -> bool:
+    name = (org_name or "").strip()
+    if not name and org is not None:
+        name = org.name
+    if not name:
+        name = "организацию"
     link = _invite_link(settings, token)
     return send_email(
         settings,
         to_addr=email,
-        subject=f"[Док.Москва] Приглашение в «{org.name}»",
+        subject=f"[Док.Москва] Приглашение в «{name}»",
         body=(
-            f"Вас пригласили в организацию «{org.name}» на Док.Москва.\n\n"
+            f"Вас пригласили в организацию «{name}» на Док.Москва.\n\n"
             f"Принять приглашение: {link}\n\n"
             f"Ссылка действует {settings.invite_ttl_hours} ч.\n"
         ),
@@ -345,28 +361,58 @@ def _send_invite_email(
 
 
 def _kill_invite(invite: Invite) -> None:
+    """Погасить инвайт: status=revoked, снять с частичного unique index."""
     invite.expires_at = utcnow() - timedelta(seconds=1)
+    invite.set_status("revoked")
 
 
 def _create_invite(
     db: Session,
     *,
-    org: Organization,
+    org: Organization | None,
     lead: Lead,
     settings: Settings,
+    pending_org_name: str | None = None,
+    pending_tariff_code: str | None = None,
+    pending_months: int | None = None,
 ) -> Invite:
     token = new_invite_token()
     invite = Invite(
-        org_id=org.id,
+        org_id=org.id if org is not None else None,
         email=lead.email.strip().lower(),
         token=token,
         expires_at=utcnow() + timedelta(hours=settings.invite_ttl_hours),
         lead_id=lead.id,
         note=f"lead:{lead.id}",
+        pending_org_name=pending_org_name,
+        pending_tariff_code=pending_tariff_code,
+        pending_months=pending_months,
     )
     db.add(invite)
     db.flush()
     return invite
+
+
+def _refresh_open_invite(
+    invite: Invite,
+    *,
+    settings: Settings,
+    lead: Lead,
+    pending_org_name: str | None = None,
+    pending_tariff_code: str | None = None,
+    pending_months: int | None = None,
+) -> None:
+    """Продлить срок и ротировать токен активного инвайта (W-50 B.2)."""
+    invite.token = new_invite_token()
+    invite.expires_at = utcnow() + timedelta(hours=settings.invite_ttl_hours)
+    invite.lead_id = lead.id
+    if pending_org_name is not None:
+        invite.pending_org_name = pending_org_name
+    if pending_tariff_code is not None:
+        invite.pending_tariff_code = pending_tariff_code
+    if pending_months is not None:
+        invite.pending_months = pending_months
+    # pending без org: не трогаем org_id; с org — поля pending не обязательны
 
 
 def create_org_and_invite(
@@ -380,7 +426,7 @@ def create_org_and_invite(
     send_email_now: bool = True,
     settings: Settings | None = None,
 ) -> CreateOrgInviteResult:
-    """Организация + подписка (бета, W-38) + инвайт (+ письмо) одним действием."""
+    """Инвайт с pending_* (org + подписка — при принятии). W-50 B.2."""
     settings = settings or get_settings()
     if lead.status == LeadStatus.spam:
         raise LeadError("Заявка помечена как спам")
@@ -398,68 +444,75 @@ def create_org_and_invite(
         raise LeadError("Срок подписки: +1 / +3 / +6 / +12 месяцев")
 
     ensure_tariffs(db)
-    org = Organization(
-        name=name,
-        requisites=empty_requisites(),
-        source_lead_id=lead.id,
-    )
-    db.add(org)
-    db.flush()
-
-    try:
-        apply_admin_subscription(
-            db,
-            org=org,
-            actor=actor,
-            action="apply",
-            tariff_code=code,
-            term_mode="relative",
-            months=m,
-            reason="beta",
-            reason_comment=f"бета из заявки #{lead.id}",
-            notify=False,
-            confirm="YES",
-            totp_ok=False,
+    open_inv = find_open_invite(db, email_n)
+    if open_inv is not None:
+        _refresh_open_invite(
+            open_inv,
+            settings=settings,
+            lead=lead,
+            pending_org_name=name if open_inv.org_id is None else None,
+            pending_tariff_code=code if open_inv.org_id is None else None,
+            pending_months=m if open_inv.org_id is None else None,
         )
-    except AdminSubscriptionError as exc:
-        raise LeadError(str(exc)) from exc
+        invite = open_inv
+        mode = "resent"
+        event_type = "invite.resent"
+    else:
+        invite = _create_invite(
+            db,
+            org=None,
+            lead=lead,
+            settings=settings,
+            pending_org_name=name,
+            pending_tariff_code=code,
+            pending_months=m,
+        )
+        mode = "pending_org"
+        event_type = "lead_invited"
 
-    invite = _create_invite(db, org=org, lead=lead, settings=settings)
-    lead.org_id = org.id
+    # org создаётся при accept; lead.org_id остаётся NULL
     lead.invite_id = invite.id
     lead.status = LeadStatus.invited
     lead.updated_at = utcnow()
 
     email_sent = False
+    display_name = (
+        invite.organization.name
+        if invite.organization is not None
+        else (invite.pending_org_name or name)
+    )
     if send_email_now:
         email_sent = _send_invite_email(
-            settings, org=org, email=email_n, token=invite.token
+            settings,
+            org=invite.organization,
+            email=email_n,
+            token=invite.token,
+            org_name=display_name,
         )
 
     record_event(
         db,
-        type="lead_invited",
-        org_id=org.id,
+        type=event_type,
+        org_id=invite.org_id,
         user_id=actor.id,
         details={
             "lead_id": lead.id,
             "email": email_n,
             "invite_id": invite.id,
-            "org_name": org.name,
+            "org_name": display_name,
             "tariff": code,
             "months": m,
             "email_sent": email_sent,
-            "mode": "create_org",
+            "mode": mode,
         },
         commit=False,
     )
     db.commit()
     db.refresh(lead)
-    db.refresh(org)
     db.refresh(invite)
     return CreateOrgInviteResult(
         lead=lead,
-        org=org,
+        org=None if invite.org_id is None else invite.organization,
         invite=invite,
         invite_link=_invite_link(settings, invite.token),
         email_sent=email_sent,
@@ -533,69 +586,90 @@ def resend_invite(
     actor: User,
     settings: Settings | None = None,
 ) -> CreateOrgInviteResult:
-    """Повторный инвайт: старый токен гасится."""
+    """Повторный инвайт: продление + ротация токена (без второй org)."""
     settings = settings or get_settings()
     email_n = lead.email.strip().lower()
     if db.scalar(select(User).where(User.email == email_n)):
         raise LeadError(f"Пользователь {email_n} уже зарегистрирован")
 
-    org_id = lead.org_id
     open_inv = find_open_invite(db, email_n)
     if open_inv is not None:
-        org_id = org_id or open_inv.org_id
-        _kill_invite(open_inv)
-    if lead.invite_id:
-        old = db.get(Invite, lead.invite_id)
-        if old is not None and old.used_at is None and not old.is_expired():
-            _kill_invite(old)
-            org_id = org_id or old.org_id
-
-    if org_id is None:
-        raise LeadError("Нет организации для повторного инвайта — создайте организацию")
-    org = db.get(Organization, org_id)
-    if org is None:
-        raise LeadError("Организация не найдена")
-
-    # погасить любые другие открытые по e-mail
-    now = utcnow()
-    for inv in db.scalars(
-        select(Invite).where(
-            Invite.email == email_n,
-            Invite.used_at.is_(None),
-            Invite.expires_at > now,
+        _refresh_open_invite(open_inv, settings=settings, lead=lead)
+        invite = open_inv
+    else:
+        # истёкший / нет открытого — пересоздать из последнего инвайта заявки
+        old: Invite | None = None
+        if lead.invite_id:
+            old = db.get(Invite, lead.invite_id)
+        org: Organization | None = None
+        pending_name = None
+        pending_code = None
+        pending_months = None
+        if old is not None:
+            if old.org_id:
+                org = db.get(Organization, old.org_id)
+            pending_name = old.pending_org_name
+            pending_code = old.pending_tariff_code
+            pending_months = old.pending_months
+            if old.used_at is None and not old.is_expired():
+                _kill_invite(old)
+        if org is None and lead.org_id:
+            org = db.get(Organization, lead.org_id)
+        if org is None and not pending_name:
+            # без pending и без org — имя по умолчанию + beta
+            pending_name = default_org_name(lead)
+            pending_code, pending_months = beta_defaults(db)
+        if org is None and not pending_name:
+            raise LeadError("Нет данных для повторного инвайта — создайте приглашение заново")
+        invite = _create_invite(
+            db,
+            org=org,
+            lead=lead,
+            settings=settings,
+            pending_org_name=None if org is not None else pending_name,
+            pending_tariff_code=None if org is not None else pending_code,
+            pending_months=None if org is not None else pending_months,
         )
-    ).all():
-        _kill_invite(inv)
-    db.flush()
 
-    invite = _create_invite(db, org=org, lead=lead, settings=settings)
-    lead.org_id = org.id
     lead.invite_id = invite.id
+    if invite.org_id is not None:
+        lead.org_id = invite.org_id
     lead.status = LeadStatus.invited
-    lead.updated_at = now
+    lead.updated_at = utcnow()
 
+    display_name = (
+        invite.organization.name
+        if invite.organization is not None
+        else (invite.pending_org_name or default_org_name(lead))
+    )
     email_sent = _send_invite_email(
-        settings, org=org, email=email_n, token=invite.token
+        settings,
+        org=invite.organization,
+        email=email_n,
+        token=invite.token,
+        org_name=display_name,
     )
     record_event(
         db,
-        type="lead_invite_resent",
-        org_id=org.id,
+        type="invite.resent",
+        org_id=invite.org_id,
         user_id=actor.id,
         details={
             "lead_id": lead.id,
             "email": email_n,
             "invite_id": invite.id,
             "email_sent": email_sent,
+            "mode": "pending_org" if invite.org_id is None else "existing_org",
         },
         commit=False,
     )
     db.commit()
     db.refresh(lead)
     db.refresh(invite)
+    org_out = invite.organization if invite.org_id else None
     return CreateOrgInviteResult(
         lead=lead,
-        org=org,
+        org=org_out,
         invite=invite,
         invite_link=_invite_link(settings, invite.token),
         email_sent=email_sent,
@@ -847,6 +921,32 @@ def notify_admin_self_serve_signup(settings: Settings, lead: Lead, org: Organiza
     return send_email(settings, to_addr=to_addr, subject=subject, body=body)
 
 
+def _new_signup_token() -> str:
+    import secrets
+
+    return secrets.token_urlsafe(32)[:64]
+
+
+def _send_signup_confirm_email(
+    settings: Settings, *, email: str, token: str
+) -> bool:
+    base = settings.app_base_url.rstrip("/")
+    link = f"{base}/confirm-signup/{token}"
+    return send_email(
+        settings,
+        to_addr=email,
+        subject="[Док.Москва] Подтвердите регистрацию",
+        body=(
+            f"Здравствуйте.\n\n"
+            f"Подтвердите регистрацию в Док.Москва для адреса {email}.\n"
+            f"Ссылка действует {SIGNUP_TTL_HOURS} ч.:\n\n"
+            f"{link}\n\n"
+            f"До подтверждения кабинет не создаётся.\n"
+            f"Если вы не регистрировались — просто проигнорируйте письмо.\n"
+        ),
+    )
+
+
 def self_serve_signup(
     db: Session,
     *,
@@ -859,12 +959,9 @@ def self_serve_signup(
     send_mails: bool = True,
 ) -> SelfServeSignupResult:
     """
-    W-47: создать lead → Organization + User (org_admin) → guest-подписка.
-    Без complimentary/beta. Не вызывает create_org_and_invite.
-    Транзакция целиком; при ошибке — откат вызывающим кодом.
+    W-50 B.2: только Signup + письмо подтверждения.
+    Organization/User создаются в confirm_self_serve_signup.
     """
-    from datetime import timedelta
-
     settings = settings or get_settings()
     email_n = email.strip().lower()
     if not _EMAIL_RE.match(email_n):
@@ -877,6 +974,94 @@ def self_serve_signup(
     code = normalize_signup_tariff(tariff_code)
     per = normalize_signup_period(period)
     name = (org_name or "").strip()[:255] or default_org_name_from_email(email_n)
+    token = _new_signup_token()
+    expires = utcnow() + timedelta(hours=SIGNUP_TTL_HOURS)
+
+    pending = db.scalar(select(Signup).where(Signup.email == email_n))
+    resent = False
+    if pending is not None:
+        pending.token = token
+        pending.org_name = name
+        pending.password_hash = password_hash
+        pending.tariff_code = code
+        pending.period = per
+        pending.expires_at = expires
+        resent = True
+        record_event(
+            db,
+            type="signup.resent",
+            org_id=None,
+            user_id=None,
+            details={"email": email_n, "tariff_code": code, "period": per},
+            commit=False,
+        )
+    else:
+        pending = Signup(
+            email=email_n,
+            token=token,
+            org_name=name,
+            password_hash=password_hash,
+            tariff_code=code,
+            period=per,
+            expires_at=expires,
+        )
+        db.add(pending)
+        record_event(
+            db,
+            type="signup.created",
+            org_id=None,
+            user_id=None,
+            details={"email": email_n, "tariff_code": code, "period": per},
+            commit=False,
+        )
+
+    db.flush()
+    if send_mails:
+        _send_signup_confirm_email(settings, email=email_n, token=token)
+
+    db.commit()
+    db.refresh(pending)
+    return SelfServeSignupResult(
+        signup=pending,
+        tariff_code=code,
+        period=per,
+        resent=resent,
+    )
+
+
+def confirm_self_serve_signup(
+    db: Session,
+    raw_token: str,
+    *,
+    settings: Settings | None = None,
+    send_mails: bool = True,
+) -> SelfServeSignupResult | None:
+    """
+    Подтверждение Signup: атомарно Organization + User + guest + Lead signed_up.
+    None — токен недействителен/истёк.
+    """
+    settings = settings or get_settings()
+    token = (raw_token or "").strip()
+    if not token:
+        return None
+
+    pending = db.scalar(select(Signup).where(Signup.token == token))
+    if pending is None or pending.is_expired():
+        return None
+
+    email_n = pending.email.strip().lower()
+    existing_user = db.scalar(select(User).where(User.email == email_n))
+    if existing_user is not None:
+        db.delete(pending)
+        db.commit()
+        raise SelfServeExistsError("Аккаунт с этим e-mail уже есть — войдите")
+
+    if not pending.password_hash:
+        return None
+
+    code = normalize_signup_tariff(pending.tariff_code)
+    per = normalize_signup_period(pending.period)
+    name = (pending.org_name or "").strip()[:255] or default_org_name_from_email(email_n)
 
     lead, _is_new = create_lead(
         db,
@@ -902,11 +1087,11 @@ def self_serve_signup(
     user = User(
         org_id=org.id,
         email=email_n,
-        password_hash=password_hash,
+        password_hash=pending.password_hash,
         role=UserRole.user,
         org_role=OrgRole.org_admin,
         is_active=True,
-        email_verified=False,
+        email_verified=True,
         last_login_at=utcnow(),
     )
     db.add(user)
@@ -943,12 +1128,10 @@ def self_serve_signup(
         },
         commit=False,
     )
+    db.delete(pending)
     db.flush()
 
     if send_mails:
-        from app.services.email_verify import issue_and_send_verification
-
-        issue_and_send_verification(db, user=user, settings=settings, commit=False)
         notify_admin_self_serve_signup(settings, lead, org)
 
     db.commit()

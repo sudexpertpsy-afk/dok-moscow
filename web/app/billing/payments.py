@@ -48,9 +48,21 @@ from app.services.cms import (
 
 log = logging.getLogger("dok.billing")
 
-# W-48: окно повторного использования того же Init / TTL брони промо
-OPEN_ORDER_REUSE = timedelta(minutes=15)
+# W-48/W-50 C.2: окно повторного использования того же Init / TTL брони промо
+OPEN_ORDER_REUSE = timedelta(minutes=20)
 ABANDON_EXPIRE_AFTER = timedelta(hours=24)
+ABANDON_UNREACHABLE_AFTER = timedelta(days=7)
+
+_EXPIRE_VIA_GETSTATE = frozenset(
+    {
+        "NEW",
+        "FORM_SHOWING",
+        "CANCELED",
+        "CANCELLED",
+        "DEADLINE_EXPIRED",
+        "REJECTED",
+    }
+)
 
 _TBANK_TO_STATUS = {
     "NEW": PaymentStatus.created,
@@ -345,8 +357,14 @@ def expire_abandoned_payments(
     *,
     older_than: timedelta = ABANDON_EXPIRE_AFTER,
 ) -> int:
-    """created/authorized старше TTL → expired (не удалять). Release брони промо."""
-    cutoff = utcnow() - older_than
+    """created/authorized старше TTL: GetState → expired/confirm; иначе unreachable/timeout.
+
+    W-50 C.3: NEW/CANCELED/DEADLINE_EXPIRED/REJECTED → expired; CONFIRMED → confirm path;
+    GetState недоступен и возраст > 7 дней → expired (unreachable).
+    """
+    now = utcnow()
+    cutoff = now - older_than
+    unreachable_cut = now - ABANDON_UNREACHABLE_AFTER
     rows = list(
         db.scalars(
             select(Payment).where(
@@ -355,11 +373,136 @@ def expire_abandoned_payments(
             )
         ).all()
     )
+    changed = 0
     for pay in rows:
-        mark_payment_expired(pay, reason="abandon_timeout_24h")
-    if rows:
+        created = _aware(pay.created_at)
+        too_old = created < unreachable_cut
+
+        if not pay.tbank_payment_id:
+            mark_payment_expired(pay, reason="abandon_timeout_24h")
+            record_event(
+                db,
+                type="billing.order_state_changed",
+                org_id=pay.org_id,
+                user_id=None,
+                details={
+                    "payment_id": str(pay.id),
+                    "to": PaymentStatus.expired.value,
+                    "reason": "abandon_timeout_24h",
+                },
+                commit=False,
+            )
+            changed += 1
+            continue
+
+        try:
+            client = load_tbank_client(db)
+            try:
+                state = client.get_state(pay.tbank_payment_id)
+            finally:
+                client.close()
+        except TBankError as exc:
+            log.warning(
+                "expire GetState failed payment=%s: %s",
+                pay.id,
+                exc,
+            )
+            if too_old:
+                mark_payment_expired(pay, reason="unreachable")
+                record_event(
+                    db,
+                    type="billing.order_state_changed",
+                    org_id=pay.org_id,
+                    user_id=None,
+                    details={
+                        "payment_id": str(pay.id),
+                        "to": PaymentStatus.expired.value,
+                        "reason": "unreachable",
+                    },
+                    commit=False,
+                )
+                changed += 1
+            continue
+
+        status_raw = str(state.get("Status") or "").upper()
+        pay.append_event(
+            {
+                "event": "billing.order_state_changed",
+                "Status": status_raw,
+                "source": "expire_abandoned",
+                "at": now.isoformat(),
+            }
+        )
+        if status_raw == "CONFIRMED":
+            apply_payment_notification(
+                db,
+                {
+                    "OrderId": str(pay.id),
+                    "PaymentId": state.get("PaymentId") or pay.tbank_payment_id,
+                    "Status": status_raw,
+                    "Success": state.get("Success", True),
+                    "Amount": state.get("Amount") or pay.amount_kop,
+                    "ErrorCode": state.get("ErrorCode"),
+                    "RebillId": state.get("RebillId"),
+                },
+                skip_token=True,
+            )
+            record_event(
+                db,
+                type="billing.order_state_changed",
+                org_id=pay.org_id,
+                user_id=None,
+                details={
+                    "payment_id": str(pay.id),
+                    "to": PaymentStatus.confirmed.value,
+                    "reason": "expire_getstate_confirmed",
+                    "tbank_status": status_raw,
+                },
+                commit=False,
+            )
+            changed += 1
+            continue
+
+        if status_raw in _EXPIRE_VIA_GETSTATE or not status_raw:
+            reason = f"abandon_getstate:{status_raw or 'empty'}"
+            mark_payment_expired(pay, reason=reason)
+            record_event(
+                db,
+                type="billing.order_state_changed",
+                org_id=pay.org_id,
+                user_id=None,
+                details={
+                    "payment_id": str(pay.id),
+                    "to": PaymentStatus.expired.value,
+                    "reason": reason,
+                    "tbank_status": status_raw or None,
+                },
+                commit=False,
+            )
+            changed += 1
+            continue
+
+        # Промежуточные статусы (AUTHORIZING и т.п.) — оставляем на reconcile
+        if too_old:
+            mark_payment_expired(pay, reason="abandon_stale_intermediate")
+            record_event(
+                db,
+                type="billing.order_state_changed",
+                org_id=pay.org_id,
+                user_id=None,
+                details={
+                    "payment_id": str(pay.id),
+                    "to": PaymentStatus.expired.value,
+                    "reason": "abandon_stale_intermediate",
+                    "tbank_status": status_raw,
+                },
+                commit=False,
+            )
+            changed += 1
+
+    if changed:
         db.flush()
-    return len(rows)
+    return changed
 
 
 def map_tbank_status(status: str | None) -> PaymentStatus | None:

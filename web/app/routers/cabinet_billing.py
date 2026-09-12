@@ -104,12 +104,21 @@ def _billing_view_context(
     )
 
 
+def _soft_2fa_gate(request: Request, user: CurrentUser, db: Session):
+    from app.services.two_fa_policy import enforce_soft_2fa
+
+    return enforce_soft_2fa(request, user, db)
+
+
 @router.get("/", response_class=HTMLResponse)
 def billing_page(
     request: Request,
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    blocked = _soft_2fa_gate(request, user, db)
+    if blocked is not None:
+        return blocked
     org = get_org_for_user(db, user)
     ctx = _billing_view_context(request, user, org, db)
     q_tariff = (request.query_params.get("tariff") or "").strip().lower()
@@ -129,12 +138,16 @@ def billing_page(
 
 @router.get("/promo-preview", response_class=HTMLResponse)
 def promo_preview(
+    request: Request,
     tariff_code: str = "",
     period: str = "month",
     promo_code: str = "",
     user: CurrentUser = Depends(require_org_user),
     db: Session = Depends(get_db),
 ):
+    blocked = _soft_2fa_gate(request, user, db)
+    if blocked is not None:
+        return blocked
     try:
         code = TariffCode(tariff_code)
         per = SubscriptionPeriod(period)
@@ -175,6 +188,9 @@ def billing_pay(
     db: Session = Depends(get_db),
     _: None = Depends(require_csrf),
 ):
+    blocked = _soft_2fa_gate(request, user, db)
+    if blocked is not None:
+        return blocked
     org = get_org_for_user(db, user)
     try:
         code = TariffCode(tariff_code)

@@ -50,7 +50,10 @@ jobs:
           file: web/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.ver.outputs.value }}
           build-args: |
             APP_VERSION=${{ steps.ver.outputs.value }}
             GIT_REVISION=${{ github.sha }}

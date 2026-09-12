@@ -13,7 +13,13 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
-from app.deps import CurrentUser, client_ip, get_optional_user, home_for_user, require_csrf
+from app.deps import (
+    CurrentUser,
+    client_ip,
+    get_optional_user,
+    home_for_user,
+    require_csrf,
+)
 from app.models import Invite, PasswordResetToken, User, UserRole, utcnow
 from app.passwords import password_policy_hint, validate_password
 from app.rate_limit import LoginRateLimiter
@@ -504,25 +510,54 @@ def reset_password_submit(
     return response
 
 
+def _expire_invite_missing_org(db: Session, invite: Invite) -> None:
+    """Легаси: org_id есть, организации нет (purge) → expired."""
+    invite.set_status("expired")
+    db.commit()
+
+
 @router.get("/invite/{token}", response_class=HTMLResponse)
 def invite_page(request: Request, token: str, db: Session = Depends(get_db)):
     invite = db.scalar(select(Invite).where(Invite.token == token))
-    if invite is None or invite.is_used or invite.is_expired():
+    if invite is None or invite.is_used or invite.is_expired() or not invite.is_active:
         return _render(
             request,
             "auth/invite_invalid.html",
             {"flash_error": "Приглашение недействительно или уже использовано."},
             status_code=404,
         )
+    if invite.org_id is not None:
+        from app.models import Organization
+
+        org = db.get(Organization, invite.org_id)
+        if org is None:
+            _expire_invite_missing_org(db, invite)
+            return _render(
+                request,
+                "auth/invite_invalid.html",
+                {"flash_error": "Приглашение устарело, запросите новое."},
+                status_code=404,
+            )
+    org_name = ""
+    if invite.organization is not None:
+        org_name = invite.organization.name
+    elif invite.pending_org_name:
+        org_name = invite.pending_org_name
     return _render(
         request,
         "auth/accept_invite.html",
         {
             "invite": invite,
-            "org_name": invite.organization.name if invite.organization else "",
+            "org_name": org_name,
             "token": token,
         },
     )
+
+
+def _invite_org_name(invite: Invite) -> str:
+    if invite.organization is not None:
+        return invite.organization.name
+    return (invite.pending_org_name or "").strip()
 
 
 @router.post("/invite/{token}", response_class=HTMLResponse)
@@ -535,7 +570,7 @@ def invite_accept(
     _: None = Depends(require_csrf),
 ):
     invite = db.scalar(select(Invite).where(Invite.token == token))
-    if invite is None or invite.is_used or invite.is_expired():
+    if invite is None or invite.is_used or invite.is_expired() or not invite.is_active:
         return _render(
             request,
             "auth/invite_invalid.html",
@@ -543,6 +578,20 @@ def invite_accept(
             status_code=404,
         )
 
+    from app.models import Organization as OrgModel
+
+    if invite.org_id is not None:
+        org_check = db.get(OrgModel, invite.org_id)
+        if org_check is None:
+            _expire_invite_missing_org(db, invite)
+            return _render(
+                request,
+                "auth/invite_invalid.html",
+                {"flash_error": "Приглашение устарело, запросите новое."},
+                status_code=404,
+            )
+
+    org_name = _invite_org_name(invite)
     err = validate_password(password, email=invite.email)
     if err:
         return _render(
@@ -550,7 +599,7 @@ def invite_accept(
             "auth/accept_invite.html",
             {
                 "invite": invite,
-                "org_name": invite.organization.name,
+                "org_name": org_name,
                 "token": token,
                 "flash_error": err,
             },
@@ -562,7 +611,7 @@ def invite_accept(
             "auth/accept_invite.html",
             {
                 "invite": invite,
-                "org_name": invite.organization.name,
+                "org_name": org_name,
                 "token": token,
                 "flash_error": "Пароли не совпадают.",
             },
@@ -578,38 +627,124 @@ def invite_accept(
             status_code=409,
         )
 
-    from app.models import OrgRole
-
-    others = db.scalar(
-        select(func.count())
-        .select_from(User)
-        .where(User.org_id == invite.org_id, User.role == UserRole.user)
-    ) or 0
-    user = User(
-        org_id=invite.org_id,
-        email=invite.email.lower(),
-        password_hash=hash_password(password),
-        role=UserRole.user,
-        org_role=OrgRole.org_admin if int(others) == 0 else OrgRole.org_member,
-        is_active=True,
-        email_verified=True,
-        last_login_at=utcnow(),
+    from app.defaults import empty_requisites
+    from app.models import Lead, Organization, OrgRole
+    from app.services.admin_subscription import (
+        AdminSubscriptionError,
+        apply_admin_subscription,
     )
-    invite.used_at = utcnow()
-    db.add(user)
-    db.flush()
-    from app.services.leads import mark_lead_registered_from_invite
-
-    mark_lead_registered_from_invite(db, invite)
-    record_event(
-        db,
-        type="login_success",
-        org_id=user.org_id,
-        user_id=user.id,
-        details={"ip": client_ip(request), "via": "invite"},
-        commit=False,
+    from app.services.leads import (
+        beta_defaults,
+        default_org_name,
+        mark_lead_registered_from_invite,
     )
-    db.commit()
+
+    try:
+        if invite.org_id is None:
+            # W-50 B.2: org + beta-подписка + первый org_admin атомарно
+            name = (invite.pending_org_name or "").strip()
+            if not name:
+                lead = db.get(Lead, invite.lead_id) if invite.lead_id else None
+                name = default_org_name(lead) if lead is not None else f"Организация {invite.email}"
+            if len(name) > 255:
+                name = name[:255]
+
+            org = Organization(
+                name=name,
+                requisites=empty_requisites(),
+                source_lead_id=invite.lead_id,
+            )
+            db.add(org)
+            db.flush()
+
+            default_tariff, default_months = beta_defaults(db)
+            code = (invite.pending_tariff_code or default_tariff).strip()
+            months = int(invite.pending_months if invite.pending_months is not None else default_months)
+            actor = db.scalar(
+                select(User).where(User.role == UserRole.service_admin).order_by(User.id).limit(1)
+            )
+            if actor is None:
+                raise RuntimeError("Нет service_admin для оформления подписки")
+
+            apply_admin_subscription(
+                db,
+                org=org,
+                actor=actor,
+                action="apply",
+                tariff_code=code,
+                term_mode="relative",
+                months=months,
+                reason="beta",
+                reason_comment=f"бета при принятии инвайта #{invite.id}",
+                notify=False,
+                confirm="YES",
+                totp_ok=False,
+            )
+
+            user = User(
+                org_id=org.id,
+                email=invite.email.lower(),
+                password_hash=hash_password(password),
+                role=UserRole.user,
+                org_role=OrgRole.org_admin,
+                is_active=True,
+                email_verified=True,
+                last_login_at=utcnow(),
+            )
+            invite.org_id = org.id
+            invite.used_at = utcnow()
+            invite.set_status("accepted")
+            db.add(user)
+            db.flush()
+        else:
+            # Легаси / инвайт в существующую org — присоединение, не новая org
+            others = db.scalar(
+                select(func.count())
+                .select_from(User)
+                .where(User.org_id == invite.org_id, User.role == UserRole.user)
+            ) or 0
+            user = User(
+                org_id=invite.org_id,
+                email=invite.email.lower(),
+                password_hash=hash_password(password),
+                role=UserRole.user,
+                org_role=OrgRole.org_admin if int(others) == 0 else OrgRole.org_member,
+                is_active=True,
+                email_verified=True,
+                last_login_at=utcnow(),
+            )
+            invite.used_at = utcnow()
+            invite.set_status("accepted")
+            db.add(user)
+            db.flush()
+
+        mark_lead_registered_from_invite(db, invite)
+        record_event(
+            db,
+            type="login_success",
+            org_id=user.org_id,
+            user_id=user.id,
+            details={"ip": client_ip(request), "via": "invite"},
+            commit=False,
+        )
+        db.commit()
+    except AdminSubscriptionError as exc:
+        db.rollback()
+        return _render(
+            request,
+            "auth/accept_invite.html",
+            {
+                "invite": invite,
+                "org_name": org_name,
+                "token": token,
+                "flash_error": str(exc),
+            },
+            status_code=400,
+        )
+    except Exception:
+        db.rollback()
+        raise
+
     db.refresh(user)
     login_user_session(request, user.id, user.org_id, user.role.value)
     return RedirectResponse("/cabinet/", status_code=status.HTTP_303_SEE_OTHER)

@@ -3,6 +3,9 @@
 {% block body %}
 {% include "admin/_layout_start.html" %}
 
+{% if flash_ok %}<p class="flash ok">{{ flash_ok }}</p>{% endif %}
+{% if flash_error %}<p class="flash err">{{ flash_error }}</p>{% endif %}
+
 <div class="grid-2">
   <section class="panel">
     <h1>Новая организация</h1>
@@ -18,6 +21,54 @@
     <p class="muted">После создания откройте карточку организации и выдайте приглашение пользователю. Реквизиты организация заполняет сама в кабинете. Подписку можно выдать или продлить без оплаты через «Подписка…».</p>
   </section>
 </div>
+
+<section class="panel" style="margin-top:1rem">
+  <h1>Кандидаты на удаление</h1>
+  <p class="muted">Пустые организации старше 7 дней (guard). Режим:
+    <strong>{{ purge_mode|default('dry') }}</strong>
+    {% if purge_mode_changed_at %} · с {{ purge_mode_changed_at }}{% endif %}
+  </p>
+  <form method="post" action="/admin/organizations/purge-mode" style="margin:0.75rem 0">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="purge_mode">Режим суточного purge</label>
+    <select id="purge_mode" name="mode">
+      <option value="dry" {% if purge_mode == 'dry' %}selected{% endif %}>dry — только список</option>
+      <option value="live" {% if purge_mode == 'live' %}selected{% endif %}>live — удалять</option>
+    </select>
+    <button type="submit" class="btn secondary">Сохранить режим</button>
+  </form>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Название</th>
+        <th>Возраст</th>
+        <th>Причина</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for org, reason, age_days in purge_candidates or [] %}
+      <tr>
+        <td>{{ org.id }}</td>
+        <td><a href="/admin/organizations/{{ org.id }}">{{ org.name }}</a></td>
+        <td>{{ age_days }} дн.</td>
+        <td class="muted">{{ reason or 'empty' }}</td>
+        <td>
+          <form class="inline-form" method="post" action="/admin/organizations/{{ org.id }}/purge"
+                hx-boost="false"
+                onsubmit="return confirm('Удалить пустую организацию «{{ org.name|e }}» (ID {{ org.id }})?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="danger">Удалить</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted">Нет кандидатов</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
 
 <section class="panel" style="margin-top:1rem">
   <h1>Все организации</h1>

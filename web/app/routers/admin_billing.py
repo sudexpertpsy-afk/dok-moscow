@@ -98,6 +98,7 @@ def payment_settings_save(
     default_receipt_email: str = Form(""),
     party_check_daily_limit: str = Form("100"),
     require_2fa_for_org_admins: str | None = Form(None),
+    two_fa_policy_enabled: str | None = Form(None),
     yandex_login_enabled: str | None = Form(None),
     beta_default_tariff: str = Form("organization"),
     beta_default_months: str = Form("3"),
@@ -131,6 +132,12 @@ def payment_settings_save(
         limit = 100
     row.party_check_daily_limit = max(1, min(limit, 10_000))
     row.require_2fa_for_org_admins = bool(require_2fa_for_org_admins)
+    was_policy = bool(row.two_fa_policy_enabled)
+    row.two_fa_policy_enabled = bool(two_fa_policy_enabled)
+    if row.two_fa_policy_enabled and (not was_policy or row.two_fa_policy_enabled_at is None):
+        from app.models import utcnow
+
+        row.two_fa_policy_enabled_at = utcnow()
     row.yandex_login_enabled = bool(yandex_login_enabled)
     tariff = (beta_default_tariff or "organization").strip()
     if tariff not in ("guest", "specialist", "organization"):
@@ -171,6 +178,7 @@ def payment_settings_save(
             "vat_rate": row.vat_rate,
             "party_check_daily_limit": row.party_check_daily_limit,
             "require_2fa_for_org_admins": row.require_2fa_for_org_admins,
+            "two_fa_policy_enabled": row.two_fa_policy_enabled,
             "yandex_login_enabled": row.yandex_login_enabled,
             "beta_default_tariff": row.beta_default_tariff,
             "beta_default_months": row.beta_default_months,

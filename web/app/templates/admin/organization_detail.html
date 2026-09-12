@@ -18,6 +18,15 @@
     <div class="actions"><button type="submit">Сохранить</button>
       <a class="btn secondary" href="/admin/invites">Выдать приглашение</a></div>
   </form>
+  <form method="post" action="/admin/organizations/{{ org.id }}/internal" style="margin-top:1rem" hx-boost="false">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
+      <input type="checkbox" name="is_internal" value="1"
+             {% if org.is_internal %}checked{% endif %}
+             onchange="this.form.submit()">
+      Внутренняя организация (исключать из KPI)
+    </label>
+  </form>
   {% if branding_slots is defined %}
   <p style="margin-top:1rem"><strong>Факсимиле (слоты):</strong>
     {% for s in branding_slots %}
@@ -103,6 +112,21 @@
     </table>
   </section>
 </div>
+
+<section class="panel" style="margin-top:1rem">
+  <h1>Пустая организация</h1>
+  <p class="muted">W-50: удалить только если нет пользователей, документов, контрагентов,
+    подтверждённых платежей и активных инвайтов, и организации больше 7 дней.</p>
+  {% if can_purge %}
+  <form method="post" action="/admin/organizations/{{ org.id }}/purge" hx-boost="false"
+        onsubmit="return confirm('Удалить пустую организацию «{{ org.name|e }}» (ID {{ org.id }})?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="danger">Удалить пустую организацию</button>
+  </form>
+  {% else %}
+  <p class="muted">Удаление недоступно{% if purge_reason %}: {{ purge_reason }}{% endif %}.</p>
+  {% endif %}
+</section>
 
 <section class="panel" style="margin-top:1rem">
   <h1>Удаление</h1>

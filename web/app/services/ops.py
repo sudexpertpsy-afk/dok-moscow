@@ -417,6 +417,37 @@ def status_snapshot(db: Session) -> dict[str, Any]:
         ]
     )
 
+    # W-50.1 §3: строка Purge в чек-листе
+    from app.services.billing import ensure_payment_settings
+    from app.services.org_purge import get_purge_mode, list_purge_candidates
+
+    purge_mode = get_purge_mode(db)
+    purge_n = len(list_purge_candidates(db))
+    ps = ensure_payment_settings(db)
+    purge_changed = ps.purge_mode_changed_at
+    purge_age_d: float | None = None
+    if purge_changed is not None:
+        pc = purge_changed
+        if pc.tzinfo is None:
+            from datetime import timezone
+
+            pc = pc.replace(tzinfo=timezone.utc)
+        from app.models import utcnow as _utcnow
+
+        purge_age_d = max(0.0, (_utcnow() - pc).total_seconds() / 86400.0)
+    purge_tone = "ok"
+    if purge_mode == "dry":
+        purge_tone = "warn" if (purge_age_d is not None and purge_age_d > 7) else "ok"
+    checklist.append(
+        ThresholdResult(
+            key="purge",
+            label="Purge",
+            fact=f"режим {purge_mode}, кандидатов {purge_n}",
+            tone=purge_tone,
+            how_to="prune",
+        )
+    )
+
     return {
         "latency": latency_stats(),
         "disk": disk,
@@ -461,6 +492,8 @@ def status_snapshot(db: Session) -> dict[str, Any]:
         "mail_auth": mail_marker,
         "restore_drill": restore_detail,
         "disk_trend_gb_week": trend,
+        "purge_mode": purge_mode,
+        "purge_candidates": purge_n,
     }
 
 

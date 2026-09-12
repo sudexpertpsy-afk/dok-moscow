@@ -244,6 +244,7 @@ def create_app() -> FastAPI:
         payload: dict[str, Any] = {"ok": True, "version": s.app_version}
         if revision and revision != "unknown":
             payload["revision"] = revision
+            payload["sha"] = revision
         return payload
 
     app.include_router(landing.router)

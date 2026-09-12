@@ -1,4 +1,4 @@
-"""Self-serve регистрация на app-хосте (W-47)."""
+"""Self-serve регистрация на app-хосте (W-47 / W-50 B.2)."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from app.security import get_csrf_token, hash_password, login_user_session
 from app.services.leads import (
     LeadError,
     SelfServeExistsError,
+    confirm_self_serve_signup,
     normalize_signup_period,
     normalize_signup_tariff,
     self_serve_signup,
@@ -179,6 +180,61 @@ def signup_submit(
     except Exception:
         db.rollback()
         raise
+
+    msg = (
+        "Мы отправили письмо со ссылкой ещё раз. Подтвердите e-mail, чтобы создать кабинет."
+        if result.resent
+        else "Проверьте почту: мы отправили ссылку для подтверждения регистрации. "
+        "Кабинет создастся после перехода по ссылке."
+    )
+    return _render(request, db=db, form=form, flash_ok=msg)
+
+
+@router.get("/confirm-signup/{token}", response_class=HTMLResponse)
+def confirm_signup(
+    request: Request,
+    token: str,
+    db: Session = Depends(get_db),
+):
+    """W-50 B.2: подтверждение Signup → org + user + guest."""
+    try:
+        result = confirm_self_serve_signup(db, token)
+    except SelfServeExistsError:
+        return RedirectResponse(
+            "/login?msg=exists",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    except LeadError as exc:
+        db.rollback()
+        return templates.TemplateResponse(
+            request=request,
+            name="auth/login.html",
+            context={
+                "request": request,
+                "csrf_token": get_csrf_token(request),
+                "app_name": get_settings().app_name,
+                "flash_error": str(exc),
+                "password_hint": password_policy_hint(),
+            },
+            status_code=400,
+        )
+    except Exception:
+        db.rollback()
+        raise
+
+    if result is None or result.user is None:
+        return templates.TemplateResponse(
+            request=request,
+            name="auth/login.html",
+            context={
+                "request": request,
+                "csrf_token": get_csrf_token(request),
+                "app_name": get_settings().app_name,
+                "flash_error": "Ссылка подтверждения недействительна или истекла.",
+                "password_hint": password_policy_hint(),
+            },
+            status_code=400,
+        )
 
     login_user_session(
         request, result.user.id, result.user.org_id, result.user.role.value

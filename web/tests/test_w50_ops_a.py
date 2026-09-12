@@ -208,19 +208,44 @@ def test_mail_auth_checklist_and_marker_domain(tmp_path, monkeypatch):
     bad = Settings(smtp_from="Dok <user@gmail.com>")
     ok_settings = Settings(smtp_from="Dok <noreply@dok.moscow>")
 
-    assert ma.mail_auth_checklist(bad)[0] is False
-    # подтверждение при gmail — маркер с gmail, зелёным не станет
+    # 1) маркера нет
+    ok, fact, *_ = ma.mail_auth_checklist(ok_settings)
+    assert ok is False
+    assert "маркера нет" in fact
+
+    # 2) подтверждено для gmail.com
     ma.write_mail_auth_ok(checked_by="test", settings=bad)
     marker = ma.read_mail_auth_ok(bad)
     assert marker and marker.get("from_domain") == "gmail.com"
-    assert ma.mail_auth_checklist(bad)[0] is False
+    assert marker.get("confirmed_at")
+    ok, fact, *_ = ma.mail_auth_checklist(bad)
+    assert ok is False
+    assert "подтверждено для gmail.com" in fact
 
-    # переключаем From на dok.moscow, но маркер ещё gmail — не ok
-    assert ma.mail_auth_checklist(ok_settings)[0] is False
+    # маркер gmail + текущий dok — всё ещё «подтверждено для gmail»
+    ok, fact, *_ = ma.mail_auth_checklist(ok_settings)
+    assert ok is False
+    assert "подтверждено для gmail.com" in fact
 
+    # 3) ok для dok.moscow
     ma.write_mail_auth_ok(checked_by="test", settings=ok_settings)
     assert ma.read_mail_auth_ok(ok_settings)["from_domain"] == "dok.moscow"
     assert ma.mail_auth_checklist(ok_settings)[0] is True
+
+    # 4) домен изменился (маркер dok, From gmail)
+    ok, fact, *_ = ma.mail_auth_checklist(bad)
+    assert ok is False
+    assert "домен изменился" in fact
+
+
+def test_healthz_has_sha(app, monkeypatch):
+    client, _dbmod = app
+    monkeypatch.setenv("GIT_REVISION", "abcdef1234567890")
+    r = client.get("/healthz")
+    assert r.status_code == 200
+    data = r.json()
+    assert data.get("sha") == "abcdef1234567890"
+    assert data.get("revision") == "abcdef1234567890"
 
 
 def test_smtp_from_ok(monkeypatch):
@@ -300,3 +325,6 @@ def test_deploy_sh_has_prune_keep_logic():
     assert "running_app_image_tag" in src
     assert "deploy_image_sha" in src
     assert "org.opencontainers.image.revision" in src
+    assert "--rehearse" in src
+    assert "migrate_rehearsal" in src
+    assert 'd.get("sha")' in src or "d.get('sha')" in src

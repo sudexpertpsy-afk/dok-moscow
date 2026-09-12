@@ -62,6 +62,11 @@ def _page(request: Request, user: CurrentUser, org, db: Session, **extra):
 
 
 def _gate(request: Request, user: CurrentUser, db: Session):
+    from app.services.two_fa_policy import enforce_soft_2fa
+
+    blocked = enforce_soft_2fa(request, user, db)
+    if blocked is not None:
+        return blocked
     if not user.is_org_admin:
         return forbidden_org_admin_page(request, user, db)
     return None

@@ -124,7 +124,19 @@ def admin_home(
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
 ):
-    orgs_n = db.scalar(select(func.count()).select_from(Organization)) or 0
+    include_internal = request.query_params.get("include_internal") == "1"
+    org_q = select(func.count()).select_from(Organization)
+    if not include_internal:
+        org_q = org_q.where(Organization.is_internal.is_(False))
+    orgs_n = db.scalar(org_q) or 0
+    internal_orgs_n = (
+        db.scalar(
+            select(func.count())
+            .select_from(Organization)
+            .where(Organization.is_internal.is_(True))
+        )
+        or 0
+    )
     users_n = db.scalar(select(func.count()).select_from(User)) or 0
     leads_n = db.scalar(select(func.count()).select_from(Lead)) or 0
     open_invites = (
@@ -159,17 +171,30 @@ def admin_home(
         or 0
     )
     recent_leads = db.scalars(select(Lead).order_by(Lead.id.desc()).limit(8)).all()
-    recent_orgs = db.scalars(select(Organization).order_by(Organization.id.desc()).limit(8)).all()
+    recent_orgs_q = select(Organization).order_by(Organization.id.desc()).limit(8)
+    if not include_internal:
+        recent_orgs_q = (
+            select(Organization)
+            .where(Organization.is_internal.is_(False))
+            .order_by(Organization.id.desc())
+            .limit(8)
+        )
+    recent_orgs = db.scalars(recent_orgs_q).all()
     stats = _org_stats(db)
     from app.services.facsimile import count_orgs_with_branding
 
-    org_ids = list(db.scalars(select(Organization.id)).all())
+    org_ids_q = select(Organization.id)
+    if not include_internal:
+        org_ids_q = org_ids_q.where(Organization.is_internal.is_(False))
+    org_ids = list(db.scalars(org_ids_q).all())
     branding_orgs = count_orgs_with_branding(org_ids)
+    from app.services.admin_metrics import payment_funnel_30d
     from app.services.onboarding import onboarding_admin_metrics
     from app.services.org_export import export_stats
 
     exports = export_stats(db)
-    onboarding = onboarding_admin_metrics(db)
+    onboarding = onboarding_admin_metrics(db, include_internal=include_internal)
+    payment_funnel = payment_funnel_30d(db, include_internal=include_internal)
     return templates.TemplateResponse(
         request=request,
         name="admin/home.html",
@@ -177,8 +202,10 @@ def admin_home(
             request,
             user,
             "home",
+            include_internal=include_internal,
             counts={
                 "orgs": orgs_n,
+                "internal_orgs": internal_orgs_n,
                 "users": users_n,
                 "leads": leads_n,
                 "open_invites": open_invites,
@@ -188,6 +215,7 @@ def admin_home(
                 "funnel_paid": funnel_paid,
                 "exports_total": exports["exports_total"],
             },
+            payment_funnel=payment_funnel,
             recent_leads=recent_leads,
             recent_orgs=recent_orgs,
             org_stats=stats,
@@ -218,11 +246,20 @@ def admin_organizations(
     user: CurrentUser = Depends(require_service_admin),
     db: Session = Depends(get_db),
 ):
+    from app.services.billing import ensure_payment_settings
+    from app.services.org_purge import get_purge_mode, list_purge_candidates
+
     orgs = list(db.scalars(select(Organization).order_by(Organization.id.desc())).all())
     extra = _subscription_list_context(db, orgs)
     ok = request.query_params.get("ok")
     err = request.query_params.get("err")
     flash_ok = "Организация удалена." if ok == "org-deleted" else ok
+    if ok == "org-purged":
+        flash_ok = "Пустая организация удалена."
+    if ok == "purge-mode":
+        flash_ok = "Режим purge обновлён."
+    candidates = list_purge_candidates(db)
+    ps = ensure_payment_settings(db)
     return templates.TemplateResponse(
         request=request,
         name="admin/organizations.html",
@@ -234,8 +271,36 @@ def admin_organizations(
             org_stats=_org_stats(db),
             flash_ok=flash_ok,
             flash_error=err,
+            purge_candidates=candidates,
+            purge_mode=get_purge_mode(db),
+            purge_mode_changed_at=ps.purge_mode_changed_at,
             **extra,
         ),
+    )
+
+
+@router.post("/organizations/purge-mode", response_class=HTMLResponse)
+def admin_purge_mode(
+    request: Request,
+    mode: str = Form(...),
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from urllib.parse import quote
+
+    from app.services.org_purge import OrgPurgeError, set_purge_mode
+
+    try:
+        set_purge_mode(db, mode, actor_id=user.id)
+    except OrgPurgeError as exc:
+        return RedirectResponse(
+            f"/admin/organizations?err={quote(str(exc))}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    return RedirectResponse(
+        "/admin/organizations?ok=purge-mode",
+        status_code=status.HTTP_303_SEE_OTHER,
     )
 
 
@@ -249,8 +314,12 @@ def create_organization(
 ):
     name = name.strip()
     if not name:
+        from app.services.billing import ensure_payment_settings
+        from app.services.org_purge import get_purge_mode, list_purge_candidates
+
         orgs = list(db.scalars(select(Organization).order_by(Organization.id.desc())).all())
         extra = _subscription_list_context(db, orgs)
+        ps = ensure_payment_settings(db)
         return templates.TemplateResponse(
             request=request,
             name="admin/organizations.html",
@@ -261,6 +330,9 @@ def create_organization(
                 orgs=orgs,
                 org_stats=_org_stats(db),
                 flash_error="Укажите название организации.",
+                purge_candidates=list_purge_candidates(db),
+                purge_mode=get_purge_mode(db),
+                purge_mode_changed_at=ps.purge_mode_changed_at,
                 **extra,
             ),
             status_code=400,
@@ -301,6 +373,9 @@ def admin_organization_detail(
     if org.source_lead_id:
         source_lead = db.get(Lead, org.source_lead_id)
     from app.services.facsimile import branding_slots_summary
+    from app.services.org_purge import can_purge_org
+
+    can_purge, purge_reason = can_purge_org(db, org)
 
     return templates.TemplateResponse(
         request=request,
@@ -320,6 +395,8 @@ def admin_organization_detail(
             reason_choices=REASON_CHOICES,
             source_lead=source_lead,
             branding_slots=branding_slots_summary(org_id),
+            can_purge=can_purge,
+            purge_reason=purge_reason,
             flash_ok=request.query_params.get("ok"),
             flash_error=request.query_params.get("err"),
         ),
@@ -480,6 +557,62 @@ def rename_organization(
         org.name = name
         db.commit()
     return RedirectResponse(f"/admin/organizations/{org_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/organizations/{org_id}/internal", response_class=HTMLResponse)
+def set_organization_internal(
+    org_id: int,
+    request: Request,
+    is_internal: str | None = Form(None),
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    """W-50 B.4: флаг внутренней организации (KPI)."""
+    org = db.get(Organization, org_id)
+    if org is None:
+        return RedirectResponse("/admin/organizations", status_code=status.HTTP_303_SEE_OTHER)
+    new_val = str(is_internal or "").strip().lower() in ("1", "on", "true", "yes")
+    if org.is_internal != new_val:
+        org.is_internal = new_val
+        record_event(
+            db,
+            type="org.internal_changed",
+            org_id=org.id,
+            user_id=user.id,
+            details={"is_internal": new_val},
+            commit=False,
+        )
+        db.commit()
+    return RedirectResponse(f"/admin/organizations/{org_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/organizations/{org_id}/purge", response_class=HTMLResponse)
+def purge_organization_route(
+    org_id: int,
+    request: Request,
+    user: CurrentUser = Depends(require_service_admin),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_csrf),
+):
+    from urllib.parse import quote
+
+    from app.services.org_purge import OrgPurgeError, purge_org
+
+    org = db.get(Organization, org_id)
+    if org is None:
+        return RedirectResponse("/admin/organizations", status_code=status.HTTP_303_SEE_OTHER)
+    try:
+        purge_org(db, org, actor_id=user.id, reason="empty")
+    except OrgPurgeError as exc:
+        return RedirectResponse(
+            f"/admin/organizations/{org_id}?err={quote(str(exc))}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    return RedirectResponse(
+        "/admin/organizations?ok=org-purged",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
 @router.post("/organizations/{org_id}/delete", response_class=HTMLResponse)
@@ -780,7 +913,7 @@ def create_org_from_lead(
             status_code=400,
         )
     return RedirectResponse(
-        f"/admin/leads?ok=Организация+создана.+Инвайт"
+        f"/admin/leads?ok=Инвайт"
         f"{'+отправлен' if result.email_sent else '+создан'}#lead-{lead_id}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
@@ -1097,12 +1230,46 @@ def create_invite(
     if db.scalar(select(User).where(User.email == email_norm)):
         return err("Пользователь с таким e-mail уже есть.", 409)
 
+    from app.services.leads import _kill_invite, find_open_invite
     from app.services.limits import assert_can_add_user
 
     try:
         assert_can_add_user(db, org.id)
     except HTTPException as exc:
         return err(str(exc.detail), int(exc.status_code))
+
+    open_inv = find_open_invite(db, email_norm)
+    if open_inv is not None:
+        if open_inv.org_id != org.id:
+            return err("Для этого e-mail уже есть активное приглашение в другую организацию.", 409)
+        open_inv.token = new_invite_token()
+        open_inv.expires_at = utcnow() + timedelta(hours=settings.invite_ttl_hours)
+        open_inv.org_id = org.id
+        db.commit()
+        token = open_inv.token
+        invites = db.scalars(select(Invite).order_by(Invite.id.desc()).limit(100)).all()
+        orgs = db.scalars(select(Organization).order_by(Organization.name)).all()
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/invites.html",
+            context=_ctx(
+                request,
+                user,
+                "invites",
+                invites=invites,
+                orgs=orgs,
+                org_names={o.id: o.name for o in orgs},
+                flash_ok="Приглашение обновлено (срок продлён).",
+                last_invite_link=_invite_link(request, token),
+                invite_ttl=settings.invite_ttl_hours,
+            ),
+        )
+
+    # закрыть «висящие» is_active (истёкшие) — иначе unique index
+    for stale in db.scalars(
+        select(Invite).where(Invite.email == email_norm, Invite.is_active.is_(True))
+    ).all():
+        _kill_invite(stale)
 
     token = new_invite_token()
     invite = Invite(
@@ -1141,8 +1308,10 @@ def revoke_invite(
     _: None = Depends(require_csrf),
 ):
     invite = db.get(Invite, invite_id)
-    if invite and invite.used_at is None:
-        invite.expires_at = utcnow() - timedelta(seconds=1)
+    if invite and invite.is_active and invite.used_at is None:
+        from app.services.leads import _kill_invite
+
+        _kill_invite(invite)
         db.commit()
     return RedirectResponse("/admin/invites", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -1204,15 +1373,16 @@ def resend_admin_invite(
         return page(flash_error=str(exc.detail), code=int(exc.status_code))
 
     now = utcnow()
-    # погасить исходное и любые другие открытые по этому e-mail
+    from app.services.leads import _kill_invite
+
+    # погасить исходное и любые другие активные по этому e-mail
     for inv in db.scalars(
         select(Invite).where(
             Invite.email == email_norm,
-            Invite.used_at.is_(None),
-            Invite.expires_at > now,
+            Invite.is_active.is_(True),
         )
     ).all():
-        inv.expires_at = now - timedelta(seconds=1)
+        _kill_invite(inv)
 
     token = new_invite_token()
     new_inv = Invite(
@@ -1325,6 +1495,22 @@ def admin_status(
         ("FILES_ROOT", settings.files_root, True),
         ("Шаблоны", settings.templates_dir, True),
     ]
+    from app.services.two_fa_policy import two_fa_adoption_stats
+
+    t2 = two_fa_adoption_stats(db)
+    paid_pct = t2["paid_org_admins_pct"]
+    paid_ok = paid_pct is None or paid_pct >= 100.0
+    paid_detail = (
+        f"{t2['paid_org_admins_2fa']}/{t2['paid_org_admins_total']}"
+        + (f" ({paid_pct}%)" if paid_pct is not None else " (нет платных)")
+    )
+    all_pct = t2["all_users_pct"]
+    all_detail = (
+        f"{t2['all_users_2fa']}/{t2['all_users_total']}"
+        + (f" ({all_pct}%)" if all_pct is not None else "")
+    )
+    checks.append(("2FA org_admin платных", paid_detail, paid_ok))
+    checks.append(("2FA все пользователи", all_detail, True))
     snap = status_snapshot(db)
     return templates.TemplateResponse(
         request=request,

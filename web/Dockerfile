@@ -5,6 +5,7 @@ ARG APP_VERSION=dev
 ARG GIT_REVISION=unknown
 
 LABEL org.opencontainers.image.revision=${GIT_REVISION} \
+      org.opencontainers.image.version=${APP_VERSION} \
       org.opencontainers.image.title="dok-app" \
       org.opencontainers.image.description="Док.Москва"
 

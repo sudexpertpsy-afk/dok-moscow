@@ -79,7 +79,7 @@ web/app/billing/payments.py	SIM102	1
 web/app/billing/settings_access.py	RET501	1
 web/app/db.py	BLE001	1
 web/app/db.py	S110	1
-web/app/deps.py	B008	6
+web/app/deps.py	B008	7
 web/app/http_cache.py	PIE810	1
 web/app/main.py	BLE001	1
 web/app/models.py	C408	1
@@ -90,7 +90,7 @@ web/app/ops_agent/actions.py	S110	1
 web/app/ops_agent/actions.py	SIM102	1
 web/app/ops_agent/actions.py	SIM115	1
 web/app/ops_agent/app.py	I001	1
-web/app/routers/admin.py	B008	60
+web/app/routers/admin.py	B008	66
 web/app/routers/admin.py	F401	1
 web/app/routers/admin.py	F841	1
 web/app/routers/admin.py	I001	2
@@ -113,7 +113,7 @@ web/app/routers/auth.py	I001	1
 web/app/routers/auth.py	PIE810	1
 web/app/routers/billing.py	B008	1
 web/app/routers/billing.py	BLE001	1
-web/app/routers/cabinet.py	B008	10
+web/app/routers/cabinet.py	B008	11
 web/app/routers/cabinet_billing.py	B008	10
 web/app/routers/cabinet_billing.py	I001	1
 web/app/routers/cabinet_help.py	B008	2
@@ -155,7 +155,7 @@ web/app/routers/praktika.py	B008	2
 web/app/routers/settings.py	B008	61
 web/app/routers/settings.py	I001	3
 web/app/routers/settings.py	SIM118	1
-web/app/routers/signup.py	B008	3
+web/app/routers/signup.py	B008	4
 web/app/routers/staff.py	B008	8
 web/app/routers/yandex_auth.py	B008	4
 web/app/routers/zakon.py	B008	2

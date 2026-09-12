@@ -201,6 +201,10 @@ class Organization(Base):
     )
     # W-49 B: чеклист онбординга {dismissed, numbering_confirmed, …}
     onboarding: Mapped[dict | None] = mapped_column(JsonType, nullable=True)
+    # W-50 B.4: внутренние (УСЭ, ЦСИЭ, …) — исключать из KPI
+    is_internal: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     users: Mapped[list[User]] = relationship(back_populates="organization")
     invites: Mapped[list[Invite]] = relationship(back_populates="organization")
@@ -290,15 +294,34 @@ class OAuthIdentity(Base):
 
 class Invite(Base):
     __tablename__ = "invites"
+    __table_args__ = (
+        # W-50 B.2: один активный инвайт на e-mail (частичный уникальный)
+        Index(
+            "ix_invites_active_email_lower",
+            text("lower(email)"),
+            unique=True,
+            postgresql_where=text("is_active IS TRUE"),
+            sqlite_where=text("is_active = 1"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    org_id: Mapped[int] = mapped_column(
-        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    # W-50 B.2: NULL до принятия — org создаётся атомарно при accept
+    org_id: Mapped[int | None] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True, index=True
     )
     email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
     token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # W-50: снимает с unique index при отзыве/замене/принятии (used_at — только accept)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    # W-50.1: active|accepted|expired|revoked; is_active = (status == 'active')
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="active", server_default="active"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -309,8 +332,17 @@ class Invite(Base):
         nullable=True,
         index=True,
     )
+    # W-50 B.2: параметры будущей org до принятия
+    pending_org_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pending_tariff_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pending_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    organization: Mapped[Organization] = relationship(back_populates="invites")
+    def set_status(self, value: str) -> None:
+        """Статус инвайта + синхронизация is_active."""
+        self.status = value
+        self.is_active = value == "active"
+
+    organization: Mapped[Organization | None] = relationship(back_populates="invites")
     lead: Mapped["Lead | None"] = relationship(
         foreign_keys=[lead_id],
         post_update=True,
@@ -596,6 +628,34 @@ class Lead(Base):
     )
 
 
+class Signup(Base):
+    """W-50 B.2: self-serve до подтверждения e-mail (org ещё нет)."""
+
+    __tablename__ = "signups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    org_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tariff_code: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="specialist", server_default="specialist"
+    )
+    period: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="month", server_default="month"
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    def is_expired(self) -> bool:
+        exp = self.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        return utcnow() >= exp
+
+
 class PasswordResetToken(Base):
     """Одноразовые токены восстановления пароля (W-09)."""
 
@@ -856,6 +916,20 @@ class PaymentSettings(Base):
     )
     require_2fa_for_org_admins: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
+    )
+    # W-50 B.5: мягкая политика 2FA (баннер + блок чувствительных маршрутов)
+    two_fa_policy_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    two_fa_policy_enabled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # W-50.1 §3: dry — только кандидаты; live — удаление
+    purge_mode: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="dry", server_default="dry"
+    )
+    purge_mode_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
     yandex_login_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
