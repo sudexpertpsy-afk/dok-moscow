@@ -106,13 +106,17 @@ docker run -d --rm \
   -p "127.0.0.1:${HOST_PORT}:5432" \
   "$PG_IMAGE" >/dev/null
 
-for _ in $(seq 1 60); do
+for _ in $(seq 1 90); do
   if docker exec "$CONTAINER" pg_isready -U "$REHEARSAL_PG_USER" -d "$REHEARSAL_DB" >/dev/null 2>&1; then
-    break
+    # после «accepting connections» дать initdb дописать шаблонные БД
+    sleep 2
+    if docker exec "$CONTAINER" psql -U "$REHEARSAL_PG_USER" -d "$REHEARSAL_DB" -Atc "SELECT 1" >/dev/null 2>&1; then
+      break
+    fi
   fi
   sleep 1
 done
-if ! docker exec "$CONTAINER" pg_isready -U "$REHEARSAL_PG_USER" -d "$REHEARSAL_DB" >/dev/null 2>&1; then
+if ! docker exec "$CONTAINER" psql -U "$REHEARSAL_PG_USER" -d "$REHEARSAL_DB" -Atc "SELECT 1" >/dev/null 2>&1; then
   fail "postgres не готов"
 fi
 
