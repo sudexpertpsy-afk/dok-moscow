@@ -29,3 +29,21 @@
       </form>
     </div>
     {% endif %}
+    {% set soft_2fa = request.state.soft_2fa if request.state is defined and request.state.soft_2fa is defined else none %}
+    {% if soft_2fa and soft_2fa.two_fa_show_grace_banner %}
+    <div class="alert" role="status" style="background:#e7f1ff;color:#084298;border:1px solid #b6d4fe;margin:0 0 1rem">
+      Включите двухфакторную аутентификацию в течение
+      {% if soft_2fa.two_fa_grace_days is not none %}{{ soft_2fa.two_fa_grace_days }}{% else %}нескольких{% endif %}
+      дн. — иначе будут ограничены выгрузка данных, сотрудники, нумерация и оплата.
+      <a href="{{ soft_2fa.two_fa_security_url }}" style="margin-left:0.5rem">Включить</a>
+    </div>
+    {% elif soft_2fa and soft_2fa.two_fa_show_member_reminder %}
+    <div class="alert" role="status" style="background:#f8f9fa;color:#41464b;border:1px solid #d3d6d8;margin:0 0 1rem">
+      Рекомендуем включить 2FA для защиты доступа к данным организации.
+      <a href="{{ soft_2fa.two_fa_security_url }}" style="margin-left:0.5rem">Включить</a>
+      <form method="post" action="/cabinet/2fa-remind/dismiss" style="display:inline;margin-left:0.5rem" hx-boost="false">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn secondary" style="padding:0.2rem 0.6rem">Позже</button>
+      </form>
+    </div>
+    {% endif %}

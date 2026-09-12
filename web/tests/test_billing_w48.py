@@ -218,7 +218,7 @@ def test_one_open_order_reuses_payment_url(app):
         assert url1 == url2
         assert client1.init.call_count == 1
 
-        pay1.created_at = utcnow() - timedelta(minutes=20)
+        pay1.created_at = utcnow() - timedelta(minutes=21)
         db.commit()
         client2 = _fake_tbank("new")
         with patch("app.billing.payments.load_tbank_client", return_value=client2):
@@ -237,6 +237,46 @@ def test_one_open_order_reuses_payment_url(app):
         db.refresh(pay1)
         assert pay1.status == PaymentStatus.expired
         assert client2.init.call_count == 1
+    finally:
+        db.close()
+
+
+def test_open_order_reuses_within_20_minutes(app):
+    """W-50 C.2: окно reuse = 20 минут."""
+    _, dbmod = app
+    org_id, _ = _seed_org(dbmod, "reuse20@example.com")
+    db = dbmod.SessionLocal()
+    try:
+        tariff = db.scalar(select(Tariff).where(Tariff.code == TariffCode.specialist))
+        sub = db.scalar(select(Subscription).where(Subscription.org_id == org_id))
+        amount = tariff_amount_kop(tariff, SubscriptionPeriod.month)
+        client1 = _fake_tbank("same20")
+        with patch("app.billing.payments.load_tbank_client", return_value=client1):
+            pay1, url1 = create_card_payment(
+                db,
+                org_id=org_id,
+                subscription=sub,
+                tariff=tariff,
+                period=SubscriptionPeriod.month,
+                amount_kop=amount,
+                email="reuse20@example.com",
+            )
+        pay1.created_at = utcnow() - timedelta(minutes=19)
+        db.commit()
+        with patch("app.billing.payments.load_tbank_client", return_value=client1):
+            pay2, url2 = create_card_payment(
+                db,
+                org_id=org_id,
+                subscription=sub,
+                tariff=tariff,
+                period=SubscriptionPeriod.month,
+                amount_kop=amount,
+                email="reuse20@example.com",
+            )
+        db.commit()
+        assert pay1.id == pay2.id
+        assert url1 == url2
+        assert client1.init.call_count == 1
     finally:
         db.close()
 

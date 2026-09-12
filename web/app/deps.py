@@ -26,6 +26,7 @@ class CurrentUser:
     nav_order: dict | None = None
     org_role: OrgRole | None = None
     email_verified: bool = True
+    totp_enabled: bool = False
 
     @property
     def is_service_admin(self) -> bool:
@@ -89,6 +90,7 @@ def get_optional_user(
         nav_order=order,
         org_role=effective_org_role(user),
         email_verified=bool(getattr(user, "email_verified", True)),
+        totp_enabled=bool(getattr(user, "totp_enabled", False)),
     )
 
 
@@ -111,6 +113,7 @@ def require_service_admin(user: CurrentUser = Depends(get_current_user)) -> Curr
 def require_org_user(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> CurrentUser:
     """Пользователь с организацией. Админ сервиса без org → редирект в /admin/."""
     if user.org_id is None:
@@ -133,6 +136,10 @@ def require_org_user(
                     "HX-Redirect": "/cabinet/settings/security",
                 },
             )
+    # W-50 B.5: баннер soft 2FA в layout
+    from app.services.two_fa_policy import attach_soft_2fa_request_state
+
+    attach_soft_2fa_request_state(request, db, user)
     return user
 
 

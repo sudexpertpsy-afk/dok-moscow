@@ -13,6 +13,7 @@ _APP_PREFIXES = (
     "/forgot-password",
     "/reset-password",
     "/signup",
+    "/confirm-signup",
     "/verify-email",
     "/invite",
     "/auth/",

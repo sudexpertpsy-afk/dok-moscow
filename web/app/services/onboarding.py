@@ -286,9 +286,16 @@ def build_onboarding_checklist(
     )
 
 
-def onboarding_admin_metrics(db: Session) -> dict[str, Any]:
+def onboarding_admin_metrics(
+    db: Session,
+    *,
+    include_internal: bool = False,
+) -> dict[str, Any]:
     """Медиана «регистрация → первый документ» и доля дошедших до шага 4."""
-    orgs = list(db.scalars(select(Organization)).all())
+    q = select(Organization)
+    if not include_internal:
+        q = q.where(Organization.is_internal.is_(False))
+    orgs = list(db.scalars(q).all())
     if not orgs:
         return {
             "orgs_total": 0,

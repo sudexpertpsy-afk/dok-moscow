@@ -114,8 +114,23 @@ def ensure_tariffs(db: Session) -> list[Tariff]:
 def ensure_payment_settings(db: Session) -> PaymentSettings:
     row = db.get(PaymentSettings, 1)
     if row is None:
-        row = PaymentSettings(id=1, mode=PaymentMode.test)
+        row = PaymentSettings(
+            id=1,
+            mode=PaymentMode.test,
+            two_fa_policy_enabled=True,
+            two_fa_policy_enabled_at=utcnow(),
+            purge_mode="dry",
+            purge_mode_changed_at=utcnow(),
+        )
         db.add(row)
+        db.flush()
+    else:
+        if row.two_fa_policy_enabled and row.two_fa_policy_enabled_at is None:
+            row.two_fa_policy_enabled_at = utcnow()
+        if not getattr(row, "purge_mode", None):
+            row.purge_mode = "dry"
+        if getattr(row, "purge_mode_changed_at", None) is None and (row.purge_mode or "dry") == "dry":
+            row.purge_mode_changed_at = utcnow()
         db.flush()
     return row
 

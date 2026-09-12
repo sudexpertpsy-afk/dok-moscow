@@ -187,10 +187,12 @@ def is_org_admin_subject(user: User) -> bool:
     """Администратор организации (W-27: users.org_role)."""
     from app.org_roles import is_org_admin
 
-    return bool(user.org_id is not None and user.role.value == "user" and is_org_admin(user))
+    role = user.role.value if hasattr(user.role, "value") else str(user.role)
+    return bool(user.org_id is not None and role == "user" and is_org_admin(user))
 
 
 def should_force_2fa_setup(db: Session, user: User) -> bool:
+    """Жёсткий мастер только по флагу require_2fa_for_org_admins (не soft-политика)."""
     if user.totp_enabled:
         return False
     if not is_org_admin_subject(user):

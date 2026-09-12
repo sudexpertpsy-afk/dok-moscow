@@ -31,6 +31,7 @@ GHCR_IMAGE="${GHCR_IMAGE:-$GHCR_IMAGE_DEFAULT}"
 
 TAG=""
 ROLLBACK=0
+REHEARSE=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tag)
@@ -41,8 +42,13 @@ while [[ $# -gt 0 ]]; do
       ROLLBACK=1
       shift
       ;;
+    --rehearse)
+      REHEARSE=1
+      shift
+      ;;
     -h|--help)
       sed -n '2,6p' "$0"
+      echo "  --rehearse  — pull образа → репетиция alembic на бэкапе → compose up"
       exit 0
       ;;
     *)
@@ -59,7 +65,7 @@ log() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $*" | tee -a "$LOG"; }
 
 # W-50 A.1 / v1.2.4: каноническая строка результата деплоя.
 # Формат: <ISO> tag=<tag> sha=<sha> status=ok|fail df=<pcent>
-# sha: OCI label revision → healthz.revision → healthz.version → unknown
+# sha: OCI label revision → healthz.sha → healthz.revision → unknown
 deploy_image_sha() {
   local img="${DOK_IMAGE:-}"
   local sha=""
@@ -73,10 +79,11 @@ deploy_image_sha() {
     local hz
     hz="$(docker compose --env-file .env exec -T app curl -sf http://127.0.0.1:8000/healthz 2>/dev/null || true)"
     if [[ -n "$hz" ]]; then
-      sha="$(printf '%s' "$hz" | python3 -c 'import sys,json; d=json.load(sys.stdin); print((d.get("revision") or d.get("version") or "").strip())' 2>/dev/null || true)"
+      sha="$(printf '%s' "$hz" | python3 -c 'import sys,json; d=json.load(sys.stdin); print((d.get("sha") or d.get("revision") or "").strip())' 2>/dev/null || true)"
     fi
   fi
   if [[ -z "$sha" ]]; then
+    echo "⚠ deploy_image_sha: OCI label и healthz.sha пусты" >&2
     echo "unknown"
     return 0
   fi
@@ -298,7 +305,39 @@ GHCR_TOKEN="$(_env_get GHCR_TOKEN)"
 GHCR_USER="$(_env_get GHCR_USER)"
 GHCR_USER="${GHCR_USER:-sudexpertpsy-afk}"
 
-log "deploy start mode=pull image=${DOK_IMAGE} tag=${TAG:-${APP_VERSION:-none}}"
+# W-50.1: сравнить alembic heads образа с current прод-БД
+alembic_heads_vs_current() {
+  local img_heads="" prod_cur=""
+  img_heads="$(docker run --rm "$DOK_IMAGE" alembic heads 2>/dev/null | awk '{print $1}' | head -1 || true)"
+  prod_cur="$(docker compose --env-file .env exec -T app alembic current 2>/dev/null | awk '{print $1}' | head -1 || true)"
+  if [[ -z "$img_heads" || -z "$prod_cur" ]]; then
+    echo ""
+    return 0
+  fi
+  if [[ "$img_heads" != "$prod_cur" ]]; then
+    echo "image=$img_heads prod=$prod_cur"
+  else
+    echo ""
+  fi
+}
+
+confirm_skip_rehearse() {
+  local drift="$1"
+  echo "⚠ alembic heads ≠ current ($drift)"
+  echo "  Для релизов с миграциями рекомендуется --rehearse."
+  if [[ ! -t 0 ]]; then
+    echo "✗ Неинтерактивный режим: передайте --rehearse или прервите деплой"
+    exit 1
+  fi
+  local ans=""
+  read -r -p "Продолжить без репетиции миграции? [y/N] " ans
+  case "$ans" in
+    y|Y|yes|YES) echo "→ продолжаем без --rehearse" ;;
+    *) echo "✗ Отменено"; exit 1 ;;
+  esac
+}
+
+log "deploy start mode=pull image=${DOK_IMAGE} tag=${TAG:-${APP_VERSION:-none}} rehearse=$REHEARSE"
 
 # Прод по образу: git-дерево не источник правды для app-кода
 if [[ -n "$GHCR_TOKEN" ]]; then
@@ -307,7 +346,27 @@ if [[ -n "$GHCR_TOKEN" ]]; then
 else
   echo "→ docker login: GHCR_TOKEN не задан — ожидается уже выполненный docker login ghcr.io"
 fi
-echo "→ docker compose pull $DOK_IMAGE"
+
+# Порядок: pull целевого образа → (--rehearse) → compose pull/up.
+# Репетиции нужен новый образ (alembic из тега), не старый running app.
+echo "→ docker pull $DOK_IMAGE"
+docker pull "$DOK_IMAGE"
+
+if [[ "$REHEARSE" -eq 1 ]]; then
+  echo "→ migrate_rehearsal.sh (образ уже pull, до compose up)"
+  if ! DOK_IMAGE="$DOK_IMAGE" OPS_DIR="$OPS_DIR" "$ROOT/deploy/migrate_rehearsal.sh"; then
+    log "✗ migrate_rehearsal failed — деплой прерван, прод не обновлён"
+    exit 1
+  fi
+else
+  # Без --rehearse: если есть дрейф миграций — спросить (или fail без tty)
+  drift="$(alembic_heads_vs_current || true)"
+  if [[ -n "$drift" ]]; then
+    confirm_skip_rehearse "$drift"
+  fi
+fi
+
+echo "→ docker compose pull (app/worker/ops-agent)"
 docker compose --env-file .env pull app worker ops-agent
 
 seed_templates

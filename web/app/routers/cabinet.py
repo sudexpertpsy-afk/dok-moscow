@@ -119,6 +119,33 @@ async def onboarding_dismiss(
     return RedirectResponse("/cabinet/", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/2fa-remind/dismiss", response_class=HTMLResponse)
+async def dismiss_2fa_member_remind(
+    request: Request,
+    user: CurrentUser = Depends(require_org_user),
+):
+    """Закрыть напоминание 2FA для org_member на 30 дней."""
+    from app.models import utcnow
+    from app.services.two_fa_policy import MEMBER_DISMISS_COOKIE
+
+    form = await request.form()
+    if not check_csrf(request, form.get("csrf_token")):
+        raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
+
+    settings = get_settings()
+    resp = RedirectResponse("/cabinet/", status_code=status.HTTP_303_SEE_OTHER)
+    resp.set_cookie(
+        key=MEMBER_DISMISS_COOKIE,
+        value=str(utcnow().timestamp()),
+        max_age=30 * 24 * 60 * 60,
+        httponly=True,
+        samesite="lax",
+        secure=bool(settings.session_https_only),
+        path="/",
+    )
+    return resp
+
+
 @router.get("/package", response_class=HTMLResponse)
 def package(request: Request, user: CurrentUser = Depends(require_org_user), db: Session = Depends(get_db)):
     return RedirectResponse("/cabinet/package/", status_code=status.HTTP_303_SEE_OTHER)

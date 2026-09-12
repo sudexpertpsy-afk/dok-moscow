@@ -333,6 +333,14 @@ def _run_daily_jobs() -> None:
             run_ops_daily(db)
         except Exception:
             log.exception("ops_daily failed")
+        try:
+            from app.services.org_purge import purge_empty_orgs_daily
+
+            purge_stats = purge_empty_orgs_daily(db)
+            if purge_stats.get("purged") or purge_stats.get("signups_expired"):
+                log.info("Org purge daily: %s", purge_stats)
+        except Exception:
+            log.exception("purge_empty_orgs_daily failed")
     finally:
         db.close()
 

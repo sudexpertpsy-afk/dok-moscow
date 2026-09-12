@@ -73,6 +73,7 @@ def create_org_invite(
         select(Invite).where(
             Invite.org_id == org.id,
             Invite.email == email_norm,
+            Invite.is_active.is_(True),
             Invite.used_at.is_(None),
             Invite.expires_at > utcnow(),
         )

@@ -5,7 +5,14 @@
 
 <section class="panel">
   <h1>Обзор сервиса</h1>
-  <p class="muted">Организации, доступы и заявки раннего доступа.</p>
+  <p class="muted">Организации, доступы и заявки раннего доступа.
+    {% if include_internal %}
+      <a href="/admin/">Скрыть внутренние</a>
+    {% else %}
+      <a href="/admin/?include_internal=1">Показать внутренние</a>
+    {% endif %}
+    · внутренние: {{ counts.internal_orgs }}
+  </p>
   <div class="stat-row" style="margin-top:1rem">
     <div class="stat"><div class="n">{{ counts.orgs }}</div><div class="l">Организации</div></div>
     <div class="stat"><div class="n">{{ counts.users }}</div><div class="l">Пользователи</div></div>
@@ -19,6 +26,14 @@
     <div class="stat"><div class="n">{{ counts.funnel_leads }}</div><div class="l">Заявки</div></div>
     <div class="stat"><div class="n">{{ counts.funnel_signed }}</div><div class="l">Кабинеты</div></div>
     <div class="stat"><div class="n">{{ counts.funnel_paid }}</div><div class="l">Оплаты</div></div>
+  </div>
+  <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.25rem 0 0.5rem">Оплата за 30 дней</h2>
+  <div class="stat-row">
+    <div class="stat"><div class="n">{{ payment_funnel.created }}</div><div class="l">Создано</div></div>
+    <div class="stat"><div class="n">{{ payment_funnel.confirmed }}</div><div class="l">Подтверждено</div></div>
+    <div class="stat"><div class="n">{{ payment_funnel.expired }}</div><div class="l">Истекло</div></div>
+    <div class="stat"><div class="n">{{ payment_funnel.cancelled }}</div><div class="l">Отменено</div></div>
+    <div class="stat"><div class="n">{{ payment_funnel.expired_share }}%</div><div class="l">Доля истёкших</div></div>
   </div>
   <h2 style="font-family:var(--font-display);font-size:1.15rem;margin:1.25rem 0 0.5rem">Онбординг (W-49)</h2>
   <p class="muted" style="margin:0 0 0.5rem">Цель пакета: медиана «регистрация → первый документ» ≤ 10 мин.</p>
