@@ -57,14 +57,42 @@ mkdir -p "$OPS_DIR"
 chmod 2775 "$OPS_DIR" 2>/dev/null || chmod 775 "$OPS_DIR" 2>/dev/null || true
 log() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $*" | tee -a "$LOG"; }
 
-# W-50 A.1: каноническая строка результата деплоя.
+# W-50 A.1 / v1.2.4: каноническая строка результата деплоя.
 # Формат: <ISO> tag=<tag> sha=<sha> status=ok|fail df=<pcent>
+# sha: OCI label revision → healthz.revision → healthz.version → unknown
+deploy_image_sha() {
+  local img="${DOK_IMAGE:-}"
+  local sha=""
+  if [[ -n "$img" ]]; then
+    sha="$(docker image inspect "$img" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' 2>/dev/null || true)"
+    if [[ -z "$sha" || "$sha" == "<no value>" ]]; then
+      sha=""
+    fi
+  fi
+  if [[ -z "$sha" ]]; then
+    local hz
+    hz="$(docker compose --env-file .env exec -T app curl -sf http://127.0.0.1:8000/healthz 2>/dev/null || true)"
+    if [[ -n "$hz" ]]; then
+      sha="$(printf '%s' "$hz" | python3 -c 'import sys,json; d=json.load(sys.stdin); print((d.get("revision") or d.get("version") or "").strip())' 2>/dev/null || true)"
+    fi
+  fi
+  if [[ -z "$sha" ]]; then
+    echo "unknown"
+    return 0
+  fi
+  # короткий префикс для лога (полный SHA или тег vX.Y.Z)
+  if [[ ${#sha} -gt 12 && "$sha" != v* ]]; then
+    echo "${sha:0:12}"
+  else
+    echo "$sha"
+  fi
+}
+
 log_deploy_result() {
   local status="$1"
   local tag_v="${TAG:-${APP_VERSION:-none}}"
   local sha_v
-  sha_v="$(docker image inspect "${DOK_IMAGE:-}" --format '{{.Id}}' 2>/dev/null | sed 's/^sha256://; s/^\(.\{12}\).*/\1/' || true)"
-  sha_v="${sha_v:-unknown}"
+  sha_v="$(deploy_image_sha)"
   local df_v
   df_v="$(df --output=pcent / 2>/dev/null | tail -1 | tr -d ' ' || echo n/a)"
   log "tag=${tag_v} sha=${sha_v} status=${status} df=${df_v}"

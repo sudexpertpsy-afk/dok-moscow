@@ -290,10 +290,11 @@ def status_snapshot(db: Session) -> dict[str, Any]:
 
     from app.ops.certs import host_from_url
     from app.ops.mail_auth import (
-        mail_auth_age_days,
+        mail_auth_checklist,
         read_mail_auth_ok,
         read_restore_drill,
         restore_drill_age_days,
+        smtp_from_domain,
         smtp_from_ok,
     )
     from app.ops.metrics import disk_trend_gb_per_week
@@ -333,8 +334,9 @@ def status_snapshot(db: Session) -> dict[str, Any]:
     restore_age_d = restore_drill_age_days(settings)
     restore_detail = read_restore_drill(settings)
     from_ok, from_detail = smtp_from_ok(settings)
-    mail_age_d = mail_auth_age_days(settings)
+    mail_ok, mail_fact, mail_marker_domain, mail_age_d = mail_auth_checklist(settings)
     mail_marker = read_mail_auth_ok(settings)
+    current_mail_domain = smtp_from_domain(settings.smtp_from or "")
 
     checklist: list[ThresholdResult] = [
         ThresholdResult(
@@ -395,15 +397,13 @@ def status_snapshot(db: Session) -> dict[str, Any]:
             ThresholdResult(
                 key="mail",
                 label="Почта (From / SPF)",
-                fact=(
-                    f"{from_detail}; маркер "
-                    + (
-                        f"{mail_age_d:.0f} дн."
-                        if mail_age_d is not None
-                        else "нет mail_auth_ok"
-                    )
+                fact=mail_fact,
+                tone=tone_mail_auth(
+                    from_ok=from_ok,
+                    marker_age_days=mail_age_d,
+                    marker_domain=mail_marker_domain,
+                    current_domain=current_mail_domain,
                 ),
-                tone=tone_mail_auth(from_ok=from_ok, marker_age_days=mail_age_d),
                 how_to="почта",
             ),
             ThresholdResult(
@@ -457,6 +457,7 @@ def status_snapshot(db: Session) -> dict[str, Any]:
         "tls": tls_rows,
         "mail_from_ok": from_ok,
         "mail_from_detail": from_detail,
+        "mail_auth_ok": mail_ok,
         "mail_auth": mail_marker,
         "restore_drill": restore_detail,
         "disk_trend_gb_week": trend,

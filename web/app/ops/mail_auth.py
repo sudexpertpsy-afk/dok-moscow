@@ -68,11 +68,16 @@ def read_mail_auth_ok(settings: Settings | None = None) -> dict[str, Any] | None
 
 
 def write_mail_auth_ok(*, checked_by: str, settings: Settings | None = None) -> Path:
-    path = mail_auth_marker_path(settings)
+    s = settings or get_settings()
+    raw = (s.smtp_from or "").strip()
+    domain = smtp_from_domain(raw)
+    path = mail_auth_marker_path(s)
     payload = {
         "date": utcnow().date().isoformat(),
         "at": utcnow().isoformat(),
         "checked_by": checked_by,
+        "from_domain": domain,
+        "from_email": parse_smtp_from_email(raw),
         "spf": "PASS",
         "dkim": "PASS",
         "dmarc": "PASS",
@@ -80,6 +85,58 @@ def write_mail_auth_ok(*, checked_by: str, settings: Settings | None = None) -> 
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return path
+
+
+def mail_auth_checklist(
+    settings: Settings | None = None,
+) -> tuple[bool, str, str | None, float | None]:
+    """(ok, fact, marker_domain, age_days) для /admin/status.
+
+    ok только если: текущий From @dok.moscow, в маркере from_domain=dok.moscow,
+    возраст маркера < 180 дн. Маркер без from_domain (legacy) — не ok.
+    """
+    s = settings or get_settings()
+    from_ok, from_detail = smtp_from_ok(s)
+    current_domain = smtp_from_domain(s.smtp_from or "")
+    marker = read_mail_auth_ok(s)
+    age = mail_auth_age_days(s)
+    marker_domain = None
+    if marker:
+        marker_domain = str(marker.get("from_domain") or "").strip().lower() or None
+
+    if not from_ok:
+        fact = from_detail
+        if marker_domain:
+            fact = f"{from_detail}; маркер @{marker_domain}"
+        elif marker:
+            fact = f"{from_detail}; маркер без from_domain (нужно переподтвердить)"
+        else:
+            fact = f"{from_detail}; нет mail_auth_ok"
+        return False, fact, marker_domain, age
+
+    if not marker:
+        return False, f"{from_detail}; нет mail_auth_ok", None, None
+
+    if marker_domain != _EXPECTED_DOMAIN:
+        return (
+            False,
+            f"{from_detail}; маркер для @{marker_domain or '—'} (нужен @{_EXPECTED_DOMAIN})",
+            marker_domain,
+            age,
+        )
+
+    if current_domain != marker_domain:
+        return (
+            False,
+            f"маркер @{marker_domain} ≠ текущий From @{current_domain}",
+            marker_domain,
+            age,
+        )
+
+    if age is None or age >= 180:
+        return False, f"{from_detail}; маркер просрочен", marker_domain, age
+
+    return True, f"{from_detail}; маркер {age:.0f} дн.", marker_domain, age
 
 
 def mail_auth_age_days(settings: Settings | None = None) -> float | None:

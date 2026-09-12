@@ -1395,8 +1395,17 @@ def admin_status_mail_confirm(
     _csrf: None = Depends(require_csrf),
 ):
     """W-50 A.6: владелец подтвердил PASS в оригинале письма."""
-    from app.ops.mail_auth import write_mail_auth_ok
+    from urllib.parse import quote
 
+    from app.ops.mail_auth import smtp_from_ok, write_mail_auth_ok
+
+    from_ok, from_detail = smtp_from_ok()
+    if not from_ok:
+        return RedirectResponse(
+            "/admin/status?err="
+            + quote(f"Подтверждение только для From @dok.moscow. Сейчас: {from_detail}"),
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
     write_mail_auth_ok(checked_by=user.email or f"user:{user.id}")
     record_event(
         db,
