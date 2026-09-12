@@ -158,9 +158,69 @@ def test_tone_thresholds():
     assert tone_restore_days(10) == "ok"
     assert tone_restore_days(100) == "warn"
     assert tone_restore_days(200) == "danger"
-    assert tone_mail_auth(from_ok=True, marker_age_days=10) == "ok"
-    assert tone_mail_auth(from_ok=False, marker_age_days=10) == "danger"
-    assert tone_mail_auth(from_ok=True, marker_age_days=None) == "danger"
+
+
+def test_tone_mail_auth_requires_dok_domain_in_marker():
+    assert (
+        tone_mail_auth(
+            from_ok=True,
+            marker_age_days=10,
+            marker_domain="gmail.com",
+            current_domain="gmail.com",
+        )
+        == "danger"
+    )
+    assert (
+        tone_mail_auth(
+            from_ok=True,
+            marker_age_days=10,
+            marker_domain="dok.moscow",
+            current_domain="dok.moscow",
+        )
+        == "ok"
+    )
+    assert (
+        tone_mail_auth(
+            from_ok=True,
+            marker_age_days=10,
+            marker_domain="dok.moscow",
+            current_domain="gmail.com",
+        )
+        == "danger"
+    )
+    # legacy маркер без from_domain
+    assert (
+        tone_mail_auth(
+            from_ok=True,
+            marker_age_days=10,
+            marker_domain=None,
+            current_domain="dok.moscow",
+        )
+        == "danger"
+    )
+
+
+def test_mail_auth_checklist_and_marker_domain(tmp_path, monkeypatch):
+    from app.config import Settings
+    from app.ops import mail_auth as ma
+
+    monkeypatch.setattr(ma, "data_ops_dir", lambda settings=None: tmp_path)
+    bad = Settings(smtp_from="Dok <user@gmail.com>")
+    ok_settings = Settings(smtp_from="Dok <noreply@dok.moscow>")
+
+    assert ma.mail_auth_checklist(bad)[0] is False
+    # подтверждение при gmail — маркер с gmail, зелёным не станет
+    ma.write_mail_auth_ok(checked_by="test", settings=bad)
+    marker = ma.read_mail_auth_ok(bad)
+    assert marker and marker.get("from_domain") == "gmail.com"
+    assert ma.mail_auth_checklist(bad)[0] is False
+
+    # переключаем From на dok.moscow, но маркер ещё gmail — не ok
+    assert ma.mail_auth_checklist(ok_settings)[0] is False
+
+    ma.write_mail_auth_ok(checked_by="test", settings=ok_settings)
+    assert ma.read_mail_auth_ok(ok_settings)["from_domain"] == "dok.moscow"
+    assert ma.mail_auth_checklist(ok_settings)[0] is True
 
 
 def test_smtp_from_ok(monkeypatch):
@@ -238,3 +298,5 @@ def test_deploy_sh_has_prune_keep_logic():
     assert "previous_ok_tag_from_log" in src
     assert "PRE_DEPLOY_TAG" in src
     assert "running_app_image_tag" in src
+    assert "deploy_image_sha" in src
+    assert "org.opencontainers.image.revision" in src

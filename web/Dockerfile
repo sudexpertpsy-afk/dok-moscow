@@ -2,12 +2,18 @@
 FROM python:3.12-slim
 
 ARG APP_VERSION=dev
+ARG GIT_REVISION=unknown
+
+LABEL org.opencontainers.image.revision=${GIT_REVISION} \
+      org.opencontainers.image.title="dok-app" \
+      org.opencontainers.image.description="Док.Москва"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app:/app/core \
     FILES_ROOT=/srv/dok/data/files \
-    APP_VERSION=${APP_VERSION}
+    APP_VERSION=${APP_VERSION} \
+    GIT_REVISION=${GIT_REVISION}
 
 WORKDIR /app
 

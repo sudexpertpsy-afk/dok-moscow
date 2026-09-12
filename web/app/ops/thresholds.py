@@ -111,11 +111,21 @@ def tone_disk_trend(gb_per_week: float | None) -> Tone:
     return "danger"
 
 
-def tone_mail_auth(*, from_ok: bool, marker_age_days: float | None) -> Tone:
+def tone_mail_auth(
+    *,
+    from_ok: bool,
+    marker_age_days: float | None,
+    marker_domain: str | None = None,
+    current_domain: str | None = None,
+) -> Tone:
+    """Зелёный только если From сейчас @dok.moscow, маркер для того же домена и не старше 180 дн."""
+    expected = "dok.moscow"
     if not from_ok:
         return "danger"
-    if marker_age_days is None:
+    if (marker_domain or "").strip().lower() != expected:
         return "danger"
-    if marker_age_days < MAIL_AUTH_OK_DAYS:
-        return "ok"
-    return "danger"
+    if (current_domain or "").strip().lower() != expected:
+        return "danger"
+    if marker_age_days is None or marker_age_days >= MAIL_AUTH_OK_DAYS:
+        return "danger"
+    return "ok"

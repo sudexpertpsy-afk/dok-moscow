@@ -18,7 +18,36 @@
 HOTFIX вебхук-алертов (дедуп + operational без писем) уже снижает
 объём и снимает блокировку по частоте.
 
-## Целевая схема
+## Целевая схема (рекомендация W-50: Яндекс 360)
+
+Личный `gmail.com` как From для `@dok.moscow` **не подходит**: DKIM домена
+через Gmail не получить, SPF/DMARC для dok.moscow не сойдутся. Нужен ящик
+на домене.
+
+Краткий путь — **Яндекс 360 для бизнеса** (домен dok.moscow):
+
+1. Подключить домен, создать `noreply@dok.moscow` (или `alerts@…`).
+2. DNS: SPF `v=spf1 include:_spf.yandex.net ~all`; DKIM из панели Яндекса;
+   DMARC `v=DMARC1; p=none; rua=mailto:…` (позже `p=quarantine`).
+3. В `deploy/.env`:
+   ```bash
+   SMTP_HOST=smtp.yandex.ru
+   SMTP_PORT=465
+   SMTP_USE_TLS=false
+   SMTP_USER=noreply@dok.moscow
+   SMTP_PASSWORD=...   # пароль приложения
+   SMTP_FROM="Док.Москва <noreply@dok.moscow>"
+   ```
+   (порт 465 — implicit SSL в `send_email`; альтернатива 587 + `SMTP_USE_TLS=true`)
+4. После выкладки — `/admin/status` → «Тест доставляемости» → PASS в оригинале
+   → «Подтвердить» (маркер с `from_domain=dok.moscow`).
+
+Альтернатива — почта хостера / Workspace; смысл тот же: From и DKIM на
+`dok.moscow`.
+
+---
+
+## Целевая схема (общее)
 
 1. Почтовый ящик/релей на своём домене, например:
    - Яндекс 360 / Mail.ru для бизнеса / Google Workspace для `dok.moscow`;

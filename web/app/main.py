@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -238,7 +240,11 @@ def create_app() -> FastAPI:
     @app.get("/healthz")
     def healthz():
         s = get_settings()
-        return {"ok": True, "version": s.app_version}
+        revision = (os.environ.get("GIT_REVISION") or "").strip()
+        payload: dict[str, Any] = {"ok": True, "version": s.app_version}
+        if revision and revision != "unknown":
+            payload["revision"] = revision
+        return payload
 
     app.include_router(landing.router)
     app.include_router(demo_api.router)
