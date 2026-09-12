@@ -87,7 +87,48 @@ def test_alembic_upgrade_head_clean_db():
 
     with eng.connect() as conn:
         ver = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
-    assert ver
+    assert ver == "a50bc01"
+
+    # W-50.1: a50bc01 в обе стороны (downgrade -1 → upgrade head)
+    org_cols = {c["name"] for c in inspect(eng).get_columns("organizations")}
+    assert "is_internal" in org_cols
+    inv_cols = {c["name"] for c in inspect(eng).get_columns("invites")}
+    assert "is_active" in inv_cols and "status" in inv_cols
+    assert "signups" in tables
+    pay_cols = {c["name"] for c in inspect(eng).get_columns("payment_settings")}
+    assert "purge_mode" in pay_cols
+
+    down1 = subprocess.run(
+        [sys.executable, "-m", "alembic", "downgrade", "-1"],
+        cwd=str(WEB_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert down1.returncode == 0, down1.stdout + down1.stderr
+    eng.dispose()
+    eng = create_engine(PG_URL)
+    with eng.connect() as conn:
+        ver = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+    assert ver == "b49numbering01"
+    org_cols = {c["name"] for c in inspect(eng).get_columns("organizations")}
+    assert "is_internal" not in org_cols
+    assert "signups" not in set(inspect(eng).get_table_names())
+
+    up_a50 = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=str(WEB_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert up_a50.returncode == 0, up_a50.stdout + up_a50.stderr
+    eng.dispose()
+    eng = create_engine(PG_URL)
+    org_cols = {c["name"] for c in inspect(eng).get_columns("organizations")}
+    assert "is_internal" in org_cols
 
     # W-49: downgrade b49numbering01 обязан работать (откат на v1.1.9).
     down = subprocess.run(
@@ -121,3 +162,7 @@ def test_alembic_upgrade_head_clean_db():
     assert "number_template" in cols
     org_cols = {c["name"] for c in inspect(eng).get_columns("organizations")}
     assert "onboarding" in org_cols
+    assert "is_internal" in org_cols
+    with eng.connect() as conn:
+        ver = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+    assert ver == "a50bc01"

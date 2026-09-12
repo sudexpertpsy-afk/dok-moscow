@@ -48,7 +48,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     -h|--help)
       sed -n '2,6p' "$0"
-      echo "  --rehearse  — репетиция миграции на бэкапе до pull/up"
+      echo "  --rehearse  — pull образа → репетиция alembic на бэкапе → compose up"
       exit 0
       ;;
     *)
@@ -347,14 +347,15 @@ else
   echo "→ docker login: GHCR_TOKEN не задан — ожидается уже выполненный docker login ghcr.io"
 fi
 
-# Подтянуть целевой образ до репетиции (нужен alembic из тега)
-echo "→ docker pull $DOK_IMAGE (для rehearse / heads)"
+# Порядок: pull целевого образа → (--rehearse) → compose pull/up.
+# Репетиции нужен новый образ (alembic из тега), не старый running app.
+echo "→ docker pull $DOK_IMAGE"
 docker pull "$DOK_IMAGE"
 
 if [[ "$REHEARSE" -eq 1 ]]; then
-  echo "→ migrate_rehearsal.sh (до compose pull/up)"
+  echo "→ migrate_rehearsal.sh (образ уже pull, до compose up)"
   if ! DOK_IMAGE="$DOK_IMAGE" OPS_DIR="$OPS_DIR" "$ROOT/deploy/migrate_rehearsal.sh"; then
-    log "✗ migrate_rehearsal failed — деплой прерван"
+    log "✗ migrate_rehearsal failed — деплой прерван, прод не обновлён"
     exit 1
   fi
 else
@@ -365,7 +366,7 @@ else
   fi
 fi
 
-echo "→ docker compose pull $DOK_IMAGE"
+echo "→ docker compose pull (app/worker/ops-agent)"
 docker compose --env-file .env pull app worker ops-agent
 
 seed_templates

@@ -328,3 +328,20 @@ def test_deploy_sh_has_prune_keep_logic():
     assert "--rehearse" in src
     assert "migrate_rehearsal" in src
     assert 'd.get("sha")' in src or "d.get('sha')" in src
+    # W-50.1: pull образа → rehearse → compose up (не наоборот)
+    pull_pos = src.find('docker pull "$DOK_IMAGE"')
+    rehearse_pos = src.find("migrate_rehearsal.sh")
+    up_pos = src.find("docker compose --env-file .env up -d")
+    assert pull_pos > 0 and rehearse_pos > pull_pos and up_pos > rehearse_pos
+
+
+def test_migrate_rehearsal_sh_trap_and_port():
+    src = (
+        Path(__file__).resolve().parents[2] / "deploy" / "migrate_rehearsal.sh"
+    ).read_text(encoding="utf-8")
+    assert "trap cleanup EXIT" in src
+    assert "pick_free_port" in src
+    assert "AGE_IDENTITY" in src
+    assert "backup.key" in src
+    assert "docker rm -f" in src
+    assert "rm -rf \"$WORK\"" in src or 'rm -rf "$WORK"' in src
