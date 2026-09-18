@@ -76,12 +76,15 @@ def _hash_token(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-@router.get("/login", response_class=HTMLResponse)
+@router.api_route("/login", methods=["GET", "HEAD"], response_class=HTMLResponse)
 def login_page(
     request: Request,
     user=Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
+    # HEAD нужен внешним uptime-мониторам (по умолчанию шлют HEAD, иначе 405 = «лежит»).
+    if request.method == "HEAD":
+        return HTMLResponse(content="", status_code=200)
     if user:
         nxt = _safe_next(request.query_params.get("next"))
         if nxt:

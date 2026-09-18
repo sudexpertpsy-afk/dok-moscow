@@ -21,6 +21,13 @@ def test_security_headers(app):
     assert "Док.Москва" in r.text
 
 
+def test_login_head_ok_for_uptime(app):
+    """Uptime-мониторы шлют HEAD; 405 ложно показывает «сайт лежит»."""
+    client, _ = app
+    r = client.head("/login")
+    assert r.status_code == 200
+
+
 def test_login_csrf_required(app):
     client, _ = app
     r = client.post(

@@ -92,17 +92,27 @@ for t in $TABLES; do
   printf '%-22s %12s %12s %s\n' "$t" "$prod" "$drill" "$ok"
 done
 
-echo "→ проверка маркера backup_ok (W-46: host==container FILES_ROOT)"
+echo "→ проверка маркера backup_ok (v1.3.1: data/ops)"
+OPS_DIR="${OPS_DIR:-/srv/dok/data/ops}"
 FILES_ROOT="${FILES_ROOT:-/srv/dok/data/files}"
 MARKER_JSON=""
-if [[ -f "$FILES_ROOT/.ops/backup_ok.json" ]]; then
-  MARKER_JSON="$(cat "$FILES_ROOT/.ops/backup_ok.json")"
+MARKER_PATH=""
+if [[ -f "$OPS_DIR/backup_ok.json" ]]; then
+  MARKER_PATH="$OPS_DIR/backup_ok.json"
+  MARKER_JSON="$(cat "$MARKER_PATH")"
+elif [[ -f "$FILES_ROOT/.ops/backup_ok.json" ]]; then
+  MARKER_PATH="$FILES_ROOT/.ops/backup_ok.json"
+  MARKER_JSON="$(cat "$MARKER_PATH")"
 elif docker compose --env-file .env ps --status running -q app >/dev/null 2>&1; then
   MARKER_JSON="$(docker compose --env-file .env exec -T app \
-    python -c "from pathlib import Path; p=Path('/srv/dok/data/files/.ops/backup_ok.json'); print(p.read_text(encoding='utf-8') if p.is_file() else '')" 2>/dev/null || true)"
+    python -c "from pathlib import Path
+for p in (Path('/srv/dok/data/ops/backup_ok.json'), Path('/srv/dok/data/files/.ops/backup_ok.json')):
+    if p.is_file():
+        print(p.read_text(encoding='utf-8')); break" 2>/dev/null || true)"
+  MARKER_PATH="$OPS_DIR/backup_ok.json"
 fi
 if [[ -n "${MARKER_JSON}" ]]; then
-  echo "  маркер: $FILES_ROOT/.ops/backup_ok.json"
+  echo "  маркер: ${MARKER_PATH:-$OPS_DIR/backup_ok.json}"
   MARKER_JSON="$MARKER_JSON" python3 - <<'PY'
 import json, os
 from datetime import datetime, timezone
@@ -118,7 +128,7 @@ f = data.get("file") or ""
 print(f"  archive_exists={os.path.isfile(f)} path={f}")
 PY
 else
-  echo "  ⚠ маркер backup_ok не найден в $FILES_ROOT/.ops/"
+  echo "  ⚠ маркер backup_ok не найден в $OPS_DIR/ (legacy: $FILES_ROOT/.ops/)"
   FAIL=1
 fi
 echo "→ очистка $DRILL_DB"
