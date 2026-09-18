@@ -89,10 +89,18 @@ def clear_timings() -> None:
 
 
 def ops_dir() -> Path:
-    root = Path(get_settings().files_root)
-    d = root / ".ops"
+    """Единый каталог маркеров: data/ops (рядом с files/), не FILES_ROOT/.ops.
+
+    v1.3.1: метрики, backup_ok, heartbeat — туда же, куда restore_drill / mail_auth_ok.
+    """
+    d = Path(get_settings().files_root).resolve().parent / "ops"
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def _legacy_ops_dir() -> Path:
+    """До v1.3.1: FILES_ROOT/.ops (попадал в файловый бэкап организаций)."""
+    return Path(get_settings().files_root) / ".ops"
 
 
 def write_marker(name: str, **extra: Any) -> None:
@@ -106,6 +114,9 @@ def write_marker(name: str, **extra: Any) -> None:
 
 def read_marker(name: str) -> dict[str, Any] | None:
     path = ops_dir() / f"{name}.json"
+    if not path.is_file():
+        legacy = _legacy_ops_dir() / f"{name}.json"
+        path = legacy if legacy.is_file() else path
     if not path.is_file():
         return None
     try:
@@ -643,15 +654,14 @@ def check_alerts(db: Session) -> list[str]:
         fired.append(key)
 
     backup_age = marker_age_sec("backup_ok")
-    # W-45/G-01 (закрыто W-46): маркер в FILES_ROOT/.ops; host-путь == контейнер
-    # (/srv/dok/data/files). Раньше host ≠ named volume dok_files → слепой статус.
+    # W-46 host==container; v1.3.1 — единый data/ops (не FILES_ROOT/.ops).
     if backup_age is None:
         key = "backup_missing"
         _send_alert(
             key,
             f"[{app_name}] Нет маркера бэкапа",
-            "Маркер backup_ok отсутствует в FILES_ROOT/.ops/.\n"
-            "Проверьте deploy/backup.sh (путь $FILES_ROOT/.ops/backup_ok.json).\n",
+            "Маркер backup_ok отсутствует в data/ops/.\n"
+            "Проверьте deploy/backup.sh (путь $OPS_DIR/backup_ok.json).\n",
         )
         fired.append(key)
     elif backup_age > 26 * 3600:
@@ -660,7 +670,7 @@ def check_alerts(db: Session) -> list[str]:
             key,
             f"[{app_name}] Бэкап не обновлялся",
             f"Маркер backup_ok: {_fmt_age(backup_age)} (порог 26 ч). Проверьте deploy/backup.sh.\n"
-            f"Ожидаемый путь маркера: FILES_ROOT/.ops/backup_ok.json\n",
+            f"Ожидаемый путь маркера: data/ops/backup_ok.json\n",
         )
         fired.append(key)
 

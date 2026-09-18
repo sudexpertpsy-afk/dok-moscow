@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ast
+import json
+import os
 import re
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -14,13 +16,15 @@ REPO = Path(__file__).resolve().parents[2]
 WEB_APP = REPO / "web" / "app"
 
 
-def test_contract_backup_marker_readable_from_files_root(app):
-    """1. app ↔ хранилище: маркер в FILES_ROOT/.ops читается status_snapshot."""
+def test_contract_backup_marker_readable_from_data_ops(app):
+    """1. app ↔ хранилище: маркер в data/ops читается status_snapshot."""
     from app.services.ops import ops_dir, status_snapshot, write_marker
 
     _, dbmod = app
     write_marker("backup_ok", file="/tmp/dok_test.tar.age", stamp="w45")
     assert (ops_dir() / "backup_ok.json").is_file()
+    assert ops_dir().name == "ops"
+    assert ops_dir().parent == Path(os.environ["FILES_ROOT"]).resolve().parent
     db = dbmod.SessionLocal()
     try:
         snap = status_snapshot(db)
@@ -29,6 +33,25 @@ def test_contract_backup_marker_readable_from_files_root(app):
         assert row[2] is True
     finally:
         db.close()
+
+
+def test_contract_backup_marker_legacy_fallback(app):
+    """До переезда: backup_ok в FILES_ROOT/.ops ещё читается, если data/ops пуст."""
+    from app.config import get_settings
+    from app.services.ops import ops_dir, read_marker
+
+    new_path = ops_dir() / "backup_ok.json"
+    if new_path.is_file():
+        new_path.unlink()
+    legacy = Path(get_settings().files_root) / ".ops"
+    legacy.mkdir(parents=True, exist_ok=True)
+    (legacy / "backup_ok.json").write_text(
+        json.dumps({"at": "2026-09-18T00:00:00+00:00", "file": "/tmp/x", "stamp": "legacy"}),
+        encoding="utf-8",
+    )
+    data = read_marker("backup_ok")
+    assert data is not None
+    assert data.get("stamp") == "legacy"
 
 
 def test_contract_init_webhook_receipt_chain(app):

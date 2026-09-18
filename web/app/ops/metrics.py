@@ -1,6 +1,6 @@
 """Запись/чтение суточных метрик без отдельной таблицы (W-50 A; F.2 → ops_metrics).
 
-Хранилище: FILES_ROOT/.ops/metrics.jsonl — одна JSON-строка на (день, key).
+Хранилище: data/ops/metrics.jsonl — одна JSON-строка на (день, key).
 Повторный запуск за тот же день обновляет значение (идемпотентно для тестов).
 """
 
@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from app.models import utcnow
-from app.services.ops import ops_dir
+from app.services.ops import _legacy_ops_dir, ops_dir
 
 log = logging.getLogger("dok.ops.metrics")
 
@@ -21,7 +22,16 @@ _METRICS_FILE = "metrics.jsonl"
 
 
 def _path() -> Path:
-    return ops_dir() / _METRICS_FILE
+    """data/ops; при первом обращении копирует legacy FILES_ROOT/.ops/metrics.jsonl."""
+    path = ops_dir() / _METRICS_FILE
+    if not path.is_file():
+        legacy = _legacy_ops_dir() / _METRICS_FILE
+        if legacy.is_file():
+            try:
+                shutil.copy2(legacy, path)
+            except OSError:
+                log.exception("migrate metrics.jsonl → data/ops failed")
+    return path
 
 
 def record_metric(key: str, *, value_num: float | None = None, value_text: str | None = None) -> None:

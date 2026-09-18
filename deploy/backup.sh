@@ -104,16 +104,16 @@ echo "[$STAMP] → ротация (30 daily / 12 monthly)"
 ls -1t "$DAILY_DIR"/dok_* 2>/dev/null | tail -n +31 | xargs -r rm -f
 ls -1t "$MONTHLY_DIR"/dok_* 2>/dev/null | tail -n +13 | xargs -r rm -f
 
-# W-46: маркер в FILES_ROOT/.ops — тот же путь на хосте и в контейнере.
+# W-46 host==container; v1.3.1 — маркер в data/ops (не FILES_ROOT/.ops).
 export MARKER_FILE="$OUT"
 export MARKER_STAMP="$STAMP"
-export FILES_ROOT="${FILES_ROOT:-/srv/dok/data/files}"
-mkdir -p "$FILES_ROOT/.ops"
+export OPS_DIR="${OPS_DIR:-/srv/dok/data/ops}"
+mkdir -p "$OPS_DIR"
 python3 - <<'PY'
 import json, os
 from datetime import datetime, timezone
 from pathlib import Path
-out = Path(os.environ["FILES_ROOT"]) / ".ops" / "backup_ok.json"
+out = Path(os.environ["OPS_DIR"]) / "backup_ok.json"
 out.write_text(json.dumps({
     "at": datetime.now(timezone.utc).isoformat(),
     "file": os.environ["MARKER_FILE"],

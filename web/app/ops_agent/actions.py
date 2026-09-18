@@ -22,7 +22,8 @@ COMPOSE_PROJECT = os.environ.get("COMPOSE_PROJECT_NAME", "dok")
 REPO_ROOT = Path(os.environ.get("OPS_REPO_ROOT", "/srv/dok"))
 BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", "/var/backups/dok"))
 FILES_ROOT = Path(os.environ.get("FILES_ROOT", "/srv/dok/data/files"))
-OPS_STATE = FILES_ROOT / ".ops"
+# v1.3.1: единый data/ops (не FILES_ROOT/.ops)
+OPS_STATE = Path(os.environ.get("OPS_DIR", str(FILES_ROOT.parent / "ops")))
 DEPLOY_LOG = OPS_STATE / "redeploy.log"
 DEPLOY_STATE = OPS_STATE / "redeploy_state.json"
 

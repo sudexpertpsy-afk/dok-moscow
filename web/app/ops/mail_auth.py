@@ -19,9 +19,12 @@ _EXPECTED_DOMAIN = "dok.moscow"
 
 
 def data_ops_dir(settings: Settings | None = None) -> Path:
-    """Каталог /srv/dok/data/ops (рядом с files/), не FILES_ROOT/.ops."""
-    s = settings or get_settings()
-    d = Path(s.files_root).resolve().parent / "ops"
+    """Каталог /srv/dok/data/ops — тот же, что app.services.ops.ops_dir (v1.3.1)."""
+    if settings is None:
+        from app.services.ops import ops_dir
+
+        return ops_dir()
+    d = Path(settings.files_root).resolve().parent / "ops"
     d.mkdir(parents=True, exist_ok=True)
     return d
 

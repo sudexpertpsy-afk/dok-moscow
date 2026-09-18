@@ -278,6 +278,8 @@ def test_backup_sh_excludes_imports_exports():
     src = text.read_text(encoding="utf-8")
     assert "*/imports" in src
     assert "*/exports" in src
+    assert 'OPS_DIR' in src
+    assert 'Path(os.environ["OPS_DIR"]) / "backup_ok.json"' in src
 
 
 def test_tar_excludes_drop_exports(tmp_path):
