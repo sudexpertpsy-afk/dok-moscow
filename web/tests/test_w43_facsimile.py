@@ -363,3 +363,44 @@ def test_preview_pair_uris_ok():
     previews = preview_pair_uris(data, remove_bg=True)
     for key in ("before_gray", "before_white", "after_gray", "after_white", "in_document"):
         assert previews[key].startswith("data:image/png;base64,")
+
+
+def _noisy_png(w: int, h: int) -> bytes:
+    """PNG без сжатия смысла: шум, чтобы файл стабильно превышал 1 МБ."""
+    import os
+
+    raw = os.urandom(w * h * 3)
+    img = Image.frombytes("RGB", (w, h), raw)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", compress_level=0)
+    return buf.getvalue()
+
+
+def test_branding_upload_accepts_over_1mb(app, tmp_path, monkeypatch):
+    """Starlette режет multipart на 1 МБ по умолчанию — печать с телефона не сохранялась."""
+    client, dbmod = app
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("FILES_ROOT", str(tmp_path))
+    get_settings.cache_clear()
+    try:
+        oid, email = _seed_org(dbmod, email="faxbig@example.com")
+        assert login(client, email, "Passw0rd!").status_code == 303
+        payload = _noisy_png(700, 700)
+        assert len(payload) > 1024 * 1024
+        token = csrf_from(client, "/cabinet/settings/branding")
+        r = client.post(
+            "/cabinet/settings/branding/печать/upload",
+            data={"csrf_token": token, "remove_bg": "1", "bg_threshold": "240"},
+            files={"file": ("stamp.png", payload, "image/png")},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303, r.text[:400]
+        assert "err=" not in r.headers["location"]
+        assert slot_path(oid, SLOT_PECHAT).is_file()
+        page = client.get("/cabinet/settings/branding")
+        assert page.status_code == 200
+        assert "preview.png" in page.text
+    finally:
+        get_settings.cache_clear()

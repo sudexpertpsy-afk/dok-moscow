@@ -14,7 +14,11 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.services.safe_paths import org_files_root, resolve_under
 
-MAX_UPLOAD_BYTES = 2 * 1024 * 1024
+# Входящий файл (скан/фото). Starlette по умолчанию режет часть формы на 1 МБ —
+# типичная печать и подпись с телефона больше, запрос падал 400 и ничего не сохранялось.
+MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+# Длинная сторона сохранённого PNG: хватает для 40 мм при 300 dpi и не раздувает DOCX.
+STORED_MAX_SIDE = 1600
 ALLOWED_CONTENT_TYPES = frozenset({"image/png", "image/jpeg", "image/jpg"})
 DPI = 300
 
@@ -369,6 +373,8 @@ def process_and_save(
         raise BrandingError(verdict.message)
 
     img = _open_verified(data)
+    if max(img.size) > STORED_MAX_SIDE:
+        img.thumbnail((STORED_MAX_SIDE, STORED_MAX_SIDE), Image.Resampling.LANCZOS)
     if remove_bg:
         img = remove_near_white_bg(img, threshold=bg_threshold)
         # низкий контраст после очистки → понизить вердикт

@@ -406,7 +406,7 @@ async def settings_branding_upload(
         return denied
     from urllib.parse import quote
 
-    from app.services.branding import SLOTS, BrandingError, process_and_save
+    from app.services.branding import MAX_UPLOAD_BYTES, SLOTS, BrandingError, process_and_save
     from app.services.branding_access import assert_can_manage_branding
 
     org = get_org_for_user(db, user)
@@ -415,7 +415,15 @@ async def settings_branding_upload(
         return gate
     if slot not in SLOTS:
         return RedirectResponse("/cabinet/settings/branding?err=Неизвестный+слот", status_code=303)
-    form = await request.form()
+    try:
+        form = await request.form(max_part_size=MAX_UPLOAD_BYTES)
+    except HTTPException as exc:
+        if exc.status_code != 400:
+            raise
+        return RedirectResponse(
+            f"/cabinet/settings/branding?err={quote('Файл больше 8 МБ — сожмите изображение и загрузите снова')}",
+            status_code=303,
+        )
     if not check_csrf(request, form.get("csrf_token")):
         raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
     upload = form.get("file")
@@ -518,6 +526,7 @@ async def settings_branding_check(
     if denied is not None:
         return denied
     from app.services.branding import (
+        MAX_UPLOAD_BYTES,
         SLOTS,
         BrandingError,
         VerdictLevel,
@@ -525,7 +534,15 @@ async def settings_branding_check(
         preview_pair_uris,
     )
 
-    form = await request.form()
+    try:
+        form = await request.form(max_part_size=MAX_UPLOAD_BYTES)
+    except HTTPException as exc:
+        if exc.status_code != 400:
+            raise
+        return HTMLResponse(
+            '<p class="badge danger">✗ Не принято — файл больше 8 МБ</p>',
+            status_code=200,
+        )
     if not check_csrf(request, form.get("csrf_token")):
         raise HTTPException(status_code=403, detail="Неверный CSRF-токен")
     slot = str(form.get("slot") or "")
